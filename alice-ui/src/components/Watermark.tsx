@@ -6,11 +6,11 @@ export default function Watermark() {
       alt="ALICE Watermark"
       style={{
         position: "fixed",
-        top: "12px",
-        left: "12px",
-        width: "42px",
+        top: "14px",
+        left: "14px",
+        width: "44px",
         opacity: 0.16,
-        zIndex: 9999,
+        zIndex: 1000,
         pointerEvents: "none",
         filter:
           "drop-shadow(0 0 12px rgba(59,130,246,0.45))",
