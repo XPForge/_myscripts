@@ -3,6 +3,8 @@ import ExclusionControls from "./components/ExclusionControls";
 import ResumeWorkspace from "./resume/ResumeWorkspace";
 import type { JobData } from "./resume/ResumeEngine";
 import React, { useEffect, useMemo, useState } from "react";
+import BootSequence from "./components/BootSequence";
+import Watermark from "./components/Watermark";
 
 import {
   Search,
@@ -575,6 +577,8 @@ function Button({
 // MAIN COMPONENT: APP
 // =====================================================
 export default function App() {
+  const [booted, setBooted] = useState(false);
+
   // =====================================================
   // STATE: FILTERS, EXCLUSIONS, AND USER PREFERENCES
   // =====================================================
@@ -601,6 +605,16 @@ export default function App() {
   // =====================================================
   const [themeMode, setThemeMode] = useState<ThemeName>(initialTheme);
   const theme = themes[themeMode];
+
+  if (!booted) {
+    return (
+      <BootSequence
+        onContinue={() => setBooted(true)}
+        onExperienceMode={() => setBooted(true)}
+      />
+    );
+  }
+
 
   // =====================================================
   // STATE: APP DATA, SELECTED JOB, CHAT, AND LAYOUT
@@ -1000,6 +1014,8 @@ export default function App() {
   // UI ROOT: MAIN THREE-COLUMN APP LAYOUT
   // =====================================================
   return (
+    <>
+    <Watermark />
     <div
       style={{
         minHeight: "100vh",
@@ -2578,5 +2594,6 @@ export default function App() {
         </div>
       )}
     </div>
+</>
   );
 }
