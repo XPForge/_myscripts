@@ -176,7 +176,7 @@ export function rankExperiences(
 export function generateResumeDraft(job: JobData, profile: ResumeProfile) {
   return {
     summary: buildTailoredSummary(job, profile),
-    highlights: buildTailoredHighlights(job, profile),
+    highlights: buildTailoredHighlights(job),
     experiences: rankExperiences(job, profile.experiences),
   };
 }
