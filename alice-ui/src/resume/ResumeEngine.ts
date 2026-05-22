@@ -115,7 +115,7 @@ export function buildTailoredSummary(job: JobData, profile: ResumeProfile) {
   return profile.summarySeed;
 }
 
-export function buildTailoredHighlights(job: JobData, profile: ResumeProfile) {
+export function buildTailoredHighlights(job: JobData) {  
   const text = jobText(job);
 
   const highlights: string[] = [];
