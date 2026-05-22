@@ -495,17 +495,7 @@ export default function App() {
   const [minimumScore, setMinimumScore] = useState(0);
   const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
 
-  /* exclusion controls */
-  const [excludedKeywordInput, setExcludedKeywordInput] = useState("");
-  const [excludedKeywords, setExcludedKeywords] = useState<string[]>([
-    "sales",
-    "commission",
-    "telemarketing",
-  ]);
-  const [excludedIndustries, setExcludedIndustries] = useState<string[]>([
-    "insurance",
-    "retail",
-  ]);
+
 
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
