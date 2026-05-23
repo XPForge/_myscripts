@@ -56,14 +56,22 @@ export default function SwipeCardStack() {
   const startX = useRef(0);
 
   const active = useMemo(() => cards[index], [index]);
-  const next = useMemo(() => cards[(index + 1) % cards.length], [index]);
+  const underlay = useMemo(
+    () => cards[(index + 1) % cards.length],
+    [index]
+  );
 
   const activeTheme = themes[index % 2];
-  const nextTheme = themes[(index + 1) % 2];
+  const underlayTheme = themes[(index + 1) % 2];
 
   const finishSwipe = (direction: number) => {
+    if (isLeaving) return;
+
     setIsLeaving(true);
-    setDragX(direction * window.innerWidth * 1.6);
+
+    requestAnimationFrame(() => {
+      setDragX(direction * window.innerWidth * 1.8);
+    });
 
     setTimeout(() => {
       setIndex((prev) => (prev + 1) % cards.length);
@@ -73,6 +81,7 @@ export default function SwipeCardStack() {
   };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isLeaving) return;
     startX.current = e.touches[0].clientX;
   };
 
@@ -95,33 +104,28 @@ export default function SwipeCardStack() {
     }
   };
 
-  const renderCard = (card: any, theme: any, isBackground = false) => (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        borderRadius: "30px",
-        background: theme.bg,
-        border: "2px solid rgba(148,163,184,0.24)",
-        backdropFilter: "blur(18px)",
-        boxShadow: theme.glow,
-        padding: "24px",
-        color: "#f8fafc",
-        overflowY: "auto",
-        boxSizing: "border-box",
-        zIndex: isBackground ? 1 : 2,
-        transform: isBackground
-          ? "translateX(0px)"
-          : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
-        transition: isLeaving
-          ? "transform 0.26s ease-out"
-          : dragX === 0
-          ? "transform 0.18s ease"
-          : "none",
-      }}
-    >
+  const cardStyles = (
+    theme: any,
+    isBackground = false
+  ) => ({
+    position: "absolute" as const,
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    borderRadius: "30px",
+    background: theme.bg,
+    border: "2px solid rgba(148,163,184,0.24)",
+    backdropFilter: "blur(18px)",
+    boxShadow: theme.glow,
+    padding: "24px",
+    color: "#f8fafc",
+    overflowY: "auto" as const,
+    boxSizing: "border-box" as const,
+    zIndex: isBackground ? 1 : 2,
+  });
+
+  const renderContent = (card: any) => (
+    <>
       <div
         style={{
           fontSize: "12px",
@@ -224,54 +228,7 @@ export default function SwipeCardStack() {
           {card.why}
         </div>
       </div>
-
-      {!isBackground && (
-        <div
-          style={{
-            marginTop: "28px",
-            display: "flex",
-            gap: "12px",
-            paddingBottom: "10px",
-            position: "sticky",
-            bottom: 0,
-            background:
-              "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
-            paddingTop: "18px",
-          }}
-        >
-          <button
-            onClick={() => finishSwipe(-1)}
-            style={{
-              flex: 1,
-              padding: "18px",
-              borderRadius: "20px",
-              border: "none",
-              background: "rgba(239,68,68,0.16)",
-              color: "#fecaca",
-              fontSize: "17px",
-            }}
-          >
-            Pass
-          </button>
-
-          <button
-            onClick={() => finishSwipe(1)}
-            style={{
-              flex: 1,
-              padding: "18px",
-              borderRadius: "20px",
-              border: "none",
-              background: "rgba(59,130,246,0.22)",
-              color: "#dbeafe",
-              fontSize: "17px",
-              fontWeight: 700,
-            }}
-          >
-            Pursue
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   );
 
   return (
@@ -296,19 +253,70 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
-        {renderCard(next, nextTheme, true)}
+        {/* Underlay card exists FIRST and stays stationary */}
+        <div style={cardStyles(underlayTheme, true)}>
+          {renderContent(underlay)}
+        </div>
 
+        {/* Top card physically leaves revealing existing underlay */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 3,
+            ...cardStyles(activeTheme),
+            transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
+            transition: isLeaving
+              ? "transform 0.26s ease-out"
+              : "none",
           }}
         >
-          {renderCard(active, activeTheme)}
+          {renderContent(active)}
+
+          <div
+            style={{
+              marginTop: "28px",
+              display: "flex",
+              gap: "12px",
+              paddingBottom: "10px",
+              position: "sticky",
+              bottom: 0,
+              background:
+                "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
+              paddingTop: "18px",
+            }}
+          >
+            <button
+              onClick={() => finishSwipe(-1)}
+              style={{
+                flex: 1,
+                padding: "18px",
+                borderRadius: "20px",
+                border: "none",
+                background: "rgba(239,68,68,0.16)",
+                color: "#fecaca",
+                fontSize: "17px",
+              }}
+            >
+              Pass
+            </button>
+
+            <button
+              onClick={() => finishSwipe(1)}
+              style={{
+                flex: 1,
+                padding: "18px",
+                borderRadius: "20px",
+                border: "none",
+                background: "rgba(59,130,246,0.22)",
+                color: "#dbeafe",
+                fontSize: "17px",
+                fontWeight: 700,
+              }}
+            >
+              Pursue
+            </button>
+          </div>
         </div>
       </div>
     </div>
