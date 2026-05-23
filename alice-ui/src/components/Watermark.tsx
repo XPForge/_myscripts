@@ -1,4 +1,3 @@
-
 export default function Watermark() {
   return (
     <img
@@ -7,7 +6,7 @@ export default function Watermark() {
       style={{
         position: "fixed",
         top: "14px",
-        left: "14px",
+        right: "14px",
         width: "42px",
         opacity: 0.16,
         zIndex: 1000,
