@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchJobs, JobCard } from "../services/jobService";
+import { fetchJobs, type JobCard } from "../services/jobService";
 
 const themes = [
   {
