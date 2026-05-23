@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 const cards = [
   {
@@ -40,35 +40,44 @@ const cards = [
 export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
+  const [animating, setAnimating] = useState(false);
+
+  const startX = useRef(0);
 
   const activeCard = useMemo(() => cards[index], [index]);
 
   const advance = () => {
-    setDragX(0);
     setIndex((prev) => (prev + 1) % cards.length);
+    setDragX(0);
+    setAnimating(false);
+  };
+
+  const completeSwipe = (direction: number) => {
+    setAnimating(true);
+    setDragX(direction * window.innerWidth);
+
+    setTimeout(() => {
+      advance();
+    }, 260);
   };
 
   const handleTouchStart = (e: any) => {
-    const startX = e.touches[0].clientX;
+    startX.current = e.touches[0].clientX;
+  };
 
-    const move = (ev: any) => {
-      const currentX = ev.touches[0].clientX;
-      setDragX(currentX - startX);
-    };
+  const handleTouchMove = (e: any) => {
+    const currentX = e.touches[0].clientX;
+    setDragX(currentX - startX.current);
+  };
 
-    const end = () => {
-      if (Math.abs(dragX) > 120) {
-        advance();
-      } else {
-        setDragX(0);
-      }
-
-      window.removeEventListener("touchmove", move);
-      window.removeEventListener("touchend", end);
-    };
-
-    window.addEventListener("touchmove", move);
-    window.addEventListener("touchend", end);
+  const handleTouchEnd = () => {
+    if (dragX > 120) {
+      completeSwipe(1);
+    } else if (dragX < -120) {
+      completeSwipe(-1);
+    } else {
+      setDragX(0);
+    }
   };
 
   return (
@@ -76,42 +85,43 @@ export default function SwipeCardStack() {
       style={{
         width: "100%",
         height: "100dvh",
+        overflow: "hidden",
         background:
           "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        overflow: "hidden",
-        padding: "18px",
+        padding: "12px",
       }}
     >
       <div
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{
           width: "100%",
-          maxWidth: "430px",
-          height: "88dvh",
-          borderRadius: "34px",
-          background: "rgba(15,23,42,0.82)",
+          maxWidth: "440px",
+          height: "calc(100dvh - 24px)",
+          borderRadius: "30px",
+          background: "rgba(15,23,42,0.88)",
           border: "1px solid rgba(148,163,184,0.14)",
-          backdropFilter: "blur(20px)",
+          backdropFilter: "blur(18px)",
           boxShadow:
             "0 0 42px rgba(59,130,246,0.14)",
-          padding: "28px",
+          padding: "24px",
           color: "#f8fafc",
           overflowY: "auto",
-          transform: `translateX(${dragX}px) rotate(${dragX / 24}deg)`,
-          transition:
-            dragX === 0
-              ? "transform 0.25s ease"
-              : "none",
+          transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
+          transition: animating || dragX === 0
+            ? "transform 0.26s ease"
+            : "none",
         }}
       >
         <div
           style={{
-            fontSize: "13px",
-            letterSpacing: "0.1em",
-            opacity: 0.65,
+            fontSize: "12px",
+            letterSpacing: "0.12em",
+            opacity: 0.62,
           }}
         >
           STRATEGIC OPPORTUNITY MATCH
@@ -119,8 +129,8 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "16px",
-            fontSize: "38px",
+            marginTop: "14px",
+            fontSize: "clamp(30px, 6vw, 42px)",
             lineHeight: 1,
             fontWeight: 800,
           }}
@@ -130,7 +140,7 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "12px",
+            marginTop: "10px",
             color: "#93c5fd",
             fontSize: "22px",
             fontWeight: 600,
@@ -141,11 +151,13 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "26px",
+            marginTop: "24px",
             display: "flex",
             justifyContent: "space-between",
-            fontSize: "15px",
+            fontSize: "14px",
             color: "#94a3b8",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
           <div>{activeCard.location}</div>
@@ -154,13 +166,13 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "22px",
-            padding: "14px 18px",
-            borderRadius: "18px",
+            marginTop: "20px",
+            padding: "12px 16px",
+            borderRadius: "16px",
             background:
               "rgba(59,130,246,0.12)",
             color: "#dbeafe",
-            fontWeight: 600,
+            fontWeight: 700,
             display: "inline-block",
           }}
         >
@@ -169,9 +181,9 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "34px",
-            fontSize: "18px",
-            lineHeight: 1.8,
+            marginTop: "26px",
+            fontSize: "17px",
+            lineHeight: 1.7,
             color: "#cbd5e1",
           }}
         >
@@ -180,21 +192,21 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "34px",
-            padding: "22px",
-            borderRadius: "24px",
+            marginTop: "28px",
+            padding: "20px",
+            borderRadius: "22px",
             background:
-              "rgba(30,41,59,0.65)",
+              "rgba(30,41,59,0.72)",
             border:
-              "1px solid rgba(148,163,184,0.1)",
+              "1px solid rgba(148,163,184,0.08)",
           }}
         >
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "12px",
               opacity: 0.6,
               letterSpacing: "0.08em",
-              marginBottom: "12px",
+              marginBottom: "10px",
             }}
           >
             WHY THIS FITS YOU
@@ -202,7 +214,7 @@ export default function SwipeCardStack() {
 
           <div
             style={{
-              fontSize: "17px",
+              fontSize: "16px",
               lineHeight: 1.7,
               color: "#e2e8f0",
             }}
@@ -213,18 +225,23 @@ export default function SwipeCardStack() {
 
         <div
           style={{
-            marginTop: "36px",
+            marginTop: "28px",
             display: "flex",
-            gap: "14px",
-            paddingBottom: "24px",
+            gap: "12px",
+            paddingBottom: "10px",
+            position: "sticky",
+            bottom: 0,
+            background:
+              "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
+            paddingTop: "18px",
           }}
         >
           <button
-            onClick={advance}
+            onClick={() => completeSwipe(-1)}
             style={{
               flex: 1,
               padding: "18px",
-              borderRadius: "22px",
+              borderRadius: "20px",
               border: "none",
               background:
                 "rgba(239,68,68,0.16)",
@@ -236,11 +253,11 @@ export default function SwipeCardStack() {
           </button>
 
           <button
-            onClick={advance}
+            onClick={() => completeSwipe(1)}
             style={{
               flex: 1,
               padding: "18px",
-              borderRadius: "22px",
+              borderRadius: "20px",
               border: "none",
               background:
                 "rgba(59,130,246,0.22)",
