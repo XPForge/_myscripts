@@ -9,9 +9,9 @@ const cards = [
     salary: "$110k - $145k",
     alignment: "94%",
     description:
-      "Lead cross-functional innovation initiatives focused on immersive customer experiences, systems integration, and operational creativity. This role values people who can bridge creative thinking with technical execution and improve processes at scale.",
+      "Lead cross-functional innovation initiatives focused on immersive customer experiences, systems integration, and operational creativity.",
     why:
-      "Your systems-thinking, troubleshooting background, and creative production experience strongly align with this opportunity.",
+      "Strong alignment with systems-thinking and creative production experience.",
   },
   {
     role: "Experiential Product Designer",
@@ -20,9 +20,9 @@ const cards = [
     salary: "$95k - $132k",
     alignment: "91%",
     description:
-      "Design interactive product experiences blending visual storytelling, interface design, and emerging technology. Collaborate closely with engineering and strategy teams to prototype and launch immersive digital systems.",
+      "Design immersive interactive product systems combining storytelling, interface design, and emerging technologies.",
     why:
-      "Strong overlap with your AR/VR background, experiential design mindset, and multimedia systems experience.",
+      "Strong overlap with AR/VR and experiential design strengths.",
   },
   {
     role: "Technical Operations Lead",
@@ -31,9 +31,22 @@ const cards = [
     salary: "$120k - $155k",
     alignment: "89%",
     description:
-      "Oversee operational systems, production efficiency, troubleshooting strategy, and team coordination across multiple technology-driven environments. Requires leadership, adaptability, and rapid systems analysis.",
+      "Lead operational troubleshooting, systems optimization, and strategic technical coordination.",
     why:
-      "Your production optimization, military leadership, and technical troubleshooting experience make this a strong strategic fit.",
+      "Strong fit for leadership and process optimization background.",
+  },
+];
+
+const atmospheres = [
+  {
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))",
+    glow: "0 0 42px rgba(59,130,246,0.12)",
+  },
+  {
+    background:
+      "linear-gradient(180deg, rgba(30,41,59,0.98), rgba(15,23,42,0.98))",
+    glow: "0 0 56px rgba(96,165,250,0.20)",
   },
 ];
 
@@ -45,6 +58,13 @@ export default function SwipeCardStack() {
   const startX = useRef(0);
 
   const activeCard = useMemo(() => cards[index], [index]);
+  const nextCard = useMemo(
+    () => cards[(index + 1) % cards.length],
+    [index]
+  );
+
+  const activeTheme = atmospheres[index % 2];
+  const nextTheme = atmospheres[(index + 1) % 2];
 
   const advance = () => {
     setIndex((prev) => (prev + 1) % cards.length);
@@ -80,149 +100,143 @@ export default function SwipeCardStack() {
     }
   };
 
-  return (
+  const renderCard = (
+    card: any,
+    theme: any,
+    isBackground = false
+  ) => (
     <div
       style={{
+        position: "absolute",
         width: "100%",
-        height: "100dvh",
-        overflow: "hidden",
-        background:
-          "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "12px",
+        maxWidth: "440px",
+        height: "calc(100dvh - 24px)",
+        borderRadius: "30px",
+        background: theme.background,
+        border: "1px solid rgba(148,163,184,0.14)",
+        backdropFilter: "blur(18px)",
+        boxShadow: theme.glow,
+        padding: "24px",
+        color: "#f8fafc",
+        overflowY: "auto",
+        transform: isBackground
+          ? "scale(0.96) translateY(18px)"
+          : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
+        transition:
+          animating || dragX === 0
+            ? "all 0.26s ease"
+            : "none",
+        opacity: isBackground ? 0.68 : 1,
+        zIndex: isBackground ? 1 : 2,
       }}
     >
       <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         style={{
-          width: "100%",
-          maxWidth: "440px",
-          height: "calc(100dvh - 24px)",
-          borderRadius: "30px",
-          background: "rgba(15,23,42,0.88)",
-          border: "1px solid rgba(148,163,184,0.14)",
-          backdropFilter: "blur(18px)",
-          boxShadow:
-            "0 0 42px rgba(59,130,246,0.14)",
-          padding: "24px",
-          color: "#f8fafc",
-          overflowY: "auto",
-          transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
-          transition: animating || dragX === 0
-            ? "transform 0.26s ease"
-            : "none",
+          fontSize: "12px",
+          letterSpacing: "0.12em",
+          opacity: 0.62,
+        }}
+      >
+        STRATEGIC OPPORTUNITY MATCH
+      </div>
+
+      <div
+        style={{
+          marginTop: "14px",
+          fontSize: "clamp(30px, 6vw, 42px)",
+          lineHeight: 1,
+          fontWeight: 800,
+        }}
+      >
+        {card.role}
+      </div>
+
+      <div
+        style={{
+          marginTop: "10px",
+          color: "#93c5fd",
+          fontSize: "22px",
+          fontWeight: 600,
+        }}
+      >
+        {card.company}
+      </div>
+
+      <div
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: "14px",
+          color: "#94a3b8",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>{card.location}</div>
+        <div>{card.salary}</div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "20px",
+          padding: "12px 16px",
+          borderRadius: "16px",
+          background:
+            "rgba(59,130,246,0.12)",
+          color: "#dbeafe",
+          fontWeight: 700,
+          display: "inline-block",
+        }}
+      >
+        Alignment Score: {card.alignment}
+      </div>
+
+      <div
+        style={{
+          marginTop: "26px",
+          fontSize: "17px",
+          lineHeight: 1.7,
+          color: "#cbd5e1",
+        }}
+      >
+        {card.description}
+      </div>
+
+      <div
+        style={{
+          marginTop: "28px",
+          padding: "20px",
+          borderRadius: "22px",
+          background:
+            "rgba(30,41,59,0.72)",
+          border:
+            "1px solid rgba(148,163,184,0.08)",
         }}
       >
         <div
           style={{
             fontSize: "12px",
-            letterSpacing: "0.12em",
-            opacity: 0.62,
+            opacity: 0.6,
+            letterSpacing: "0.08em",
+            marginBottom: "10px",
           }}
         >
-          STRATEGIC OPPORTUNITY MATCH
+          WHY THIS FITS YOU
         </div>
 
         <div
           style={{
-            marginTop: "14px",
-            fontSize: "clamp(30px, 6vw, 42px)",
-            lineHeight: 1,
-            fontWeight: 800,
-          }}
-        >
-          {activeCard.role}
-        </div>
-
-        <div
-          style={{
-            marginTop: "10px",
-            color: "#93c5fd",
-            fontSize: "22px",
-            fontWeight: 600,
-          }}
-        >
-          {activeCard.company}
-        </div>
-
-        <div
-          style={{
-            marginTop: "24px",
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "14px",
-            color: "#94a3b8",
-            gap: "12px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>{activeCard.location}</div>
-          <div>{activeCard.salary}</div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "20px",
-            padding: "12px 16px",
-            borderRadius: "16px",
-            background:
-              "rgba(59,130,246,0.12)",
-            color: "#dbeafe",
-            fontWeight: 700,
-            display: "inline-block",
-          }}
-        >
-          Alignment Score: {activeCard.alignment}
-        </div>
-
-        <div
-          style={{
-            marginTop: "26px",
-            fontSize: "17px",
+            fontSize: "16px",
             lineHeight: 1.7,
-            color: "#cbd5e1",
+            color: "#e2e8f0",
           }}
         >
-          {activeCard.description}
+          {card.why}
         </div>
+      </div>
 
-        <div
-          style={{
-            marginTop: "28px",
-            padding: "20px",
-            borderRadius: "22px",
-            background:
-              "rgba(30,41,59,0.72)",
-            border:
-              "1px solid rgba(148,163,184,0.08)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              opacity: 0.6,
-              letterSpacing: "0.08em",
-              marginBottom: "10px",
-            }}
-          >
-            WHY THIS FITS YOU
-          </div>
-
-          <div
-            style={{
-              fontSize: "16px",
-              lineHeight: 1.7,
-              color: "#e2e8f0",
-            }}
-          >
-            {activeCard.why}
-          </div>
-        </div>
-
+      {!isBackground && (
         <div
           style={{
             marginTop: "28px",
@@ -269,6 +283,39 @@ export default function SwipeCardStack() {
             Pursue
           </button>
         </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100dvh",
+        overflow: "hidden",
+        background:
+          "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "12px",
+        position: "relative",
+      }}
+    >
+      {renderCard(nextCard, nextTheme, true)}
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          zIndex: 3,
+        }}
+      >
+        {renderCard(activeCard, activeTheme)}
       </div>
     </div>
   );
