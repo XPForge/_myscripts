@@ -30,16 +30,18 @@ export default function SwipeCardStack() {
 
   const active = useMemo(() => jobs[index], [jobs, index]);
 
-  const underlay = useMemo(
-    () => jobs[(index + 1) % jobs.length],
-    [jobs, index]
-  );
+  const underlay = useMemo(() => {
+    if (index >= jobs.length - 1) return null;
+    return jobs[index + 1];
+  }, [jobs, index]);
 
   const activeTheme = themes[index % 2];
   const underlayTheme = themes[(index + 1) % 2];
 
+  const isAtEnd = jobs.length > 0 && index >= jobs.length - 1;
+
   const finishSwipe = (direction: number) => {
-    if (isLeaving) return;
+    if (isLeaving || isAtEnd) return;
 
     if (direction > 0 && active?.applyUrl) {
       console.log("Saved job:", active.role);
@@ -52,10 +54,33 @@ export default function SwipeCardStack() {
     });
 
     setTimeout(() => {
-      setIndex((prev) => (prev + 1) % jobs.length);
+      setIndex((prev) => Math.min(prev + 1, jobs.length - 1));
       setDragX(0);
       setIsLeaving(false);
     }, 260);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isLeaving || isAtEnd) return;
+    startX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isLeaving || isAtEnd) return;
+    const currentX = e.touches[0].clientX;
+    setDragX(currentX - startX.current);
+  };
+
+  const handleTouchEnd = () => {
+    if (isLeaving || isAtEnd) return;
+
+    if (dragX > 120) {
+      finishSwipe(1);
+    } else if (dragX < -120) {
+      finishSwipe(-1);
+    } else {
+      setDragX(0);
+    }
   };
 
   if (loading) {
@@ -70,6 +95,8 @@ export default function SwipeCardStack() {
             "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
           color: "#dbeafe",
           fontSize: "22px",
+          padding: "24px",
+          textAlign: "center",
         }}
       >
         Initializing strategic opportunities...
@@ -77,14 +104,28 @@ export default function SwipeCardStack() {
     );
   }
 
-  if (!active || !underlay) {
-    return null;
+  if (!active) {
+    return (
+      <div
+        style={{
+          height: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
+          color: "#dbeafe",
+          fontSize: "22px",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        No opportunities were found.
+      </div>
+    );
   }
 
-  const cardStyles = (
-    theme: any,
-    isBackground = false
-  ) => ({
+  const cardStyles = (theme: any, isBackground = false) => ({
     position: "absolute" as const,
     inset: 0,
     width: "100%",
@@ -205,6 +246,24 @@ export default function SwipeCardStack() {
           {job.why}
         </div>
       </div>
+
+      {isAtEnd && (
+        <div
+          style={{
+            marginTop: "28px",
+            padding: "22px",
+            borderRadius: "22px",
+            background: "rgba(59,130,246,0.10)",
+            border: "1px solid rgba(148,163,184,0.12)",
+            textAlign: "center",
+            color: "#dbeafe",
+            fontSize: "18px",
+            fontWeight: 600,
+          }}
+        >
+          End of strategic opportunities reached.
+        </div>
+      )}
     </>
   );
 
@@ -230,71 +289,56 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
-        <div style={cardStyles(underlayTheme, true)}>
-          {renderContent(underlay)}
-        </div>
+        {underlay && (
+          <div style={cardStyles(underlayTheme, true)}>
+            {renderContent(underlay)}
+          </div>
+        )}
 
         <div
-          onTouchStart={(e) => {
-            if (isLeaving) return;
-            startX.current = e.touches[0].clientX;
-          }}
-          onTouchMove={(e) => {
-            if (isLeaving) return;
-            const currentX = e.touches[0].clientX;
-            setDragX(currentX - startX.current);
-          }}
-          onTouchEnd={() => {
-            if (isLeaving) return;
-
-            if (dragX > 120) {
-              finishSwipe(1);
-            } else if (dragX < -120) {
-              finishSwipe(-1);
-            } else {
-              setDragX(0);
-            }
-          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           style={{
             ...cardStyles(activeTheme),
             transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
-            transition: isLeaving
-              ? "transform 0.26s ease-out"
-              : "none",
+            transition: isLeaving ? "transform 0.26s ease-out" : "none",
             zIndex: 3,
           }}
         >
           {renderContent(active)}
 
-          <div
-            style={{
-              marginTop: "28px",
-              display: "flex",
-              gap: "12px",
-              paddingBottom: "10px",
-              position: "sticky",
-              bottom: 0,
-              background:
-                "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
-              paddingTop: "18px",
-            }}
-          >
-            <button
-              onClick={() => window.open(active.applyUrl, "_blank")}
+          {!isAtEnd && (
+            <div
               style={{
-                flex: 1,
-                padding: "18px",
-                borderRadius: "20px",
-                border: "none",
-                background: "rgba(59,130,246,0.22)",
-                color: "#dbeafe",
-                fontSize: "17px",
-                fontWeight: 700,
+                marginTop: "28px",
+                display: "flex",
+                gap: "12px",
+                paddingBottom: "10px",
+                position: "sticky",
+                bottom: 0,
+                background:
+                  "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
+                paddingTop: "18px",
               }}
             >
-              Pursue Opportunity
-            </button>
-          </div>
+              <button
+                onClick={() => window.open(active.applyUrl, "_blank")}
+                style={{
+                  flex: 1,
+                  padding: "18px",
+                  borderRadius: "20px",
+                  border: "none",
+                  background: "rgba(59,130,246,0.22)",
+                  color: "#dbeafe",
+                  fontSize: "17px",
+                  fontWeight: 700,
+                }}
+              >
+                Pursue Opportunity
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
