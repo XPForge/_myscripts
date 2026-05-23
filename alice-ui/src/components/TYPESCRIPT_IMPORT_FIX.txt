@@ -1,0 +1,5 @@
+// REPLACE THE IMPORTS AT THE TOP OF SwipeCardStack.tsx WITH:
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchJobs } from "../services/jobService";
+import type { JobCard } from "../services/jobService";
