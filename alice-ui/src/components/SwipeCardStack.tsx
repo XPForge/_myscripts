@@ -1,41 +1,6 @@
 
-import { useMemo, useRef, useState } from "react";
-
-const cards = [
-  {
-    role: "Creative Systems Strategist",
-    company: "Nova Dynamics",
-    location: "Remote",
-    salary: "$110k - $145k",
-    alignment: "94%",
-    description:
-      "Lead immersive customer experience initiatives, systems integration, and strategic operational innovation.",
-    why:
-      "Strong alignment with systems-thinking and creative production experience.",
-  },
-  {
-    role: "Experiential Product Designer",
-    company: "Aether Labs",
-    location: "Phoenix, AZ",
-    salary: "$95k - $132k",
-    alignment: "91%",
-    description:
-      "Design interactive digital systems blending storytelling, interface design, and emerging technology.",
-    why:
-      "Strong overlap with AR/VR and experiential design strengths.",
-  },
-  {
-    role: "Technical Operations Lead",
-    company: "Helix Industries",
-    location: "Hybrid",
-    salary: "$120k - $155k",
-    alignment: "89%",
-    description:
-      "Lead operational troubleshooting, systems optimization, and technical coordination.",
-    why:
-      "Strong fit for leadership and process optimization background.",
-  },
-];
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchJobs, JobCard } from "../services/jobService";
 
 const themes = [
   {
@@ -49,17 +14,25 @@ const themes = [
 ];
 
 export default function SwipeCardStack() {
+  const [jobs, setJobs] = useState<JobCard[]>([]);
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
-  const [flash, setFlash] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const startX = useRef(0);
 
-  const active = useMemo(() => cards[index], [index]);
+  useEffect(() => {
+    fetchJobs()
+      .then(setJobs)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const active = useMemo(() => jobs[index], [jobs, index]);
+
   const underlay = useMemo(
-    () => cards[(index + 1) % cards.length],
-    [index]
+    () => jobs[(index + 1) % jobs.length],
+    [jobs, index]
   );
 
   const activeTheme = themes[index % 2];
@@ -68,6 +41,10 @@ export default function SwipeCardStack() {
   const finishSwipe = (direction: number) => {
     if (isLeaving) return;
 
+    if (direction > 0 && active?.applyUrl) {
+      console.log("Saved job:", active.role);
+    }
+
     setIsLeaving(true);
 
     requestAnimationFrame(() => {
@@ -75,43 +52,34 @@ export default function SwipeCardStack() {
     });
 
     setTimeout(() => {
-      // FLASH EXACTLY WHEN TOP CARD FINISHES LEAVING
-      setFlash(true);
-
-      setTimeout(() => {
-        setFlash(false);
-      }, 180);
-
-      setIndex((prev) => (prev + 1) % cards.length);
-
+      setIndex((prev) => (prev + 1) % jobs.length);
       setDragX(0);
       setIsLeaving(false);
     }, 260);
   };
 
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (isLeaving) return;
-    startX.current = e.touches[0].clientX;
-  };
+  if (loading) {
+    return (
+      <div
+        style={{
+          height: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
+          color: "#dbeafe",
+          fontSize: "22px",
+        }}
+      >
+        Initializing strategic opportunities...
+      </div>
+    );
+  }
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (isLeaving) return;
-
-    const currentX = e.touches[0].clientX;
-    setDragX(currentX - startX.current);
-  };
-
-  const handleTouchEnd = () => {
-    if (isLeaving) return;
-
-    if (dragX > 120) {
-      finishSwipe(1);
-    } else if (dragX < -120) {
-      finishSwipe(-1);
-    } else {
-      setDragX(0);
-    }
-  };
+  if (!active || !underlay) {
+    return null;
+  }
 
   const cardStyles = (
     theme: any,
@@ -123,24 +91,17 @@ export default function SwipeCardStack() {
     height: "100%",
     borderRadius: "30px",
     background: theme.bg,
-    border: flash && isBackground
-      ? "3px solid rgba(255,255,255,0.95)"
-      : "2px solid rgba(148,163,184,0.24)",
+    border: "2px solid rgba(148,163,184,0.24)",
     backdropFilter: "blur(18px)",
-    boxShadow: flash && isBackground
-      ? "0 0 90px rgba(255,255,255,0.28)"
-      : theme.glow,
+    boxShadow: theme.glow,
     padding: "24px",
     color: "#f8fafc",
     overflowY: "auto" as const,
     boxSizing: "border-box" as const,
     zIndex: isBackground ? 1 : 2,
-    transition: flash
-      ? "box-shadow 0.18s ease, border 0.18s ease"
-      : "none",
   });
 
-  const renderContent = (card: any) => (
+  const renderContent = (job: JobCard) => (
     <>
       <div
         style={{
@@ -160,7 +121,7 @@ export default function SwipeCardStack() {
           fontWeight: 800,
         }}
       >
-        {card.role}
+        {job.role}
       </div>
 
       <div
@@ -171,7 +132,7 @@ export default function SwipeCardStack() {
           fontWeight: 600,
         }}
       >
-        {card.company}
+        {job.company}
       </div>
 
       <div
@@ -185,8 +146,8 @@ export default function SwipeCardStack() {
           flexWrap: "wrap",
         }}
       >
-        <div>{card.location}</div>
-        <div>{card.salary}</div>
+        <div>{job.location}</div>
+        <div>{job.salary}</div>
       </div>
 
       <div
@@ -200,7 +161,7 @@ export default function SwipeCardStack() {
           display: "inline-block",
         }}
       >
-        Alignment Score: {card.alignment}
+        Alignment Score: {job.alignment}
       </div>
 
       <div
@@ -211,7 +172,7 @@ export default function SwipeCardStack() {
           color: "#cbd5e1",
         }}
       >
-        {card.description}
+        {job.description}
       </div>
 
       <div
@@ -241,7 +202,7 @@ export default function SwipeCardStack() {
             color: "#e2e8f0",
           }}
         >
-          {card.why}
+          {job.why}
         </div>
       </div>
     </>
@@ -269,16 +230,31 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
-        {/* UNDERLAY EXISTS FIRST */}
         <div style={cardStyles(underlayTheme, true)}>
           {renderContent(underlay)}
         </div>
 
-        {/* TOP CARD LEAVES */}
         <div
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={(e) => {
+            if (isLeaving) return;
+            startX.current = e.touches[0].clientX;
+          }}
+          onTouchMove={(e) => {
+            if (isLeaving) return;
+            const currentX = e.touches[0].clientX;
+            setDragX(currentX - startX.current);
+          }}
+          onTouchEnd={() => {
+            if (isLeaving) return;
+
+            if (dragX > 120) {
+              finishSwipe(1);
+            } else if (dragX < -120) {
+              finishSwipe(-1);
+            } else {
+              setDragX(0);
+            }
+          }}
           style={{
             ...cardStyles(activeTheme),
             transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
@@ -304,22 +280,7 @@ export default function SwipeCardStack() {
             }}
           >
             <button
-              onClick={() => finishSwipe(-1)}
-              style={{
-                flex: 1,
-                padding: "18px",
-                borderRadius: "20px",
-                border: "none",
-                background: "rgba(239,68,68,0.16)",
-                color: "#fecaca",
-                fontSize: "17px",
-              }}
-            >
-              Pass
-            </button>
-
-            <button
-              onClick={() => finishSwipe(1)}
+              onClick={() => window.open(active.applyUrl, "_blank")}
               style={{
                 flex: 1,
                 padding: "18px",
@@ -331,7 +292,7 @@ export default function SwipeCardStack() {
                 fontWeight: 700,
               }}
             >
-              Pursue
+              Pursue Opportunity
             </button>
           </div>
         </div>
