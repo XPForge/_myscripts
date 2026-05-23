@@ -51,7 +51,7 @@ const themes = [
 export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
-  const [exitX, setExitX] = useState<number | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const startX = useRef(0);
 
@@ -62,13 +62,14 @@ export default function SwipeCardStack() {
   const nextTheme = themes[(index + 1) % 2];
 
   const finishSwipe = (direction: number) => {
-    setExitX(direction * window.innerWidth * 1.6);
+    setIsLeaving(true);
+    setDragX(direction * window.innerWidth * 1.6);
 
     setTimeout(() => {
       setIndex((prev) => (prev + 1) % cards.length);
       setDragX(0);
-      setExitX(null);
-    }, 240);
+      setIsLeaving(false);
+    }, 260);
   };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -76,11 +77,15 @@ export default function SwipeCardStack() {
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isLeaving) return;
+
     const currentX = e.touches[0].clientX;
     setDragX(currentX - startX.current);
   };
 
   const handleTouchEnd = () => {
+    if (isLeaving) return;
+
     if (dragX > 120) {
       finishSwipe(1);
     } else if (dragX < -120) {
@@ -107,16 +112,14 @@ export default function SwipeCardStack() {
         overflowY: "auto",
         boxSizing: "border-box",
         zIndex: isBackground ? 1 : 2,
-        opacity: isBackground ? 1 : 1,
         transform: isBackground
           ? "translateX(0px)"
-          : exitX !== null
-          ? `translateX(${exitX}px) rotate(${exitX / 30}deg)`
           : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
-        transition:
-          exitX !== null || dragX === 0
-            ? "transform 0.24s ease"
-            : "none",
+        transition: isLeaving
+          ? "transform 0.26s ease-out"
+          : dragX === 0
+          ? "transform 0.18s ease"
+          : "none",
       }}
     >
       <div
