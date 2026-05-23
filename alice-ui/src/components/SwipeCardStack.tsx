@@ -52,15 +52,11 @@ export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [exitX, setExitX] = useState<number | null>(null);
-  const [flash, setFlash] = useState(false);
 
   const startX = useRef(0);
 
   const active = useMemo(() => cards[index], [index]);
-  const next = useMemo(
-    () => cards[(index + 1) % cards.length],
-    [index]
-  );
+  const next = useMemo(() => cards[(index + 1) % cards.length], [index]);
 
   const activeTheme = themes[index % 2];
   const nextTheme = themes[(index + 1) % 2];
@@ -72,20 +68,14 @@ export default function SwipeCardStack() {
       setIndex((prev) => (prev + 1) % cards.length);
       setDragX(0);
       setExitX(null);
-
-      setFlash(true);
-
-      setTimeout(() => {
-        setFlash(false);
-      }, 220);
     }, 240);
   };
 
-  const handleTouchStart = (e: any) => {
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     startX.current = e.touches[0].clientX;
   };
 
-  const handleTouchMove = (e: any) => {
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     const currentX = e.touches[0].clientX;
     setDragX(currentX - startX.current);
   };
@@ -100,39 +90,32 @@ export default function SwipeCardStack() {
     }
   };
 
-  const renderCard = (
-    card: any,
-    theme: any,
-    isBackground = false
-  ) => (
+  const renderCard = (card: any, theme: any, isBackground = false) => (
     <div
       style={{
         position: "absolute",
+        inset: 0,
         width: "100%",
-        maxWidth: "440px",
-        height: "calc(100dvh - 30px)",
+        height: "100%",
         borderRadius: "30px",
         background: theme.bg,
-        border: flash && isBackground
-          ? "3px solid rgba(255,255,255,0.92)"
-          : "2px solid rgba(148,163,184,0.24)",
+        border: "2px solid rgba(148,163,184,0.24)",
         backdropFilter: "blur(18px)",
-        boxShadow: flash && isBackground
-          ? "0 0 80px rgba(255,255,255,0.24)"
-          : theme.glow,
+        boxShadow: theme.glow,
         padding: "24px",
         color: "#f8fafc",
         overflowY: "auto",
+        boxSizing: "border-box",
         zIndex: isBackground ? 1 : 2,
-        opacity: isBackground ? 0.96 : 1,
+        opacity: isBackground ? 1 : 1,
         transform: isBackground
-          ? "scale(0.985)"
+          ? "translateX(0px)"
           : exitX !== null
           ? `translateX(${exitX}px) rotate(${exitX / 30}deg)`
           : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
         transition:
-          exitX !== null || dragX === 0 || flash
-            ? "transform 0.24s ease, box-shadow 0.22s ease, border 0.22s ease"
+          exitX !== null || dragX === 0
+            ? "transform 0.24s ease"
             : "none",
       }}
     >
@@ -149,7 +132,7 @@ export default function SwipeCardStack() {
       <div
         style={{
           marginTop: "14px",
-          fontSize: "clamp(30px, 6vw, 42px)",
+          fontSize: "clamp(30px, 8vw, 42px)",
           lineHeight: 1,
           fontWeight: 800,
         }}
@@ -188,8 +171,7 @@ export default function SwipeCardStack() {
           marginTop: "20px",
           padding: "12px 16px",
           borderRadius: "16px",
-          background:
-            "rgba(59,130,246,0.12)",
+          background: "rgba(59,130,246,0.12)",
           color: "#dbeafe",
           fontWeight: 700,
           display: "inline-block",
@@ -214,10 +196,8 @@ export default function SwipeCardStack() {
           marginTop: "28px",
           padding: "20px",
           borderRadius: "22px",
-          background:
-            "rgba(30,41,59,0.72)",
-          border:
-            "1px solid rgba(148,163,184,0.08)",
+          background: "rgba(30,41,59,0.72)",
+          border: "1px solid rgba(148,163,184,0.08)",
         }}
       >
         <div
@@ -263,8 +243,7 @@ export default function SwipeCardStack() {
               padding: "18px",
               borderRadius: "20px",
               border: "none",
-              background:
-                "rgba(239,68,68,0.16)",
+              background: "rgba(239,68,68,0.16)",
               color: "#fecaca",
               fontSize: "17px",
             }}
@@ -279,8 +258,7 @@ export default function SwipeCardStack() {
               padding: "18px",
               borderRadius: "20px",
               border: "none",
-              background:
-                "rgba(59,130,246,0.22)",
+              background: "rgba(59,130,246,0.22)",
               color: "#dbeafe",
               fontSize: "17px",
               fontWeight: 700,
@@ -304,24 +282,31 @@ export default function SwipeCardStack() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "12px",
-        position: "relative",
+        padding: "10px",
+        boxSizing: "border-box",
       }}
     >
-      {renderCard(next, nextTheme, true)}
-
       <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "center",
-          zIndex: 3,
+          position: "relative",
+          width: "min(100%, 440px)",
+          height: "calc(100dvh - 20px)",
         }}
       >
-        {renderCard(active, activeTheme)}
+        {renderCard(next, nextTheme, true)}
+
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 3,
+          }}
+        >
+          {renderCard(active, activeTheme)}
+        </div>
       </div>
     </div>
   );
