@@ -66,7 +66,7 @@ export default function SwipeCardStack() {
   const nextTheme = themes[(index + 1) % 2];
 
   const finishSwipe = (direction: number) => {
-    setExitX(direction * window.innerWidth * 1.4);
+    setExitX(direction * window.innerWidth * 1.6);
 
     setTimeout(() => {
       setIndex((prev) => (prev + 1) % cards.length);
@@ -77,8 +77,8 @@ export default function SwipeCardStack() {
 
       setTimeout(() => {
         setFlash(false);
-      }, 260);
-    }, 260);
+      }, 220);
+    }, 240);
   };
 
   const handleTouchStart = (e: any) => {
@@ -115,16 +115,16 @@ export default function SwipeCardStack() {
         background: theme.bg,
         border: flash && isBackground
           ? "3px solid rgba(255,255,255,0.92)"
-          : "2px solid rgba(148,163,184,0.22)",
+          : "2px solid rgba(148,163,184,0.24)",
         backdropFilter: "blur(18px)",
         boxShadow: flash && isBackground
-          ? "0 0 80px rgba(255,255,255,0.22)"
+          ? "0 0 80px rgba(255,255,255,0.24)"
           : theme.glow,
         padding: "24px",
         color: "#f8fafc",
         overflowY: "auto",
         zIndex: isBackground ? 1 : 2,
-        opacity: isBackground ? 0.92 : 1,
+        opacity: isBackground ? 0.96 : 1,
         transform: isBackground
           ? "scale(0.985)"
           : exitX !== null
@@ -132,7 +132,7 @@ export default function SwipeCardStack() {
           : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
         transition:
           exitX !== null || dragX === 0 || flash
-            ? "all 0.26s ease"
+            ? "transform 0.24s ease, box-shadow 0.22s ease, border 0.22s ease"
             : "none",
       }}
     >
