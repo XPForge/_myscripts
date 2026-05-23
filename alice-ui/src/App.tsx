@@ -563,10 +563,16 @@ function Button({
     },
   };
 
-  return (
-    <>
-      <Watermark />
 
+  if (!bootComplete) {
+    return (
+      <BootSequence
+        onComplete={() => setBootComplete(true)}
+      />
+    );
+  }
+
+  return (
     <button
       onClick={onClick}
       style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
@@ -581,11 +587,6 @@ function Button({
 // =====================================================
 export default function App() {
   const [bootComplete, setBootComplete] = useState(false);
-
-  if (!bootComplete) {
-    return <BootSequence onComplete={() => setBootComplete(true)} />;
-  }
-
   // =====================================================
   // STATE: FILTERS, EXCLUSIONS, AND USER PREFERENCES
   // =====================================================
@@ -1011,6 +1012,8 @@ export default function App() {
   // UI ROOT: MAIN THREE-COLUMN APP LAYOUT
   // =====================================================
   return (
+    <>
+      <Watermark />
     <div
       style={{
         minHeight: "100vh",
@@ -2589,7 +2592,6 @@ export default function App() {
         </div>
       )}
     </div>
-  
     </>
-);
+  );
 }

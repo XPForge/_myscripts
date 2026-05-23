@@ -1,8 +1,9 @@
+
 export default function Watermark() {
   return (
     <img
       src="/ALICE-Watermark_w-Alpha.PNG"
-      alt="ALICE"
+      alt="ALICE Watermark"
       style={{
         position: "fixed",
         top: "14px",
@@ -11,7 +12,8 @@ export default function Watermark() {
         opacity: 0.16,
         zIndex: 1000,
         pointerEvents: "none",
-        filter: "drop-shadow(0 0 12px rgba(59,130,246,0.45))",
+        filter:
+          "drop-shadow(0 0 12px rgba(59,130,246,0.45))",
       }}
     />
   );
