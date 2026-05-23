@@ -9,7 +9,7 @@ const cards = [
     salary: "$110k - $145k",
     alignment: "94%",
     description:
-      "Lead cross-functional innovation initiatives focused on immersive customer experiences, systems integration, and operational creativity.",
+      "Lead immersive customer experience initiatives, systems integration, and strategic operational innovation.",
     why:
       "Strong alignment with systems-thinking and creative production experience.",
   },
@@ -20,7 +20,7 @@ const cards = [
     salary: "$95k - $132k",
     alignment: "91%",
     description:
-      "Design immersive interactive product systems combining storytelling, interface design, and emerging technologies.",
+      "Design interactive digital systems blending storytelling, interface design, and emerging technology.",
     why:
       "Strong overlap with AR/VR and experiential design strengths.",
   },
@@ -31,53 +31,46 @@ const cards = [
     salary: "$120k - $155k",
     alignment: "89%",
     description:
-      "Lead operational troubleshooting, systems optimization, and strategic technical coordination.",
+      "Lead operational troubleshooting, systems optimization, and technical coordination.",
     why:
       "Strong fit for leadership and process optimization background.",
   },
 ];
 
-const atmospheres = [
+const themes = [
   {
-    background:
-      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))",
+    bg: "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))",
     glow: "0 0 42px rgba(59,130,246,0.12)",
   },
   {
-    background:
-      "linear-gradient(180deg, rgba(30,41,59,0.98), rgba(15,23,42,0.98))",
-    glow: "0 0 56px rgba(96,165,250,0.20)",
+    bg: "linear-gradient(180deg, rgba(30,41,59,0.98), rgba(15,23,42,0.98))",
+    glow: "0 0 56px rgba(96,165,250,0.18)",
   },
 ];
 
 export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
-  const [animating, setAnimating] = useState(false);
+  const [exitX, setExitX] = useState<number | null>(null);
 
   const startX = useRef(0);
 
-  const activeCard = useMemo(() => cards[index], [index]);
-  const nextCard = useMemo(
+  const active = useMemo(() => cards[index], [index]);
+  const next = useMemo(
     () => cards[(index + 1) % cards.length],
     [index]
   );
 
-  const activeTheme = atmospheres[index % 2];
-  const nextTheme = atmospheres[(index + 1) % 2];
+  const activeTheme = themes[index % 2];
+  const nextTheme = themes[(index + 1) % 2];
 
-  const advance = () => {
-    setIndex((prev) => (prev + 1) % cards.length);
-    setDragX(0);
-    setAnimating(false);
-  };
-
-  const completeSwipe = (direction: number) => {
-    setAnimating(true);
-    setDragX(direction * window.innerWidth);
+  const finishSwipe = (direction: number) => {
+    setExitX(direction * window.innerWidth * 1.4);
 
     setTimeout(() => {
-      advance();
+      setIndex((prev) => (prev + 1) % cards.length);
+      setDragX(0);
+      setExitX(null);
     }, 260);
   };
 
@@ -92,9 +85,9 @@ export default function SwipeCardStack() {
 
   const handleTouchEnd = () => {
     if (dragX > 120) {
-      completeSwipe(1);
+      finishSwipe(1);
     } else if (dragX < -120) {
-      completeSwipe(-1);
+      finishSwipe(-1);
     } else {
       setDragX(0);
     }
@@ -110,24 +103,26 @@ export default function SwipeCardStack() {
         position: "absolute",
         width: "100%",
         maxWidth: "440px",
-        height: "calc(100dvh - 24px)",
+        height: "calc(100dvh - 30px)",
         borderRadius: "30px",
-        background: theme.background,
+        background: theme.bg,
         border: "1px solid rgba(148,163,184,0.14)",
         backdropFilter: "blur(18px)",
         boxShadow: theme.glow,
         padding: "24px",
         color: "#f8fafc",
         overflowY: "auto",
+        zIndex: isBackground ? 1 : 2,
+        opacity: isBackground ? 0.82 : 1,
         transform: isBackground
-          ? "scale(0.96) translateY(18px)"
+          ? "translate(18px, 14px) rotate(1.6deg) scale(0.97)"
+          : exitX !== null
+          ? `translateX(${exitX}px) rotate(${exitX / 30}deg)`
           : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
         transition:
-          animating || dragX === 0
-            ? "all 0.26s ease"
+          exitX !== null || dragX === 0
+            ? "transform 0.26s ease, box-shadow 0.3s ease"
             : "none",
-        opacity: isBackground ? 0.68 : 1,
-        zIndex: isBackground ? 1 : 2,
       }}
     >
       <div
@@ -251,7 +246,7 @@ export default function SwipeCardStack() {
           }}
         >
           <button
-            onClick={() => completeSwipe(-1)}
+            onClick={() => finishSwipe(-1)}
             style={{
               flex: 1,
               padding: "18px",
@@ -267,7 +262,7 @@ export default function SwipeCardStack() {
           </button>
 
           <button
-            onClick={() => completeSwipe(1)}
+            onClick={() => finishSwipe(1)}
             style={{
               flex: 1,
               padding: "18px",
@@ -302,7 +297,7 @@ export default function SwipeCardStack() {
         position: "relative",
       }}
     >
-      {renderCard(nextCard, nextTheme, true)}
+      {renderCard(next, nextTheme, true)}
 
       <div
         onTouchStart={handleTouchStart}
@@ -315,7 +310,7 @@ export default function SwipeCardStack() {
           zIndex: 3,
         }}
       >
-        {renderCard(activeCard, activeTheme)}
+        {renderCard(active, activeTheme)}
       </div>
     </div>
   );
