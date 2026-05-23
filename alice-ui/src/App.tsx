@@ -1,5 +1,4 @@
 
-import React from "react";
 import Watermark from "./components/Watermark";
 
 export default function App() {
