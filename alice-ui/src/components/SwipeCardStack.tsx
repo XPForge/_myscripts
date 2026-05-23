@@ -52,6 +52,7 @@ export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [exitX, setExitX] = useState<number | null>(null);
+  const [flash, setFlash] = useState(false);
 
   const startX = useRef(0);
 
@@ -71,6 +72,12 @@ export default function SwipeCardStack() {
       setIndex((prev) => (prev + 1) % cards.length);
       setDragX(0);
       setExitX(null);
+
+      setFlash(true);
+
+      setTimeout(() => {
+        setFlash(false);
+      }, 260);
     }, 260);
   };
 
@@ -106,22 +113,26 @@ export default function SwipeCardStack() {
         height: "calc(100dvh - 30px)",
         borderRadius: "30px",
         background: theme.bg,
-        border: "1px solid rgba(148,163,184,0.14)",
+        border: flash && isBackground
+          ? "3px solid rgba(255,255,255,0.92)"
+          : "2px solid rgba(148,163,184,0.22)",
         backdropFilter: "blur(18px)",
-        boxShadow: theme.glow,
+        boxShadow: flash && isBackground
+          ? "0 0 80px rgba(255,255,255,0.22)"
+          : theme.glow,
         padding: "24px",
         color: "#f8fafc",
         overflowY: "auto",
         zIndex: isBackground ? 1 : 2,
-        opacity: isBackground ? 0.82 : 1,
+        opacity: isBackground ? 0.92 : 1,
         transform: isBackground
-          ? "translate(18px, 14px) rotate(1.6deg) scale(0.97)"
+          ? "scale(0.985)"
           : exitX !== null
           ? `translateX(${exitX}px) rotate(${exitX / 30}deg)`
           : `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
         transition:
-          exitX !== null || dragX === 0
-            ? "transform 0.26s ease, box-shadow 0.3s ease"
+          exitX !== null || dragX === 0 || flash
+            ? "all 0.26s ease"
             : "none",
       }}
     >
