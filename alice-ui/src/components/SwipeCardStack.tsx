@@ -52,6 +52,7 @@ export default function SwipeCardStack() {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   const startX = useRef(0);
 
@@ -74,7 +75,15 @@ export default function SwipeCardStack() {
     });
 
     setTimeout(() => {
+      // FLASH EXACTLY WHEN TOP CARD FINISHES LEAVING
+      setFlash(true);
+
+      setTimeout(() => {
+        setFlash(false);
+      }, 180);
+
       setIndex((prev) => (prev + 1) % cards.length);
+
       setDragX(0);
       setIsLeaving(false);
     }, 260);
@@ -114,14 +123,21 @@ export default function SwipeCardStack() {
     height: "100%",
     borderRadius: "30px",
     background: theme.bg,
-    border: "2px solid rgba(148,163,184,0.24)",
+    border: flash && isBackground
+      ? "3px solid rgba(255,255,255,0.95)"
+      : "2px solid rgba(148,163,184,0.24)",
     backdropFilter: "blur(18px)",
-    boxShadow: theme.glow,
+    boxShadow: flash && isBackground
+      ? "0 0 90px rgba(255,255,255,0.28)"
+      : theme.glow,
     padding: "24px",
     color: "#f8fafc",
     overflowY: "auto" as const,
     boxSizing: "border-box" as const,
     zIndex: isBackground ? 1 : 2,
+    transition: flash
+      ? "box-shadow 0.18s ease, border 0.18s ease"
+      : "none",
   });
 
   const renderContent = (card: any) => (
@@ -253,12 +269,12 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
-        {/* Underlay card exists FIRST and stays stationary */}
+        {/* UNDERLAY EXISTS FIRST */}
         <div style={cardStyles(underlayTheme, true)}>
           {renderContent(underlay)}
         </div>
 
-        {/* Top card physically leaves revealing existing underlay */}
+        {/* TOP CARD LEAVES */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -269,6 +285,7 @@ export default function SwipeCardStack() {
             transition: isLeaving
               ? "transform 0.26s ease-out"
               : "none",
+            zIndex: 3,
           }}
         >
           {renderContent(active)}
