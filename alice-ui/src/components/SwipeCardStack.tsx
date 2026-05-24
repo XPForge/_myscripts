@@ -19,31 +19,51 @@ export function getTier(alignment: string): MatchTier {
 
 const tierVisuals: Record<
   MatchTier,
-  { bg: string; border: string; glow: string; gradeColor: string }
+  {
+    bg: string;
+    border: string;
+    glow: string;
+    gradeColor: string;
+    percentColor: string;
+    matchColor: string;
+    textShadow: string;
+  }
 > = {
   "A+": {
-    bg: "linear-gradient(145deg, rgba(34,197,94,0.28), rgba(15,23,42,0.55))",
-    border: "rgba(74,222,128,0.42)",
-    glow: "0 0 22px rgba(34,197,94,0.55), 0 0 48px rgba(34,197,94,0.28)",
-    gradeColor: "#86efac",
+    bg: "linear-gradient(145deg, rgba(22,163,74,0.82), rgba(5,46,22,0.92))",
+    border: "rgba(134,239,172,0.65)",
+    glow: "0 0 26px rgba(34,197,94,0.65), 0 0 52px rgba(34,197,94,0.32)",
+    gradeColor: "#ecfdf5",
+    percentColor: "#ffffff",
+    matchColor: "rgba(236,253,245,0.95)",
+    textShadow: "0 1px 4px rgba(0,0,0,0.5)",
   },
   A: {
-    bg: "linear-gradient(145deg, rgba(59,130,246,0.26), rgba(15,23,42,0.55))",
-    border: "rgba(96,165,250,0.38)",
-    glow: "0 0 18px rgba(59,130,246,0.42), 0 0 40px rgba(59,130,246,0.2)",
-    gradeColor: "#93c5fd",
+    bg: "linear-gradient(145deg, rgba(34,197,94,0.72), rgba(6,78,59,0.9))",
+    border: "rgba(110,231,183,0.58)",
+    glow: "0 0 20px rgba(52,211,153,0.55), 0 0 44px rgba(52,211,153,0.26)",
+    gradeColor: "#d1fae5",
+    percentColor: "#ffffff",
+    matchColor: "rgba(236,253,245,0.92)",
+    textShadow: "0 1px 4px rgba(0,0,0,0.48)",
   },
   B: {
-    bg: "linear-gradient(145deg, rgba(168,85,247,0.22), rgba(15,23,42,0.55))",
-    border: "rgba(192,132,252,0.32)",
-    glow: "0 0 14px rgba(168,85,247,0.32), 0 0 32px rgba(168,85,247,0.14)",
-    gradeColor: "#d8b4fe",
+    bg: "linear-gradient(145deg, rgba(217,119,6,0.78), rgba(69,26,3,0.92))",
+    border: "rgba(252,211,77,0.62)",
+    glow: "0 0 18px rgba(245,158,11,0.55), 0 0 38px rgba(245,158,11,0.24)",
+    gradeColor: "#fffbeb",
+    percentColor: "#ffffff",
+    matchColor: "rgba(255,251,235,0.94)",
+    textShadow: "0 1px 4px rgba(0,0,0,0.52)",
   },
   C: {
-    bg: "linear-gradient(145deg, rgba(100,116,139,0.24), rgba(15,23,42,0.55))",
-    border: "rgba(148,163,184,0.28)",
-    glow: "0 0 10px rgba(148,163,184,0.22), 0 0 24px rgba(148,163,184,0.1)",
-    gradeColor: "#cbd5e1",
+    bg: "linear-gradient(145deg, rgba(220,38,38,0.8), rgba(69,10,10,0.94))",
+    border: "rgba(252,165,165,0.62)",
+    glow: "0 0 16px rgba(239,68,68,0.58), 0 0 36px rgba(239,68,68,0.28)",
+    gradeColor: "#fef2f2",
+    percentColor: "#ffffff",
+    matchColor: "rgba(254,242,242,0.94)",
+    textShadow: "0 1px 4px rgba(0,0,0,0.55)",
   },
 };
 
@@ -84,6 +104,7 @@ function TacticalMatchBadge({ alignment }: { alignment: string }) {
           letterSpacing: "0.06em",
           color: visuals.gradeColor,
           lineHeight: 1,
+          textShadow: visuals.textShadow,
         }}
       >
         {tier}
@@ -93,8 +114,8 @@ function TacticalMatchBadge({ alignment }: { alignment: string }) {
           fontSize: "28px",
           fontWeight: 800,
           lineHeight: 1,
-          color: "#f8fafc",
-          textShadow: "0 0 18px rgba(248,250,252,0.35)",
+          color: visuals.percentColor,
+          textShadow: visuals.textShadow,
         }}
       >
         {percent}%
@@ -104,8 +125,9 @@ function TacticalMatchBadge({ alignment }: { alignment: string }) {
           fontSize: "9px",
           fontWeight: 700,
           letterSpacing: "0.14em",
-          color: "rgba(226,232,240,0.72)",
+          color: visuals.matchColor,
           lineHeight: 1,
+          textShadow: visuals.textShadow,
         }}
       >
         MATCH
