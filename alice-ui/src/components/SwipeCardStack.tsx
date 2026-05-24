@@ -1,5 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchJobs, type JobCard } from "../services/jobService";
 import {
   loadDismissedJobs,
@@ -8,7 +9,7 @@ import {
   persistSavedJobs,
 } from "../services/jobPersistence";
 import SavedJobsPanel from "./SavedJobsPanel";
-import TopCommandBar, { COMMAND_BAR_HEIGHT } from "./TopCommandBar";
+import TopCommandBar from "./TopCommandBar";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -169,34 +170,32 @@ export default function SwipeCardStack() {
 
   const startX = useRef(0);
 
-  const commandChromeOffset = `calc(${COMMAND_BAR_HEIGHT}px + env(safe-area-inset-top, 0px))`;
-  const cardStackHeight = `calc(100dvh - ${COMMAND_BAR_HEIGHT}px - env(safe-area-inset-top, 0px) - 20px)`;
-
-  const commandChrome = (
-    <>
-      <TopCommandBar
-        savedCount={savedJobs.length}
-        onSavedClick={() => setSavedPanelOpen((open) => !open)}
-        isSavedPanelOpen={savedPanelOpen}
-      />
-      <SavedJobsPanel
-        isOpen={savedPanelOpen}
-        jobs={savedJobs}
-        onClose={() => setSavedPanelOpen(false)}
-      />
-    </>
+  const savedPanel = (
+    <SavedJobsPanel
+      isOpen={savedPanelOpen}
+      jobs={savedJobs}
+      onClose={() => setSavedPanelOpen(false)}
+    />
   );
 
   const shellStyle = {
     width: "100%" as const,
     height: "100dvh" as const,
-    overflow: "hidden" as const,
+    display: "flex" as const,
+    flexDirection: "column" as const,
     background:
       "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
-    paddingTop: commandChromeOffset,
-    paddingLeft: "10px",
-    paddingRight: "10px",
-    paddingBottom: "10px",
+    boxSizing: "border-box" as const,
+  };
+
+  const cardAreaStyle = {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden" as const,
+    display: "flex" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    padding: "10px",
     boxSizing: "border-box" as const,
   };
 
@@ -281,13 +280,15 @@ export default function SwipeCardStack() {
   if (loading) {
     return (
       <div style={shellStyle}>
-        {commandChrome}
+        <TopCommandBar
+          savedCount={savedJobs.length}
+          onSavedClick={() => setSavedPanelOpen((open) => !open)}
+          isSavedPanelOpen={savedPanelOpen}
+        />
+        {createPortal(savedPanel, document.body)}
         <div
           style={{
-            height: cardStackHeight,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            ...cardAreaStyle,
             color: "#dbeafe",
             fontSize: "22px",
             padding: "24px",
@@ -303,13 +304,15 @@ export default function SwipeCardStack() {
   if (!active) {
     return (
       <div style={shellStyle}>
-        {commandChrome}
+        <TopCommandBar
+          savedCount={savedJobs.length}
+          onSavedClick={() => setSavedPanelOpen((open) => !open)}
+          isSavedPanelOpen={savedPanelOpen}
+        />
+        {createPortal(savedPanel, document.body)}
         <div
           style={{
-            height: cardStackHeight,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            ...cardAreaStyle,
             color: "#dbeafe",
             fontSize: "22px",
             padding: "24px",
@@ -469,23 +472,22 @@ export default function SwipeCardStack() {
   );
 
   return (
-    <div
-      style={{
-        ...shellStyle,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {commandChrome}
+    <div style={shellStyle}>
+      <TopCommandBar
+        savedCount={savedJobs.length}
+        onSavedClick={() => setSavedPanelOpen((open) => !open)}
+        isSavedPanelOpen={savedPanelOpen}
+      />
+      {createPortal(savedPanel, document.body)}
 
-      <div
-        style={{
-          position: "relative",
-          width: "min(100%, 440px)",
-          height: cardStackHeight,
-        }}
-      >
+      <div style={cardAreaStyle}>
+        <div
+          style={{
+            position: "relative",
+            width: "min(100%, 440px)",
+            height: "100%",
+          }}
+        >
         {underlay && renderCard(underlay, underlayTheme, true)}
 
         <div
@@ -535,6 +537,7 @@ export default function SwipeCardStack() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

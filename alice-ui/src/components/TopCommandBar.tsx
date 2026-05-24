@@ -14,13 +14,12 @@ export default function TopCommandBar({
   return (
     <header
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
+        position: "relative",
+        flexShrink: 0,
+        width: "100%",
         height: `calc(${COMMAND_BAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
         paddingTop: "env(safe-area-inset-top, 0px)",
-        zIndex: 200,
+        zIndex: 20,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -28,12 +27,12 @@ export default function TopCommandBar({
         paddingRight: "18px",
         boxSizing: "border-box",
         background:
-          "linear-gradient(180deg, rgba(15,23,42,0.88), rgba(15,23,42,0.62))",
+          "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94))",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(148,163,184,0.14)",
+        borderBottom: "1px solid rgba(148,163,184,0.22)",
         boxShadow:
-          "0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(2,6,23,0.45)",
+          "0 1px 0 rgba(255,255,255,0.06), 0 10px 36px rgba(2,6,23,0.55)",
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
