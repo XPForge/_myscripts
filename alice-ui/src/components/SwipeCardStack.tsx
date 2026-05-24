@@ -313,11 +313,16 @@ export default function SwipeCardStack() {
     minHeight: 0,
     display: "flex" as const,
     flexDirection: "column" as const,
-    overflowY: "auto" as const,
-    overflowX: "hidden" as const,
+    overflow: "hidden" as const,
     padding: "24px",
+    paddingBottom: "12px",
     boxSizing: "border-box" as const,
-    WebkitOverflowScrolling: "touch" as const,
+  };
+
+  const cardFooterStyles = {
+    flexShrink: 0,
+    padding: "0 24px 20px",
+    boxSizing: "border-box" as const,
   };
 
   const renderCard = (job: JobCard, theme: any, isBackground = false) => (
@@ -385,11 +390,12 @@ export default function SwipeCardStack() {
 
       <div
         style={{
-          marginTop: "28px",
-          padding: "20px",
+          marginTop: "16px",
+          padding: "16px",
           borderRadius: "22px",
           background: "rgba(30,41,59,0.72)",
           border: "1px solid rgba(148,163,184,0.08)",
+          flexShrink: 0,
         }}
       >
         <div
@@ -457,41 +463,33 @@ export default function SwipeCardStack() {
           }}
         >
           <TacticalMatchBadge alignment={active.alignment} />
-          <div style={cardBodyStyles}>
-            {renderContent(active, false)}
+          <div style={cardBodyStyles}>{renderContent(active, false)}</div>
 
-            {!isAtEnd && (
-              <div
+          {!isAtEnd && (
+            <div style={cardFooterStyles}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(active.applyUrl, "_blank");
+                }}
                 style={{
-                  marginTop: "28px",
-                  display: "flex",
-                  gap: "12px",
-                  paddingBottom: "10px",
-                  position: "sticky",
-                  bottom: 0,
-                  background:
-                    "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
-                  paddingTop: "18px",
+                  width: "100%",
+                  padding: "18px",
+                  borderRadius: "20px",
+                  border: "none",
+                  background: "rgba(59,130,246,0.22)",
+                  color: "#dbeafe",
+                  fontSize: "17px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  touchAction: "manipulation",
                 }}
               >
-                <button
-                  onClick={() => window.open(active.applyUrl, "_blank")}
-                  style={{
-                    flex: 1,
-                    padding: "18px",
-                    borderRadius: "20px",
-                    border: "none",
-                    background: "rgba(59,130,246,0.22)",
-                    color: "#dbeafe",
-                    fontSize: "17px",
-                    fontWeight: 700,
-                  }}
-                >
-                  Pursue Opportunity
-                </button>
-              </div>
-            )}
-          </div>
+                Pursue Opportunity
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
