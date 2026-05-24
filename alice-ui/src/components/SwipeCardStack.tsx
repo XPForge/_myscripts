@@ -2,6 +2,118 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchJobs, type JobCard } from "../services/jobService";
 
+type MatchTier = "A+" | "A" | "B" | "C";
+
+function parseAlignmentPercent(alignment: string): number {
+  const parsed = parseInt(alignment.replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function getTier(alignment: string): MatchTier {
+  const pct = parseAlignmentPercent(alignment);
+  if (pct >= 92) return "A+";
+  if (pct >= 84) return "A";
+  if (pct >= 74) return "B";
+  return "C";
+}
+
+const tierVisuals: Record<
+  MatchTier,
+  { bg: string; border: string; glow: string; gradeColor: string }
+> = {
+  "A+": {
+    bg: "linear-gradient(145deg, rgba(34,197,94,0.28), rgba(15,23,42,0.55))",
+    border: "rgba(74,222,128,0.42)",
+    glow: "0 0 22px rgba(34,197,94,0.55), 0 0 48px rgba(34,197,94,0.28)",
+    gradeColor: "#86efac",
+  },
+  A: {
+    bg: "linear-gradient(145deg, rgba(59,130,246,0.26), rgba(15,23,42,0.55))",
+    border: "rgba(96,165,250,0.38)",
+    glow: "0 0 18px rgba(59,130,246,0.42), 0 0 40px rgba(59,130,246,0.2)",
+    gradeColor: "#93c5fd",
+  },
+  B: {
+    bg: "linear-gradient(145deg, rgba(168,85,247,0.22), rgba(15,23,42,0.55))",
+    border: "rgba(192,132,252,0.32)",
+    glow: "0 0 14px rgba(168,85,247,0.32), 0 0 32px rgba(168,85,247,0.14)",
+    gradeColor: "#d8b4fe",
+  },
+  C: {
+    bg: "linear-gradient(145deg, rgba(100,116,139,0.24), rgba(15,23,42,0.55))",
+    border: "rgba(148,163,184,0.28)",
+    glow: "0 0 10px rgba(148,163,184,0.22), 0 0 24px rgba(148,163,184,0.1)",
+    gradeColor: "#cbd5e1",
+  },
+};
+
+function TacticalMatchBadge({ alignment }: { alignment: string }) {
+  const tier = getTier(alignment);
+  const visuals = tierVisuals[tier];
+  const percent = parseAlignmentPercent(alignment);
+
+  return (
+    <div
+      aria-label={`Match score ${percent} percent, tier ${tier}`}
+      style={{
+        position: "absolute",
+        top: "14px",
+        right: "14px",
+        width: "90px",
+        height: "90px",
+        borderRadius: "16px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "2px",
+        background: visuals.bg,
+        border: `1px solid ${visuals.border}`,
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: visuals.glow,
+        zIndex: 5,
+        pointerEvents: "none",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          color: visuals.gradeColor,
+          lineHeight: 1,
+        }}
+      >
+        {tier}
+      </div>
+      <div
+        style={{
+          fontSize: "28px",
+          fontWeight: 800,
+          lineHeight: 1,
+          color: "#f8fafc",
+          textShadow: "0 0 18px rgba(248,250,252,0.35)",
+        }}
+      >
+        {percent}%
+      </div>
+      <div
+        style={{
+          fontSize: "9px",
+          fontWeight: 700,
+          letterSpacing: "0.14em",
+          color: "rgba(226,232,240,0.72)",
+          lineHeight: 1,
+        }}
+      >
+        MATCH
+      </div>
+    </div>
+  );
+}
+
 const themes = [
   {
     bg: "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))",
@@ -135,50 +247,68 @@ export default function SwipeCardStack() {
     border: "2px solid rgba(148,163,184,0.24)",
     backdropFilter: "blur(18px)",
     boxShadow: theme.glow,
-    padding: "24px",
     color: "#f8fafc",
-    overflowY: "auto" as const,
+    overflow: "hidden" as const,
     boxSizing: "border-box" as const,
     zIndex: isBackground ? 1 : 2,
+    display: "flex" as const,
+    flexDirection: "column" as const,
   });
+
+  const cardScrollStyles = {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto" as const,
+    padding: "24px",
+    boxSizing: "border-box" as const,
+  };
+
+  const renderCard = (job: JobCard, theme: any, isBackground = false) => (
+    <div style={cardStyles(theme, isBackground)}>
+      <TacticalMatchBadge alignment={job.alignment} />
+      <div style={cardScrollStyles}>{renderContent(job)}</div>
+    </div>
+  );
 
   const renderContent = (job: JobCard) => (
     <>
-      <div
-        style={{
-          fontSize: "12px",
-          letterSpacing: "0.12em",
-          opacity: 0.62,
-        }}
-      >
-        STRATEGIC OPPORTUNITY MATCH
+      <div style={{ paddingRight: "98px" }}>
+        <div
+          style={{
+            fontSize: "12px",
+            letterSpacing: "0.12em",
+            opacity: 0.62,
+          }}
+        >
+          STRATEGIC OPPORTUNITY MATCH
+        </div>
+
+        <div
+          style={{
+            marginTop: "14px",
+            fontSize: "clamp(30px, 8vw, 42px)",
+            lineHeight: 1,
+            fontWeight: 800,
+          }}
+        >
+          {job.role}
+        </div>
+
+        <div
+          style={{
+            marginTop: "10px",
+            color: "#93c5fd",
+            fontSize: "22px",
+            fontWeight: 600,
+          }}
+        >
+          {job.company}
+        </div>
       </div>
 
       <div
         style={{
-          marginTop: "14px",
-          fontSize: "clamp(30px, 8vw, 42px)",
-          lineHeight: 1,
-          fontWeight: 800,
-        }}
-      >
-        {job.role}
-      </div>
-
-      <div
-        style={{
-          marginTop: "10px",
-          color: "#93c5fd",
-          fontSize: "22px",
-          fontWeight: 600,
-        }}
-      >
-        {job.company}
-      </div>
-
-      <div
-        style={{
-          marginTop: "24px",
+          marginTop: "32px",
           display: "flex",
           justifyContent: "space-between",
           fontSize: "14px",
@@ -189,20 +319,6 @@ export default function SwipeCardStack() {
       >
         <div>{job.location}</div>
         <div>{job.salary}</div>
-      </div>
-
-      <div
-        style={{
-          marginTop: "20px",
-          padding: "12px 16px",
-          borderRadius: "16px",
-          background: "rgba(59,130,246,0.12)",
-          color: "#dbeafe",
-          fontWeight: 700,
-          display: "inline-block",
-        }}
-      >
-        Alignment Score: {job.alignment}
       </div>
 
       <div
@@ -289,11 +405,7 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
-        {underlay && (
-          <div style={cardStyles(underlayTheme, true)}>
-            {renderContent(underlay)}
-          </div>
-        )}
+        {underlay && renderCard(underlay, underlayTheme, true)}
 
         <div
           onTouchStart={handleTouchStart}
@@ -306,39 +418,42 @@ export default function SwipeCardStack() {
             zIndex: 3,
           }}
         >
-          {renderContent(active)}
+          <TacticalMatchBadge alignment={active.alignment} />
+          <div style={cardScrollStyles}>
+            {renderContent(active)}
 
-          {!isAtEnd && (
-            <div
-              style={{
-                marginTop: "28px",
-                display: "flex",
-                gap: "12px",
-                paddingBottom: "10px",
-                position: "sticky",
-                bottom: 0,
-                background:
-                  "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
-                paddingTop: "18px",
-              }}
-            >
-              <button
-                onClick={() => window.open(active.applyUrl, "_blank")}
+            {!isAtEnd && (
+              <div
                 style={{
-                  flex: 1,
-                  padding: "18px",
-                  borderRadius: "20px",
-                  border: "none",
-                  background: "rgba(59,130,246,0.22)",
-                  color: "#dbeafe",
-                  fontSize: "17px",
-                  fontWeight: 700,
+                  marginTop: "28px",
+                  display: "flex",
+                  gap: "12px",
+                  paddingBottom: "10px",
+                  position: "sticky",
+                  bottom: 0,
+                  background:
+                    "linear-gradient(to top, rgba(15,23,42,1), rgba(15,23,42,0.0))",
+                  paddingTop: "18px",
                 }}
               >
-                Pursue Opportunity
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={() => window.open(active.applyUrl, "_blank")}
+                  style={{
+                    flex: 1,
+                    padding: "18px",
+                    borderRadius: "20px",
+                    border: "none",
+                    background: "rgba(59,130,246,0.22)",
+                    color: "#dbeafe",
+                    fontSize: "17px",
+                    fontWeight: 700,
+                  }}
+                >
+                  Pursue Opportunity
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
