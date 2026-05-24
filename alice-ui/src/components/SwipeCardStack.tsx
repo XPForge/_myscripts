@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSavedJobs } from "../context/SavedJobsContext";
 import { fetchJobs, type JobCard } from "../services/jobService";
 import { loadDismissedJobs } from "../services/jobPersistence";
+import DescriptionViewport from "./DescriptionViewport";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -158,6 +159,8 @@ export default function SwipeCardStack() {
   const [loading, setLoading] = useState(true);
 
   const startX = useRef(0);
+  const startY = useRef(0);
+  const swipeAxis = useRef<"horizontal" | "vertical" | null>(null);
 
   const cardAreaStyle = {
     flex: 1,
@@ -219,16 +222,32 @@ export default function SwipeCardStack() {
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (isLeaving || isAtEnd) return;
     startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    swipeAxis.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (isLeaving || isAtEnd) return;
     const currentX = e.touches[0].clientX;
-    setDragX(currentX - startX.current);
+    const currentY = e.touches[0].clientY;
+    const dx = currentX - startX.current;
+    const dy = currentY - startY.current;
+
+    if (!swipeAxis.current) {
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        swipeAxis.current =
+          Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+      }
+    }
+
+    if (swipeAxis.current === "horizontal") {
+      setDragX(dx);
+    }
   };
 
   const handleTouchEnd = () => {
     if (isLeaving || isAtEnd) return;
+    swipeAxis.current = null;
 
     if (dragX > 120) {
       finishSwipe(1);
@@ -289,22 +308,26 @@ export default function SwipeCardStack() {
     flexDirection: "column" as const,
   });
 
-  const cardScrollStyles = {
+  const cardBodyStyles = {
     flex: 1,
     minHeight: 0,
+    display: "flex" as const,
+    flexDirection: "column" as const,
     overflowY: "auto" as const,
+    overflowX: "hidden" as const,
     padding: "24px",
     boxSizing: "border-box" as const,
+    WebkitOverflowScrolling: "touch" as const,
   };
 
   const renderCard = (job: JobCard, theme: any, isBackground = false) => (
     <div style={cardStyles(theme, isBackground)}>
       <TacticalMatchBadge alignment={job.alignment} />
-      <div style={cardScrollStyles}>{renderContent(job)}</div>
+      <div style={cardBodyStyles}>{renderContent(job, isBackground)}</div>
     </div>
   );
 
-  const renderContent = (job: JobCard) => (
+  const renderContent = (job: JobCard, isBackground = false) => (
     <>
       <div style={{ paddingRight: "98px" }}>
         <div
@@ -355,16 +378,10 @@ export default function SwipeCardStack() {
         <div>{job.salary}</div>
       </div>
 
-      <div
-        style={{
-          marginTop: "26px",
-          fontSize: "17px",
-          lineHeight: 1.7,
-          color: "#cbd5e1",
-        }}
-      >
-        {job.description}
-      </div>
+      <DescriptionViewport
+        description={job.description}
+        interactive={!isBackground}
+      />
 
       <div
         style={{
@@ -440,8 +457,8 @@ export default function SwipeCardStack() {
           }}
         >
           <TacticalMatchBadge alignment={active.alignment} />
-          <div style={cardScrollStyles}>
-            {renderContent(active)}
+          <div style={cardBodyStyles}>
+            {renderContent(active, false)}
 
             {!isAtEnd && (
               <div
