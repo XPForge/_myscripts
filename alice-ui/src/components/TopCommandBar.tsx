@@ -1,4 +1,4 @@
-export const COMMAND_BAR_HEIGHT = 70;
+export const COMMAND_BAR_HEIGHT = 52;
 
 type TopCommandBarProps = {
   savedCount: number;
@@ -23,8 +23,8 @@ export default function TopCommandBar({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingLeft: "18px",
-        paddingRight: "18px",
+        paddingLeft: "14px",
+        paddingRight: "14px",
         boxSizing: "border-box",
         background:
           "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94))",
@@ -38,29 +38,29 @@ export default function TopCommandBar({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: "18px",
+            fontSize: "15px",
             fontWeight: 700,
-            letterSpacing: "0.14em",
+            letterSpacing: "0.12em",
             color: "#f8fafc",
-            lineHeight: 1.1,
+            lineHeight: 1,
           }}
         >
           ALICE
         </div>
         <div
           style={{
-            marginTop: "3px",
-            fontSize: "10px",
+            marginTop: "2px",
+            fontSize: "9px",
             fontWeight: 500,
-            letterSpacing: "0.06em",
-            color: "rgba(148,163,184,0.82)",
-            lineHeight: 1.2,
+            letterSpacing: "0.05em",
+            color: "rgba(148,163,184,0.78)",
+            lineHeight: 1.1,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          Strategic Opportunity System
+          Strategic Opportunities
         </div>
       </div>
 
@@ -73,9 +73,9 @@ export default function TopCommandBar({
           flexShrink: 0,
           display: "inline-flex",
           alignItems: "center",
-          gap: "8px",
-          marginLeft: "12px",
-          padding: "8px 14px",
+          gap: "6px",
+          marginLeft: "10px",
+          padding: "5px 10px",
           borderRadius: "999px",
           border: `1px solid ${
             isSavedPanelOpen
@@ -86,7 +86,7 @@ export default function TopCommandBar({
             ? "rgba(59,130,246,0.22)"
             : "rgba(30,41,59,0.55)",
           color: "#e2e8f0",
-          fontSize: "12px",
+          fontSize: "11px",
           fontWeight: 600,
           letterSpacing: "0.06em",
           cursor: "pointer",
@@ -97,8 +97,8 @@ export default function TopCommandBar({
         }}
       >
         <svg
-          width="14"
-          height="14"
+          width="12"
+          height="12"
           viewBox="0 0 24 24"
           fill="none"
           aria-hidden
@@ -114,12 +114,12 @@ export default function TopCommandBar({
         <span>SAVED</span>
         <span
           style={{
-            minWidth: "20px",
-            padding: "2px 6px",
+            minWidth: "18px",
+            padding: "1px 5px",
             borderRadius: "999px",
             background: "rgba(59,130,246,0.28)",
             color: "#dbeafe",
-            fontSize: "11px",
+            fontSize: "10px",
             fontWeight: 700,
             textAlign: "center",
           }}
