@@ -7,6 +7,8 @@ import {
   persistDismissedJobs,
   persistSavedJobs,
 } from "../services/jobPersistence";
+import SavedJobsPanel from "./SavedJobsPanel";
+import TopCommandBar, { COMMAND_BAR_HEIGHT } from "./TopCommandBar";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -163,8 +165,40 @@ export default function SwipeCardStack() {
   const [dragX, setDragX] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [savedPanelOpen, setSavedPanelOpen] = useState(false);
 
   const startX = useRef(0);
+
+  const commandChromeOffset = `calc(${COMMAND_BAR_HEIGHT}px + env(safe-area-inset-top, 0px))`;
+  const cardStackHeight = `calc(100dvh - ${COMMAND_BAR_HEIGHT}px - env(safe-area-inset-top, 0px) - 20px)`;
+
+  const commandChrome = (
+    <>
+      <TopCommandBar
+        savedCount={savedJobs.length}
+        onSavedClick={() => setSavedPanelOpen((open) => !open)}
+        isSavedPanelOpen={savedPanelOpen}
+      />
+      <SavedJobsPanel
+        isOpen={savedPanelOpen}
+        jobs={savedJobs}
+        onClose={() => setSavedPanelOpen(false)}
+      />
+    </>
+  );
+
+  const shellStyle = {
+    width: "100%" as const,
+    height: "100dvh" as const,
+    overflow: "hidden" as const,
+    background:
+      "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
+    paddingTop: commandChromeOffset,
+    paddingLeft: "10px",
+    paddingRight: "10px",
+    paddingBottom: "10px",
+    boxSizing: "border-box" as const,
+  };
 
   useEffect(() => {
     const dismissedSet = new Set(loadDismissedJobs());
@@ -246,42 +280,44 @@ export default function SwipeCardStack() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          height: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background:
-            "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
-          color: "#dbeafe",
-          fontSize: "22px",
-          padding: "24px",
-          textAlign: "center",
-        }}
-      >
-        Initializing strategic opportunities...
+      <div style={shellStyle}>
+        {commandChrome}
+        <div
+          style={{
+            height: cardStackHeight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#dbeafe",
+            fontSize: "22px",
+            padding: "24px",
+            textAlign: "center",
+          }}
+        >
+          Initializing strategic opportunities...
+        </div>
       </div>
     );
   }
 
   if (!active) {
     return (
-      <div
-        style={{
-          height: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background:
-            "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
-          color: "#dbeafe",
-          fontSize: "22px",
-          padding: "24px",
-          textAlign: "center",
-        }}
-      >
-        No opportunities were found.
+      <div style={shellStyle}>
+        {commandChrome}
+        <div
+          style={{
+            height: cardStackHeight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#dbeafe",
+            fontSize: "22px",
+            padding: "24px",
+            textAlign: "center",
+          }}
+        >
+          No opportunities were found.
+        </div>
       </div>
     );
   }
@@ -435,42 +471,21 @@ export default function SwipeCardStack() {
   return (
     <div
       style={{
-        width: "100%",
-        height: "100dvh",
-        overflow: "hidden",
-        background:
-          "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
+        ...shellStyle,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "10px",
-        boxSizing: "border-box",
       }}
     >
+      {commandChrome}
+
       <div
         style={{
           position: "relative",
           width: "min(100%, 440px)",
-          height: "calc(100dvh - 20px)",
+          height: cardStackHeight,
         }}
       >
-        <div
-          aria-live="polite"
-          style={{
-            position: "absolute",
-            top: "12px",
-            right: "108px",
-            zIndex: 10,
-            fontSize: "11px",
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            color: "rgba(219,234,254,0.5)",
-            pointerEvents: "none",
-          }}
-        >
-          SAVED {savedJobs.length}
-        </div>
-
         {underlay && renderCard(underlay, underlayTheme, true)}
 
         <div
