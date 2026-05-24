@@ -1,6 +1,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchJobs, type JobCard } from "../services/jobService";
+import {
+  loadDismissedJobs,
+  loadSavedJobs,
+  persistDismissedJobs,
+  persistSavedJobs,
+} from "../services/jobPersistence";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -149,6 +155,10 @@ const themes = [
 
 export default function SwipeCardStack() {
   const [jobs, setJobs] = useState<JobCard[]>([]);
+  const [savedJobs, setSavedJobs] = useState<JobCard[]>(() => loadSavedJobs());
+  const [dismissedJobs, setDismissedJobs] = useState<string[]>(() =>
+    loadDismissedJobs()
+  );
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -157,7 +167,12 @@ export default function SwipeCardStack() {
   const startX = useRef(0);
 
   useEffect(() => {
+    const dismissedSet = new Set(loadDismissedJobs());
+
     fetchJobs()
+      .then((fetched) =>
+        fetched.filter((job) => !dismissedSet.has(job.id))
+      )
       .then(setJobs)
       .finally(() => setLoading(false));
   }, []);
@@ -175,10 +190,22 @@ export default function SwipeCardStack() {
   const isAtEnd = jobs.length > 0 && index >= jobs.length - 1;
 
   const finishSwipe = (direction: number) => {
-    if (isLeaving || isAtEnd) return;
+    if (isLeaving || isAtEnd || !active) return;
 
-    if (direction > 0 && active?.applyUrl) {
-      console.log("Saved job:", active.role);
+    if (direction > 0) {
+      setSavedJobs((prev) => {
+        if (prev.some((job) => job.id === active.id)) return prev;
+        const next = [...prev, active];
+        persistSavedJobs(next);
+        return next;
+      });
+    } else if (direction < 0) {
+      setDismissedJobs((prev) => {
+        if (prev.includes(active.id)) return prev;
+        const next = [...prev, active.id];
+        persistDismissedJobs(next);
+        return next;
+      });
     }
 
     setIsLeaving(true);
@@ -427,6 +454,23 @@ export default function SwipeCardStack() {
           height: "calc(100dvh - 20px)",
         }}
       >
+        <div
+          aria-live="polite"
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "108px",
+            zIndex: 10,
+            fontSize: "11px",
+            fontWeight: 600,
+            letterSpacing: "0.1em",
+            color: "rgba(219,234,254,0.5)",
+            pointerEvents: "none",
+          }}
+        >
+          SAVED {savedJobs.length}
+        </div>
+
         {underlay && renderCard(underlay, underlayTheme, true)}
 
         <div
