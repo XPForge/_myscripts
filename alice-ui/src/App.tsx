@@ -1,6 +1,11 @@
 
-import SwipeCardStack from "./components/SwipeCardStack";
+import AppShell from "./components/AppShell";
+import { SavedJobsProvider } from "./context/SavedJobsContext";
 
 export default function App() {
-  return <SwipeCardStack />;
+  return (
+    <SavedJobsProvider>
+      <AppShell />
+    </SavedJobsProvider>
+  );
 }

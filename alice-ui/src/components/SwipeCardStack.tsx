@@ -1,15 +1,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useSavedJobs } from "../context/SavedJobsContext";
 import { fetchJobs, type JobCard } from "../services/jobService";
-import {
-  loadDismissedJobs,
-  loadSavedJobs,
-  persistDismissedJobs,
-  persistSavedJobs,
-} from "../services/jobPersistence";
-import SavedJobsPanel from "./SavedJobsPanel";
-import TopCommandBar from "./TopCommandBar";
+import { loadDismissedJobs } from "../services/jobPersistence";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -157,40 +150,19 @@ const themes = [
 ];
 
 export default function SwipeCardStack() {
+  const { saveJob, dismissJobId } = useSavedJobs();
   const [jobs, setJobs] = useState<JobCard[]>([]);
-  const [savedJobs, setSavedJobs] = useState<JobCard[]>(() => loadSavedJobs());
-  const [dismissedJobs, setDismissedJobs] = useState<string[]>(() =>
-    loadDismissedJobs()
-  );
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [savedPanelOpen, setSavedPanelOpen] = useState(false);
 
   const startX = useRef(0);
-
-  const savedPanel = (
-    <SavedJobsPanel
-      isOpen={savedPanelOpen}
-      jobs={savedJobs}
-      onClose={() => setSavedPanelOpen(false)}
-    />
-  );
-
-  const shellStyle = {
-    width: "100%" as const,
-    height: "100dvh" as const,
-    display: "flex" as const,
-    flexDirection: "column" as const,
-    background:
-      "radial-gradient(circle at top, #0f172a 0%, #020617 75%)",
-    boxSizing: "border-box" as const,
-  };
 
   const cardAreaStyle = {
     flex: 1,
     minHeight: 0,
+    width: "100%",
     overflow: "hidden" as const,
     display: "flex" as const,
     alignItems: "center" as const,
@@ -226,19 +198,9 @@ export default function SwipeCardStack() {
     if (isLeaving || isAtEnd || !active) return;
 
     if (direction > 0) {
-      setSavedJobs((prev) => {
-        if (prev.some((job) => job.id === active.id)) return prev;
-        const next = [...prev, active];
-        persistSavedJobs(next);
-        return next;
-      });
+      saveJob(active);
     } else if (direction < 0) {
-      setDismissedJobs((prev) => {
-        if (prev.includes(active.id)) return prev;
-        const next = [...prev, active.id];
-        persistDismissedJobs(next);
-        return next;
-      });
+      dismissJobId(active.id);
     }
 
     setIsLeaving(true);
@@ -279,48 +241,32 @@ export default function SwipeCardStack() {
 
   if (loading) {
     return (
-      <div style={shellStyle}>
-        <TopCommandBar
-          savedCount={savedJobs.length}
-          onSavedClick={() => setSavedPanelOpen((open) => !open)}
-          isSavedPanelOpen={savedPanelOpen}
-        />
-        {createPortal(savedPanel, document.body)}
-        <div
-          style={{
-            ...cardAreaStyle,
-            color: "#dbeafe",
-            fontSize: "22px",
-            padding: "24px",
-            textAlign: "center",
-          }}
-        >
-          Initializing strategic opportunities...
-        </div>
+      <div
+        style={{
+          ...cardAreaStyle,
+          color: "#dbeafe",
+          fontSize: "22px",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        Initializing strategic opportunities...
       </div>
     );
   }
 
   if (!active) {
     return (
-      <div style={shellStyle}>
-        <TopCommandBar
-          savedCount={savedJobs.length}
-          onSavedClick={() => setSavedPanelOpen((open) => !open)}
-          isSavedPanelOpen={savedPanelOpen}
-        />
-        {createPortal(savedPanel, document.body)}
-        <div
-          style={{
-            ...cardAreaStyle,
-            color: "#dbeafe",
-            fontSize: "22px",
-            padding: "24px",
-            textAlign: "center",
-          }}
-        >
-          No opportunities were found.
-        </div>
+      <div
+        style={{
+          ...cardAreaStyle,
+          color: "#dbeafe",
+          fontSize: "22px",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        No opportunities were found.
       </div>
     );
   }
@@ -472,15 +418,7 @@ export default function SwipeCardStack() {
   );
 
   return (
-    <div style={shellStyle}>
-      <TopCommandBar
-        savedCount={savedJobs.length}
-        onSavedClick={() => setSavedPanelOpen((open) => !open)}
-        isSavedPanelOpen={savedPanelOpen}
-      />
-      {createPortal(savedPanel, document.body)}
-
-      <div style={cardAreaStyle}>
+    <div style={cardAreaStyle}>
         <div
           style={{
             position: "relative",
@@ -537,7 +475,6 @@ export default function SwipeCardStack() {
               </div>
             )}
           </div>
-        </div>
         </div>
       </div>
     </div>

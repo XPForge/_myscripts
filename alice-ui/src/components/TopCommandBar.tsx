@@ -30,9 +30,9 @@ export default function TopCommandBar({
           "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94))",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(148,163,184,0.22)",
+        borderBottom: "1px solid rgba(148,163,184,0.28)",
         boxShadow:
-          "0 1px 0 rgba(255,255,255,0.06), 0 10px 36px rgba(2,6,23,0.55)",
+          "0 1px 0 rgba(255,255,255,0.08), 0 10px 36px rgba(2,6,23,0.55), inset 0 1px 0 rgba(96,165,250,0.12)",
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
