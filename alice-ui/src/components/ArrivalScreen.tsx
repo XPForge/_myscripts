@@ -8,12 +8,12 @@ type ArrivalScreenProps = {
 };
 
 const glassCard: CSSProperties = {
-  width: "min(820px, 94%)",
-  padding: "48px 36px",
-  borderRadius: "20px",
+  width: "min(760px, 94%)",
+  padding: "32px 24px",
+  borderRadius: "18px",
   background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))",
   border: "1px solid rgba(255,255,255,0.03)",
-  boxShadow: "0 30px 80px rgba(2,6,23,0.6)",
+  boxShadow: "0 26px 70px rgba(2,6,23,0.52)",
   backdropFilter: "blur(8px)",
   textAlign: "center",
 };
@@ -49,21 +49,21 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
       />
 
       <div style={glassCard}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
           <div
             aria-hidden
             style={{
-              width: "92px",
-              height: "92px",
+              width: "78px",
+              height: "78px",
               borderRadius: "18px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "34px",
+              fontSize: "28px",
               fontWeight: 900,
               color: "#eef2ff",
               background: "linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.06))",
-              boxShadow: "0 10px 36px rgba(2,6,23,0.5)",
+              boxShadow: "0 8px 28px rgba(2,6,23,0.42)",
             }}
           >
             ALICE
@@ -74,10 +74,10 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
           className="fadeIn"
           style={{
             opacity: showWelcome ? 1 : 0,
-            fontSize: "clamp(2rem, 4.4vw, 3rem)",
+            fontSize: "clamp(1.7rem, 3.8vw, 2.4rem)",
             fontWeight: 800,
             color: "#f8fafc",
-            marginBottom: "10px",
+            marginBottom: "8px",
           }}
         >
           Welcome.
@@ -87,10 +87,10 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
           className="fadeIn"
           style={{
             opacity: showQuestion ? 1 : 0,
-            transitionDelay: showQuestion ? "240ms" : undefined,
-            fontSize: "clamp(1rem, 1.9vw, 1.25rem)",
+            transitionDelay: showQuestion ? "220ms" : undefined,
+            fontSize: "clamp(0.95rem, 1.7vw, 1.15rem)",
             color: "rgba(226,232,240,0.92)",
-            marginBottom: "8px",
+            marginBottom: "6px",
             fontWeight: 600,
           }}
         >
@@ -101,10 +101,10 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
           className="fadeIn"
           style={{
             opacity: showHint ? 1 : 0,
-            transitionDelay: showHint ? "520ms" : undefined,
+            transitionDelay: showHint ? "460ms" : undefined,
             color: "rgba(148,163,184,0.78)",
-            fontSize: "0.95rem",
-            marginTop: "6px",
+            fontSize: "0.88rem",
+            marginTop: "4px",
           }}
         >
           Answer naturally or wait for the prompts.

@@ -27,13 +27,14 @@ export default function PromptReveal({
     <div
       style={{
         width: "100%",
-        maxWidth: "720px",
+        maxWidth: "680px",
         margin: "0 auto",
-        padding: "0 24px 16px",
+        padding: "0 16px 12px",
         color: "#cbd5e1",
-        maxHeight: "46vh",
+        maxHeight: "42vh",
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
+        overscrollBehaviorY: "contain",
       }}
       id="prompt-reveal"
       role="region"
@@ -48,11 +49,11 @@ export default function PromptReveal({
       >
         <div
           style={{
-            fontSize: "0.95rem",
+            fontSize: "0.88rem",
             letterSpacing: "0.16em",
             textTransform: "uppercase",
             color: "rgba(148,163,184,0.78)",
-            marginBottom: "12px",
+            marginBottom: "10px",
           }}
         >
           Guided prompts
@@ -61,8 +62,8 @@ export default function PromptReveal({
         <div
           style={{
             display: "grid",
-            gap: "12px",
-            marginBottom: "22px",
+            gap: "10px",
+            marginBottom: "16px",
           }}
         >
           {prompts.map((item) => {
@@ -77,22 +78,22 @@ export default function PromptReveal({
                   width: "100%",
                   textAlign: "left",
                   borderRadius: "14px",
-                  padding: "14px 18px",
+                  padding: "12px 16px",
                   border: active
                     ? "1px solid rgba(96,165,250,0.55)"
                     : "1px solid rgba(148,163,184,0.08)",
                   background: active ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.01)",
                   color: "#e2e8f0",
                   cursor: "pointer",
-                  boxShadow: active ? "0 12px 30px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.38)",
+                  boxShadow: active ? "0 10px 24px rgba(2,6,23,0.38)" : "0 4px 14px rgba(2,6,23,0.32)",
                   transition: "transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms",
                   outline: "none",
                 }}
                 onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.998)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "")}
               >
-                <div style={{ fontWeight: 800, marginBottom: "6px", fontSize: "1rem" }}>{item.label}</div>
-                <div style={{ fontSize: "0.92rem", color: "rgba(203,213,225,0.7)" }}>
+                <div style={{ fontWeight: 800, marginBottom: "4px", fontSize: "0.96rem" }}>{item.label}</div>
+                <div style={{ fontSize: "0.85rem", lineHeight: 1.4, color: "rgba(203,213,225,0.7)" }}>
                   {item.description}
                 </div>
               </button>
@@ -102,17 +103,17 @@ export default function PromptReveal({
 
         <div
           style={{
-            fontSize: "0.95rem",
+            fontSize: "0.85rem",
             letterSpacing: "0.12em",
             textTransform: "uppercase",
             color: "rgba(148,163,184,0.78)",
-            marginBottom: "12px",
+            marginBottom: "10px",
           }}
         >
           Exploration directions
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "28px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "18px" }}>
           {directions.map((direction) => {
             const active = selectedDirections.includes(direction.id);
             return (
@@ -128,11 +129,12 @@ export default function PromptReveal({
                     : "1px solid rgba(148,163,184,0.08)",
                   background: active ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.01)",
                   color: active ? "#e2e8f0" : "rgba(203,213,225,0.86)",
-                  padding: "10px 14px",
+                  padding: "8px 12px",
                   cursor: "pointer",
-                  boxShadow: active ? "0 10px 26px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.36)",
+                  boxShadow: active ? "0 8px 22px rgba(2,6,23,0.35)" : "0 4px 12px rgba(2,6,23,0.28)",
                   transition: "transform 140ms, box-shadow 160ms",
                   outline: "none",
+                  fontSize: "0.88rem",
                 }}
                 onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.997)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "")}
@@ -143,23 +145,24 @@ export default function PromptReveal({
           })}
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center" }}>
           <button
             type="button"
             onClick={onContinue}
             disabled={!hasSelection}
             style={{
               flex: 1,
-              minWidth: "180px",
+              minWidth: "150px",
               borderRadius: "14px",
-              padding: "12px 18px",
+              padding: "10px 14px",
               border: "1px solid rgba(96,165,250,0.35)",
               background: hasSelection ? "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.12))" : "rgba(255,255,255,0.01)",
               color: hasSelection ? "#dbeafe" : "rgba(148,163,184,0.56)",
               fontWeight: 800,
               cursor: hasSelection ? "pointer" : "not-allowed",
-              boxShadow: hasSelection ? "0 14px 40px rgba(2,6,23,0.45)" : "0 6px 18px rgba(2,6,23,0.34)",
+              boxShadow: hasSelection ? "0 10px 28px rgba(2,6,23,0.35)" : "0 5px 16px rgba(2,6,23,0.3)",
               transition: "transform 160ms, box-shadow 180ms",
+              fontSize: "0.92rem",
             }}
           >
             Continue with this path
@@ -169,15 +172,16 @@ export default function PromptReveal({
             onClick={onExploreAnonymously}
             style={{
               flex: 1,
-              minWidth: "180px",
+              minWidth: "150px",
               borderRadius: "14px",
-              padding: "12px 18px",
+              padding: "10px 14px",
               border: "1px solid rgba(148,163,184,0.12)",
               background: "rgba(255,255,255,0.01)",
               color: "rgba(203,213,225,0.86)",
               fontWeight: 700,
               cursor: "pointer",
-              boxShadow: "0 8px 26px rgba(2,6,23,0.36)",
+              boxShadow: "0 8px 18px rgba(2,6,23,0.32)",
+              fontSize: "0.92rem",
             }}
           >
             Explore anonymously
