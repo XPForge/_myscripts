@@ -331,12 +331,6 @@ export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
     boxSizing: "border-box" as const,
   };
 
-  const cardFooterStyles = {
-    flexShrink: 0,
-    padding: "0 24px 20px",
-    boxSizing: "border-box" as const,
-  };
-
   const renderCard = (job: JobCard, theme: any, isBackground = false) => (
     <div style={cardStyles(theme, isBackground)}>
       <TacticalMatchBadge alignment={job.alignment} />
