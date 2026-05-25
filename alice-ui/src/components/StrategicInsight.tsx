@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import InsightOverlay from "./InsightOverlay";
 import {
   deriveStrategicInsights,
@@ -15,7 +15,7 @@ type StrategicInsightProps = Partial<InsightDetails> & {
   interactive?: boolean;
 };
 
-const frameStyle = {
+const frameStyle: CSSProperties = {
   borderRadius: "24px",
   border: "1px solid rgba(96,165,250,0.18)",
   background: "rgba(15,23,42,0.84)",
@@ -26,7 +26,7 @@ const frameStyle = {
   gap: "14px",
 };
 
-const chipStyle = {
+const chipStyle: CSSProperties = {
   borderRadius: "999px",
   padding: "8px 14px",
   border: "1px solid rgba(148,163,184,0.18)",
@@ -38,7 +38,7 @@ const chipStyle = {
   transition: "transform 160ms ease, background 160ms ease, border-color 160ms ease",
 };
 
-const chipActiveStyle = {
+const chipActiveStyle: CSSProperties = {
   background: "rgba(59,130,246,0.18)",
   borderColor: "rgba(59,130,246,0.35)",
   color: "#e2e8f0",

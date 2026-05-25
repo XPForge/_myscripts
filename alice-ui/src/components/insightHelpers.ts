@@ -47,7 +47,6 @@ export function deriveStrategicInsights(
   input: InsightInput
 ): InsightDetails {
   const source = `${input.title} ${input.company} ${input.description}`.toLowerCase();
-  const alignmentScore = parseInt(input.alignment.replace(/[^0-9]/g, ""), 10) || 72;
   const highPay = parseCompensationSignal(input.salary);
   const autonomy = parseAutonomySignal(source);
   const leadership = parseLeadershipSignal(source);
