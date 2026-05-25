@@ -69,18 +69,22 @@ export default function PromptReveal({
                 style={{
                   width: "100%",
                   textAlign: "left",
-                  borderRadius: "18px",
-                  padding: "16px 18px",
+                  borderRadius: "14px",
+                  padding: "14px 18px",
                   border: active
                     ? "1px solid rgba(96,165,250,0.55)"
-                    : "1px solid rgba(148,163,184,0.16)",
-                  background: active ? "rgba(59,130,246,0.16)" : "rgba(15,23,42,0.8)",
+                    : "1px solid rgba(148,163,184,0.08)",
+                  background: active ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.01)",
                   color: "#e2e8f0",
                   cursor: "pointer",
+                  boxShadow: active ? "0 12px 30px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.38)",
+                  transition: "transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms",
                 }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.998)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "")}
               >
-                <div style={{ fontWeight: 700, marginBottom: "6px" }}>{item.label}</div>
-                <div style={{ fontSize: "0.9rem", color: "rgba(203,213,225,0.72)" }}>
+                <div style={{ fontWeight: 800, marginBottom: "6px", fontSize: "1rem" }}>{item.label}</div>
+                <div style={{ fontSize: "0.92rem", color: "rgba(203,213,225,0.7)" }}>
                   {item.description}
                 </div>
               </button>
@@ -109,15 +113,19 @@ export default function PromptReveal({
                 onClick={() => onDirectionToggle(direction.id)}
                 key={direction.id}
                 style={{
-                  borderRadius: "999px",
+                  borderRadius: "12px",
                   border: active
                     ? "1px solid rgba(96,165,250,0.6)"
-                    : "1px solid rgba(148,163,184,0.2)",
-                  background: active ? "rgba(59,130,246,0.16)" : "rgba(15,23,42,0.78)",
-                  color: active ? "#e2e8f0" : "rgba(203,213,225,0.84)",
+                    : "1px solid rgba(148,163,184,0.08)",
+                  background: active ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.01)",
+                  color: active ? "#e2e8f0" : "rgba(203,213,225,0.86)",
                   padding: "10px 14px",
                   cursor: "pointer",
+                  boxShadow: active ? "0 10px 26px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.36)",
+                  transition: "transform 140ms, box-shadow 160ms",
                 }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.997)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "")}
               >
                 {direction.label}
               </button>
@@ -133,13 +141,15 @@ export default function PromptReveal({
             style={{
               flex: 1,
               minWidth: "180px",
-              borderRadius: "18px",
-              padding: "14px 18px",
+              borderRadius: "14px",
+              padding: "12px 18px",
               border: "1px solid rgba(96,165,250,0.35)",
-              background: hasSelection ? "rgba(59,130,246,0.22)" : "rgba(15,23,42,0.45)",
+              background: hasSelection ? "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.12))" : "rgba(255,255,255,0.01)",
               color: hasSelection ? "#dbeafe" : "rgba(148,163,184,0.56)",
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: hasSelection ? "pointer" : "not-allowed",
+              boxShadow: hasSelection ? "0 14px 40px rgba(2,6,23,0.45)" : "0 6px 18px rgba(2,6,23,0.34)",
+              transition: "transform 160ms, box-shadow 180ms",
             }}
           >
             Continue with this path
@@ -150,13 +160,14 @@ export default function PromptReveal({
             style={{
               flex: 1,
               minWidth: "180px",
-              borderRadius: "18px",
-              padding: "14px 18px",
-              border: "1px solid rgba(148,163,184,0.18)",
-              background: "rgba(15,23,42,0.72)",
-              color: "rgba(203,213,225,0.84)",
+              borderRadius: "14px",
+              padding: "12px 18px",
+              border: "1px solid rgba(148,163,184,0.12)",
+              background: "rgba(255,255,255,0.01)",
+              color: "rgba(203,213,225,0.86)",
               fontWeight: 700,
               cursor: "pointer",
+              boxShadow: "0 8px 26px rgba(2,6,23,0.36)",
             }}
           >
             Explore anonymously

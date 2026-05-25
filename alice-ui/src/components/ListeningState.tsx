@@ -1,4 +1,8 @@
+import type { CSSProperties } from "react";
+
 export default function ListeningState() {
+  const bars = [0.9, 0.75, 0.95, 0.6, 0.82];
+
   return (
     <div
       style={{
@@ -7,6 +11,7 @@ export default function ListeningState() {
         alignItems: "center",
         gap: "14px",
         marginTop: "28px",
+        pointerEvents: "none",
       }}
     >
       <div
@@ -14,9 +19,9 @@ export default function ListeningState() {
           width: "72px",
           height: "72px",
           borderRadius: "50%",
-          background: "rgba(59,130,246,0.12)",
-          border: "1px solid rgba(59,130,246,0.22)",
-          boxShadow: "0 0 50px rgba(59,130,246,0.12)",
+          background: "rgba(59,130,246,0.08)",
+          border: "1px solid rgba(59,130,246,0.14)",
+          boxShadow: "0 8px 30px rgba(2,6,23,0.45)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -26,11 +31,11 @@ export default function ListeningState() {
         <div
           style={{
             position: "absolute",
-            width: "48px",
-            height: "48px",
+            width: "46px",
+            height: "46px",
             borderRadius: "50%",
-            background: "rgba(59,130,246,0.16)",
-            animation: "pulseGlow 2.8s ease-in-out infinite",
+            background: "rgba(59,130,246,0.12)",
+            animation: "pulseGlow 3.2s ease-in-out infinite",
           }}
         />
         <div
@@ -53,35 +58,28 @@ export default function ListeningState() {
           height: "26px",
         }}
       >
-        <span style={barStyle(1)} />
-        <span style={barStyle(0.75)} />
-        <span style={barStyle(1)} />
-        <span style={barStyle(0.55)} />
-        <span style={barStyle(0.85)} />
+        {bars.map((b, i) => (
+          <span key={i} style={barStyle(b, i)} />
+        ))}
       </div>
 
       <style>{`
-        @keyframes pulseGlow {
-          0%, 100% { transform: scale(1); opacity: 0.35; }
-          50% { transform: scale(1.16); opacity: 0.56; }
-        }
-        @keyframes waveformMove {
-          0% { transform: scaleY(0.72); }
-          50% { transform: scaleY(1); }
-          100% { transform: scaleY(0.72); }
-        }
+        @keyframes pulseGlow { 0%,100%{ transform: scale(1); opacity: 0.22 } 50%{ transform: scale(1.12); opacity: 0.36 } }
+        @keyframes waveformMove { 0% { transform: scaleY(0.72);} 50% { transform: scaleY(1);} 100% { transform: scaleY(0.72);} }
       `}</style>
     </div>
   );
 }
 
-function barStyle(multiplier: number) {
+function barStyle(multiplier: number, index: number): CSSProperties {
+  const dur = 1.1 + multiplier * 0.6;
+  const delay = 0.06 * index;
   return {
     display: "block",
     width: "100%",
-    height: `${12 + multiplier * 18}px`,
+    height: `${10 + multiplier * 18}px`,
     borderRadius: "999px",
-    background: "rgba(148,163,184,0.55)",
-    animation: `waveformMove ${1.1 + multiplier * 0.4}s ease-in-out ${Math.random() * 0.2}s infinite`,
+    background: "rgba(148,163,184,0.5)",
+    animation: `waveformMove ${dur}s ease-in-out ${delay}s infinite`,
   } as const;
 }
