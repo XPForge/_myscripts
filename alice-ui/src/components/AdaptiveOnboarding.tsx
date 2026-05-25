@@ -44,10 +44,10 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
   useEffect(() => {
     const timers: number[] = [];
     timers.push(window.setTimeout(() => setShowWelcome(true), 120));
-    timers.push(window.setTimeout(() => setShowQuestion(true), 860));
-    timers.push(window.setTimeout(() => setShowHint(true), 1500));
-    timers.push(window.setTimeout(() => setShowListening(true), 2400));
-    timers.push(window.setTimeout(() => setShowPrompts(true), 4200));
+    timers.push(window.setTimeout(() => setShowQuestion(true), 720));
+    timers.push(window.setTimeout(() => setShowHint(true), 1200));
+    timers.push(window.setTimeout(() => setShowListening(true), 1800));
+    timers.push(window.setTimeout(() => setShowPrompts(true), 3000));
     return () => {
       timers.forEach(window.clearTimeout);
     };
@@ -80,6 +80,22 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       setSignals((signal) => markObservationShown(signal));
     }
   }, [signals, selectedDirections, selectedPrompts]);
+
+  // focus first prompt button for keyboard users when prompts revealed
+  useEffect(() => {
+    if (showPrompts) {
+      const t = window.setTimeout(() => {
+        try {
+          const root = document.getElementById("prompt-reveal");
+          const btn = root?.querySelector("button");
+          if (btn && typeof (btn as HTMLElement).focus === "function") (btn as HTMLElement).focus();
+        } catch (err) {
+          /* ignore */
+        }
+      }, 360);
+      return () => window.clearTimeout(t);
+    }
+  }, [showPrompts]);
 
   const completeOnboarding = () => {
     const archetype = inferArchetypeFromSelection(selectedPrompts, selectedDirections);

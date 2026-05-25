@@ -35,6 +35,9 @@ export default function PromptReveal({
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
       }}
+      id="prompt-reveal"
+      role="region"
+      aria-label="Onboarding prompts"
     >
       <div
         style={{
@@ -69,6 +72,7 @@ export default function PromptReveal({
                 key={item.id}
                 type="button"
                 onClick={() => onPromptToggle(item.id)}
+                aria-pressed={active}
                 style={{
                   width: "100%",
                   textAlign: "left",
@@ -82,6 +86,7 @@ export default function PromptReveal({
                   cursor: "pointer",
                   boxShadow: active ? "0 12px 30px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.38)",
                   transition: "transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms",
+                  outline: "none",
                 }}
                 onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.998)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "")}
@@ -115,6 +120,7 @@ export default function PromptReveal({
                 type="button"
                 onClick={() => onDirectionToggle(direction.id)}
                 key={direction.id}
+                aria-pressed={active}
                 style={{
                   borderRadius: "12px",
                   border: active
@@ -126,6 +132,7 @@ export default function PromptReveal({
                   cursor: "pointer",
                   boxShadow: active ? "0 10px 26px rgba(2,6,23,0.42)" : "0 6px 18px rgba(2,6,23,0.36)",
                   transition: "transform 140ms, box-shadow 160ms",
+                  outline: "none",
                 }}
                 onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.997)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "")}
