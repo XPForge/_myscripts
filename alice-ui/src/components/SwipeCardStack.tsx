@@ -489,32 +489,6 @@ export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
         >
           <TacticalMatchBadge alignment={active.alignment} />
           <div style={cardBodyStyles}>{renderContent(active, false)}</div>
-
-          {!isAtEnd && (
-            <div style={cardFooterStyles}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(active.applyUrl, "_blank");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "18px",
-                  borderRadius: "20px",
-                  border: "none",
-                  background: "rgba(59,130,246,0.22)",
-                  color: "#dbeafe",
-                  fontSize: "17px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  touchAction: "manipulation",
-                }}
-              >
-                Pursue Opportunity
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
