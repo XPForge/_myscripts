@@ -21,6 +21,8 @@ type SavedJobsContextValue = {
   toggleSavedPanel: () => void;
   saveJob: (job: JobCard) => void;
   dismissJobId: (id: string) => void;
+  clearSavedJobs: () => void;
+  clearDismissedJobs: () => void;
   isDismissed: (id: string) => boolean;
 };
 
@@ -56,6 +58,22 @@ export function SavedJobsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const clearSavedJobs = useCallback(() => {
+    setSavedJobs(() => {
+      const next: JobCard[] = [];
+      persistSavedJobs(next);
+      return next;
+    });
+  }, []);
+
+  const clearDismissedJobs = useCallback(() => {
+    setDismissedJobIds(() => {
+      const next: string[] = [];
+      persistDismissedJobs(next);
+      return next;
+    });
+  }, []);
+
   const isDismissed = useCallback(
     (id: string) => dismissedSet.has(id),
     [dismissedSet]
@@ -73,6 +91,8 @@ export function SavedJobsProvider({ children }: { children: ReactNode }) {
       toggleSavedPanel,
       saveJob,
       dismissJobId,
+      clearSavedJobs,
+      clearDismissedJobs,
       isDismissed,
     }),
     [
@@ -81,6 +101,8 @@ export function SavedJobsProvider({ children }: { children: ReactNode }) {
       toggleSavedPanel,
       saveJob,
       dismissJobId,
+      clearSavedJobs,
+      clearDismissedJobs,
       isDismissed,
     ]
   );

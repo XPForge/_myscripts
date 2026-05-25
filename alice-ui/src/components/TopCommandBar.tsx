@@ -1,16 +1,27 @@
+import { useState } from "react";
+import FeedCommandPanel from "./FeedCommandPanel";
+
 export const COMMAND_BAR_HEIGHT = 52;
 
 type TopCommandBarProps = {
   savedCount: number;
   onSavedClick: () => void;
   isSavedPanelOpen?: boolean;
+  onRefreshOpportunities: () => void;
+  onResetDismissedJobs: () => void;
+  onFullStrategicReset: () => void;
 };
 
 export default function TopCommandBar({
   savedCount,
   onSavedClick,
   isSavedPanelOpen = false,
+  onRefreshOpportunities,
+  onResetDismissedJobs,
+  onFullStrategicReset,
 }: TopCommandBarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <header
       style={{
@@ -64,69 +75,103 @@ export default function TopCommandBar({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onSavedClick}
-        aria-expanded={isSavedPanelOpen}
-        aria-label={`Saved jobs, ${savedCount} saved`}
-        style={{
-          flexShrink: 0,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          marginLeft: "10px",
-          padding: "5px 10px",
-          borderRadius: "999px",
-          border: `1px solid ${
-            isSavedPanelOpen
-              ? "rgba(147,197,253,0.45)"
-              : "rgba(148,163,184,0.22)"
-          }`,
-          background: isSavedPanelOpen
-            ? "rgba(59,130,246,0.22)"
-            : "rgba(30,41,59,0.55)",
-          color: "#e2e8f0",
-          fontSize: "11px",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-          cursor: "pointer",
-          boxShadow: isSavedPanelOpen
-            ? "0 0 20px rgba(59,130,246,0.2)"
-            : "0 0 12px rgba(15,23,42,0.35)",
-          transition: "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
-        }}
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-          style={{ opacity: 0.9 }}
-        >
-          <path
-            d="M6 4h12a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V6a2 2 0 0 1 2-2z"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>SAVED</span>
-        <span
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-expanded={menuOpen}
+          aria-label="Open tactical feed commands"
           style={{
-            minWidth: "18px",
-            padding: "1px 5px",
-            borderRadius: "999px",
-            background: "rgba(59,130,246,0.28)",
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "38px",
+            height: "38px",
+            borderRadius: "14px",
+            border: "1px solid rgba(148,163,184,0.22)",
+            background: menuOpen ? "rgba(59,130,246,0.22)" : "rgba(30,41,59,0.55)",
             color: "#dbeafe",
-            fontSize: "10px",
-            fontWeight: 700,
-            textAlign: "center",
+            cursor: "pointer",
+            boxShadow: menuOpen ? "0 0 20px rgba(59,130,246,0.2)" : "0 0 12px rgba(15,23,42,0.35)",
+            transition: "background 0.2s ease, box-shadow 0.2s ease",
           }}
         >
-          {savedCount}
-        </span>
-      </button>
+          <span style={{ fontSize: "18px", lineHeight: 1 }}>*</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onSavedClick}
+          aria-expanded={isSavedPanelOpen}
+          aria-label={`Saved jobs, ${savedCount} saved`}
+          style={{
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "5px 10px",
+            borderRadius: "999px",
+            border: `1px solid ${
+              isSavedPanelOpen
+                ? "rgba(147,197,253,0.45)"
+                : "rgba(148,163,184,0.22)"
+            }`,
+            background: isSavedPanelOpen
+              ? "rgba(59,130,246,0.22)"
+              : "rgba(30,41,59,0.55)",
+            color: "#e2e8f0",
+            fontSize: "11px",
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            cursor: "pointer",
+            boxShadow: isSavedPanelOpen
+              ? "0 0 20px rgba(59,130,246,0.2)"
+              : "0 0 12px rgba(15,23,42,0.35)",
+            transition: "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden
+            style={{ opacity: 0.9 }}
+          >
+            <path
+              d="M6 4h12a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V6a2 2 0 0 1 2-2z"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>SAVED</span>
+          <span
+            style={{
+              minWidth: "18px",
+              padding: "1px 5px",
+              borderRadius: "999px",
+              background: "rgba(59,130,246,0.28)",
+              color: "#dbeafe",
+              fontSize: "10px",
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          >
+            {savedCount}
+          </span>
+        </button>
+      </div>
+
+      {menuOpen ? (
+        <FeedCommandPanel
+          onRefresh={onRefreshOpportunities}
+          onResetDismissed={onResetDismissedJobs}
+          onFullReset={onFullStrategicReset}
+          onClose={() => setMenuOpen(false)}
+        />
+      ) : null}
     </header>
   );
 }

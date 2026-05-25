@@ -1,9 +1,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSavedJobs } from "../context/SavedJobsContext";
-import { fetchJobs, type JobCard } from "../services/jobService";
-import { loadDismissedJobs } from "../services/jobPersistence";
+import { type JobCard } from "../services/jobService";
+import { loadOpportunityFeed } from "../services/feedManager";
 import DescriptionViewport from "./DescriptionViewport";
+import StrategicInsight from "./StrategicInsight";
 
 type MatchTier = "A+" | "A" | "B" | "C";
 
@@ -150,7 +151,7 @@ const themes = [
   },
 ];
 
-export default function SwipeCardStack() {
+export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
   const { saveJob, dismissJobId } = useSavedJobs();
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [index, setIndex] = useState(0);
@@ -175,15 +176,26 @@ export default function SwipeCardStack() {
   };
 
   useEffect(() => {
-    const dismissedSet = new Set(loadDismissedJobs());
+    let active = true;
 
-    fetchJobs()
-      .then((fetched) =>
-        fetched.filter((job) => !dismissedSet.has(job.id))
-      )
-      .then(setJobs)
-      .finally(() => setLoading(false));
-  }, []);
+    setIndex(0);
+    setIsLeaving(false);
+    setLoading(true);
+
+    loadOpportunityFeed()
+      .then((fetched) => {
+        if (!active) return;
+        setJobs(fetched);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [feedKey]);
 
   const active = useMemo(() => jobs[index], [jobs, index]);
 
@@ -382,6 +394,19 @@ export default function SwipeCardStack() {
         <div>{job.location}</div>
         <div>{job.salary}</div>
       </div>
+
+      <StrategicInsight
+        role={job.role}
+        company={job.company}
+        description={job.description}
+        salary={job.salary}
+        alignment={job.alignment}
+        insight={job.insight}
+        risks={job.risks}
+        strengths={job.strengths}
+        growthPotential={job.growthPotential}
+        interactive={!isBackground}
+      />
 
       <DescriptionViewport
         description={job.description}

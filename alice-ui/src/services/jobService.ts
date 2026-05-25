@@ -1,4 +1,6 @@
 
+import { deriveStrategicInsights, type InsightDetails } from "../components/insightHelpers";
+
 export type JobCard = {
   id: string;
   role: string;
@@ -9,7 +11,7 @@ export type JobCard = {
   applyUrl: string;
   why: string;
   alignment: string;
-};
+} & Partial<InsightDetails>;
 
 function inferAlignment(job: any) {
   const text = `${job.title} ${job.description}`.toLowerCase();
@@ -51,17 +53,30 @@ export async function fetchJobs(): Promise<JobCard[]> {
 
   const data = await response.json();
 
-  return data.jobs.slice(0, 20).map((job: any) => ({
-    id: String(job.id),
-    role: job.title,
-    company: job.company_name,
-    location: job.candidate_required_location || "Remote",
-    salary: job.salary || "Compensation not listed",
-    description: job.description
+  return data.jobs.slice(0, 20).map((job: any) => {
+    const description = job.description
       .replace(/<[^>]*>?/gm, "")
-      .slice(0, 420),
-    applyUrl: job.url,
-    why: inferWhy(job),
-    alignment: inferAlignment(job),
-  }));
+      .slice(0, 420);
+    const alignment = inferAlignment(job);
+    const insightDetails = deriveStrategicInsights({
+      title: job.title,
+      company: job.company_name,
+      description,
+      salary: job.salary || "",
+      alignment,
+    });
+
+    return {
+      id: String(job.id),
+      role: job.title,
+      company: job.company_name,
+      location: job.candidate_required_location || "Remote",
+      salary: job.salary || "Compensation not listed",
+      description,
+      applyUrl: job.url,
+      why: inferWhy(job),
+      alignment,
+      ...insightDetails,
+    };
+  });
 }
