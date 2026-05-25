@@ -29,8 +29,11 @@ export default function PromptReveal({
         width: "100%",
         maxWidth: "720px",
         margin: "0 auto",
-        padding: "0 24px 36px",
+        padding: "0 24px 16px",
         color: "#cbd5e1",
+        maxHeight: "46vh",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
       }}
     >
       <div

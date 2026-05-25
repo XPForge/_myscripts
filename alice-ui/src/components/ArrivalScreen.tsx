@@ -4,18 +4,7 @@ type ArrivalScreenProps = {
   showWelcome: boolean;
   showQuestion: boolean;
   showHint: boolean;
-};
-
-const containerStyle: CSSProperties = {
-  position: "relative",
-  width: "100%",
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "linear-gradient(180deg, #021026 0%, #020617 60%)",
-  overflow: "hidden",
-  color: "#e2e8f0",
+  reserveBottom?: number; // pixels to reserve at bottom when onboarding panels show
 };
 
 const glassCard: CSSProperties = {
@@ -29,9 +18,21 @@ const glassCard: CSSProperties = {
   textAlign: "center",
 };
 
-export default function ArrivalScreen({ showWelcome, showQuestion, showHint }: ArrivalScreenProps) {
+export default function ArrivalScreen({ showWelcome, showQuestion, showHint, reserveBottom = 0 }: ArrivalScreenProps) {
+  const dynamicContainer: CSSProperties = {
+    position: "relative",
+    width: "100%",
+    minHeight: reserveBottom ? `calc(100vh - ${reserveBottom}px)` : "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(180deg, #021026 0%, #020617 60%)",
+    overflow: "hidden",
+    color: "#e2e8f0",
+  };
+
   return (
-    <div style={containerStyle} role="region" aria-label="Welcome to ALICE">
+    <div style={dynamicContainer} role="region" aria-label="Welcome to ALICE">
       <style>{`
         @keyframes ambientPulse { 0%,100%{ transform: scale(1); opacity: 0.18 } 50%{ transform: scale(1.06); opacity: 0.28 } }
         .fadeIn { transition: opacity 900ms cubic-bezier(.22,1,.36,1) }
