@@ -123,6 +123,24 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "14px 16px",
+            borderRadius: "18px",
+            background: "rgba(59,130,246,0.08)",
+            border: "1px solid rgba(59,130,246,0.18)",
+            color: "#dbeafe",
+            fontSize: "0.92rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: "8px", color: "#bfdbfe" }}>
+            DEV MODE: quick access enabled
+          </strong>
+          Tap the button below to create a temporary new registered user and proceed directly to onboarding.
+        </div>
+
         <button
           type="button"
           onClick={() => {
