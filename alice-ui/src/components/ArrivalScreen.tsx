@@ -38,27 +38,34 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
           position: "absolute",
           inset: 0,
           backgroundImage:
-            "radial-gradient(circle at 15% 20%, rgba(59,130,246,0.08), transparent 14%), radial-gradient(circle at 85% 12%, rgba(59,130,246,0.05), transparent 10%)",
+            "radial-gradient(circle at 12% 18%, rgba(59,130,246,0.12), transparent 16%), radial-gradient(circle at 82% 14%, rgba(96,165,250,0.08), transparent 12%)",
           pointerEvents: "none",
         }}
       />
 
-      <div style={glassCard}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
+      <div
+        style={{
+          ...glassCard,
+          padding: "38px 34px",
+          border: "1px solid rgba(148,163,184,0.14)",
+          boxShadow: "0 36px 90px rgba(2,6,23,0.42)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
           <div
             aria-hidden
             style={{
-              width: "78px",
-              height: "78px",
-              borderRadius: "18px",
+              width: "82px",
+              height: "82px",
+              borderRadius: "22px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: "28px",
               fontWeight: 900,
               color: "#eef2ff",
-              background: "linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.06))",
-              boxShadow: "0 8px 28px rgba(2,6,23,0.42)",
+              background: "linear-gradient(180deg, rgba(59,130,246,0.16), rgba(59,130,246,0.08))",
+              boxShadow: "0 12px 34px rgba(2,6,23,0.36)",
             }}
           >
             ALICE
@@ -68,36 +75,77 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
         <div
           style={{
             opacity: showWelcome ? 1 : 0,
-            fontSize: "clamp(1.7rem, 3.8vw, 2.4rem)",
-            fontWeight: 800,
+            fontSize: "clamp(1.9rem, 4.2vw, 2.8rem)",
+            fontWeight: 900,
             color: "#f8fafc",
-            marginBottom: "8px",
+            marginBottom: "14px",
+            lineHeight: 1.05,
           }}
         >
-          Welcome.
+          Build your adaptive profile.
         </div>
 
         <div
           style={{
             opacity: showQuestion ? 1 : 0,
-            fontSize: "clamp(0.95rem, 1.7vw, 1.15rem)",
-            color: "rgba(226,232,240,0.92)",
-            marginBottom: "6px",
-            fontWeight: 600,
+            fontSize: "1rem",
+            color: "rgba(226,232,240,0.9)",
+            marginBottom: "18px",
+            lineHeight: 1.8,
+            maxWidth: "720px",
+            margin: "0 auto",
           }}
         >
-          What can I help you find here?
+          ALICE will guide you through a short series of dynamically generated questions. Every answer is weighed and routed to decide the next best question, not just a fixed form.
         </div>
 
         <div
           style={{
             opacity: showHint ? 1 : 0,
-            color: "rgba(148,163,184,0.78)",
-            fontSize: "0.88rem",
-            marginTop: "4px",
+            display: "grid",
+            gap: "12px",
+            marginTop: "12px",
+            fontSize: "0.92rem",
+            color: "rgba(148,163,184,0.82)",
+            textAlign: "left",
           }}
         >
-          Select the response that should shape your opportunity feed.
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                background: "#38bdf8",
+                marginTop: "6px",
+              }}
+            />
+            <span>Adaptive questions are chosen based on your responses.</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                background: "#34d399",
+                marginTop: "6px",
+              }}
+            />
+            <span>Answers are used to estimate your confidence, interests, and strategic direction.</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                background: "#fbbf24",
+                marginTop: "6px",
+              }}
+            />
+            <span>The flow adapts in real time, so you only answer what matters most today.</span>
+          </div>
         </div>
       </div>
     </div>

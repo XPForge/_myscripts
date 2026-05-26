@@ -55,16 +55,7 @@ export default function PromptReveal({
             marginBottom: "10px",
           }}
         >
-          Guided prompts
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-            marginBottom: "16px",
-          }}
-        >
+        Adaptive question flow
           {prompts.map((item) => {
             const active = selectedPrompts.includes(item.id);
             return (
@@ -157,7 +148,7 @@ export default function PromptReveal({
               fontSize: "0.92rem",
             }}
           >
-            Shape my recommendations
+            Begin adaptive onboarding
           </button>
           <button
             type="button"

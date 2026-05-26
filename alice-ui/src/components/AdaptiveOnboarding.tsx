@@ -185,20 +185,32 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
     setProbeResponse("");
   };
 
+  const advanceProbeSequence = (
+    nextDomains: ConfidenceDomains,
+    nextHistory: string[]
+  ) => {
+    const nextProbe = selectNextProbe(nextDomains, mode, nextHistory, probeSet);
+    if (!shouldContinueOnboarding(nextDomains, mode, nextHistory.length, probeSet) || !nextProbe) {
+      completeOnboarding();
+      return;
+    }
+    setDomainStates(nextDomains);
+    setProbeHistory(nextHistory);
+    setActiveProbe(nextProbe);
+    setProbeResponse("");
+  };
+
   const handleProbeSubmit = () => {
     if (!activeProbe) return;
-    const next = evaluateProbeResponse(activeProbe, probeResponse, domainStates);
-    setDomainStates(next);
-    setProbeHistory((history) => [...history, activeProbe.id]);
-    setActiveProbe(null);
-    setProbeResponse("");
+    const nextDomains = evaluateProbeResponse(activeProbe, probeResponse, domainStates);
+    const nextHistory = [...probeHistory, activeProbe.id];
+    advanceProbeSequence(nextDomains, nextHistory);
   };
 
   const handleProbeSkip = () => {
     if (!activeProbe) return;
-    setProbeHistory((history) => [...history, activeProbe.id]);
-    setActiveProbe(null);
-    setProbeResponse("");
+    const nextHistory = [...probeHistory, activeProbe.id];
+    advanceProbeSequence(domainStates, nextHistory);
   };
 
   return (
@@ -233,7 +245,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
           gap: "12px",
         }}
       >
-        {showPrompts ? (
+        {!activeProbe ? (
           <div
             style={{
               width: "100%",
@@ -257,37 +269,83 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
 
             <div
               style={{
-                marginTop: "16px",
-                padding: "14px 16px",
-                borderRadius: "18px",
-                background: "rgba(15,23,42,0.82)",
-                border: "1px solid rgba(148,163,184,0.14)",
-                color: "rgba(226,232,240,0.88)",
+                marginTop: "18px",
+                padding: "18px 20px",
+                borderRadius: "20px",
+                background: "rgba(15,23,42,0.88)",
+                border: "1px solid rgba(96,165,250,0.16)",
+                color: "rgba(226,232,240,0.9)",
                 fontSize: "0.95rem",
-                lineHeight: 1.6,
+                lineHeight: 1.75,
+                display: "grid",
+                gap: "10px",
               }}
             >
-              <div style={{ marginBottom: "8px", fontWeight: 700 }}>
+              <div style={{ fontWeight: 700, color: "#f8fafc" }}>
                 Onboarding readiness: {Math.round(coverage.totalProfileConfidence * 100)}%
               </div>
               <div>
                 {coverage.onboardingReadiness
-                  ? "ALICE has enough signal to build your foundational profile."
-                  : "ALICE is collecting a few more adaptive signals before it finalizes recommendations."}
+                  ? "ALICE has enough initial signal to start shaping your profile. Additional questions will refine your fit."
+                  : "ALICE is still gathering the right signals. Your answers will decide the next defining question."}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", color: "rgba(148,163,184,0.9)" }}>
+                <span>Mode: {mode}</span>
+                <span>Questions answered: {probeHistory.length}</span>
+                <span>Signals active: {Object.keys(domainStates).filter((key) => domainStates[key as keyof ConfidenceDomains].confidence > 0).length}</span>
               </div>
             </div>
           </div>
-        ) : null}
-
-        {activeProbe ? (
-          <SignalProbePanel
-            probe={activeProbe}
-            response={probeResponse}
-            onResponseChange={setProbeResponse}
-            onSubmit={handleProbeSubmit}
-            onSkip={handleProbeSkip}
-          />
-        ) : null}
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "760px",
+              pointerEvents: "auto",
+              display: "flex",
+              justifyContent: "center",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+          >
+            <div
+              style={{
+                padding: "18px 20px",
+                borderRadius: "20px",
+                background: "rgba(15,23,42,0.88)",
+                border: "1px solid rgba(96,165,250,0.16)",
+                color: "rgba(226,232,240,0.92)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "rgba(148,163,184,0.8)",
+                  fontWeight: 700,
+                }}
+              >
+                Adaptive question
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", color: "rgba(148,163,184,0.9)", fontSize: "0.95rem" }}>
+                <span>Mode: {mode}</span>
+                <span>Readiness: {Math.round(coverage.totalProfileConfidence * 100)}%</span>
+                <span>Answered: {probeHistory.length}</span>
+              </div>
+            </div>
+            <SignalProbePanel
+              probe={activeProbe}
+              response={probeResponse}
+              onResponseChange={setProbeResponse}
+              onSubmit={handleProbeSubmit}
+              onSkip={handleProbeSkip}
+            />
+          </div>
+        )}
 
         {observation ? (
           <div
