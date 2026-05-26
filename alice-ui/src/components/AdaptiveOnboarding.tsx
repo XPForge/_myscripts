@@ -50,7 +50,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
   const [showWelcome] = useState(true);
   const [showQuestion] = useState(true);
   const [showHint] = useState(true);
-  const [showPrompts] = useState(true);
+  const [showPrompts, setShowPrompts] = useState(false);
   const [selectedPrompts, setSelectedPrompts] = useState<string[]>([]);
   const [selectedDirections, setSelectedDirections] = useState<string[]>([]);
   const [signals, setSignals] = useState(createOnboardingSignals());
@@ -101,11 +101,29 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
   );
 
   const handlePromptToggle = (id: string) => {
+    // enforce single-selection for prompts: selecting one clears others
     setSelectedPrompts((current) => {
-      const next = current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id];
+      const isActive = current.includes(id);
+      const next = isActive ? [] : [id];
       setSignals((signal) => recordPromptSelection(signal));
+
+      // if a prompt was just selected, immediately begin probe sequencing
+      if (!isActive) {
+        // estimate domains immediately from this single selection
+        const nextDomains = estimateDomainsFromSelection([id], selectedDirections);
+        setDomainStates(nextDomains);
+        setProbeHistory([]);
+        const nextProbe = selectNextProbe(nextDomains, mode, [], probeSet);
+        if (!nextProbe) {
+          completeOnboarding();
+        } else {
+          setActiveProbe(nextProbe);
+          setProbeResponse("");
+        }
+        // hide the prompt list so the user sees the active probe
+        setShowPrompts(false);
+      }
+
       return next;
     });
   };
