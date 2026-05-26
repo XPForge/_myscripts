@@ -11,6 +11,7 @@ type TopCommandBarProps = {
   onResetDismissedJobs: () => void;
   onFullStrategicReset: () => void;
   onViewProfile: () => void;
+  onInspectProfile: () => void;
 };
 
 export default function TopCommandBar({
@@ -21,6 +22,7 @@ export default function TopCommandBar({
   onResetDismissedJobs,
   onFullStrategicReset,
   onViewProfile,
+  onInspectProfile,
 }: TopCommandBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -99,6 +101,29 @@ export default function TopCommandBar({
           }}
         >
           <span style={{ fontSize: "18px", lineHeight: 1 }}>*</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onInspectProfile}
+          aria-label="Open strategic profile inspector"
+          title="Inspect strategic profile signals"
+          style={{
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "38px",
+            height: "38px",
+            borderRadius: "14px",
+            border: "1px solid rgba(148,163,184,0.22)",
+            background: "rgba(30,41,59,0.55)",
+            color: "#dbeafe",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(15,23,42,0.35)",
+          }}
+        >
+          <span style={{ fontSize: "18px", lineHeight: 1 }}>i</span>
         </button>
 
         <button

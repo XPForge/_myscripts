@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useSavedJobs } from "../context/SavedJobsContext";
 import { clearAdaptivePreferences } from "../services/feedManager";
 import SavedJobsPanel from "./SavedJobsPanel";
+import StrategicProfilePanel from "./StrategicProfilePanel";
 import SwipeCardStack from "./SwipeCardStack";
 import TopCommandBar from "./TopCommandBar";
 
@@ -46,6 +47,8 @@ export default function AppShell({ onViewProfile }: AppShellProps) {
     showStatus("ALICE fully reset to first-launch state.");
   };
 
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+
   return (
     <div
       style={{
@@ -66,6 +69,7 @@ export default function AppShell({ onViewProfile }: AppShellProps) {
         onResetDismissedJobs={handleResetDismissed}
         onFullStrategicReset={handleFullReset}
         onViewProfile={onViewProfile}
+        onInspectProfile={() => setInspectorOpen(true)}
       />
       {statusMessage ? (
         <div
@@ -94,6 +98,10 @@ export default function AppShell({ onViewProfile }: AppShellProps) {
         />,
         document.body
       )}
+      <StrategicProfilePanel
+        isOpen={inspectorOpen}
+        onClose={() => setInspectorOpen(false)}
+      />
       <SwipeCardStack feedKey={feedKey} />
     </div>
   );
