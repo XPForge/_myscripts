@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ArrivalScreen from "./ArrivalScreen";
 import PromptReveal from "./PromptReveal";
+import SignalProbePanel from "./SignalProbePanel";
 import {
   buildOnboardingObservation,
   directionOptions,
@@ -23,6 +24,21 @@ import {
   createOnboardingProfile,
   persistOnboardingProfile,
 } from "../services/onboardingProfile";
+import { calculateProfileCoverage } from "../services/profileCoverage";
+import {
+  createSignalProbes,
+  evaluateProbeResponse,
+  type SignalProbe,
+} from "../services/signalProbeEngine";
+import {
+  createConfidenceDomains,
+  estimateDomainsFromSelection,
+  type ConfidenceDomains,
+} from "../services/confidenceDomains";
+import {
+  selectNextProbe,
+  shouldContinueOnboarding,
+} from "../services/onboardingRouting";
 import { useAuth } from "../context/AuthContext";
 
 type AdaptiveOnboardingProps = {
@@ -39,6 +55,45 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
   const [selectedDirections, setSelectedDirections] = useState<string[]>([]);
   const [signals, setSignals] = useState(createOnboardingSignals());
   const [observation, setObservation] = useState<string | null>(null);
+  const [domainStates, setDomainStates] = useState<ConfidenceDomains>(createConfidenceDomains());
+  const [probeHistory, setProbeHistory] = useState<string[]>([]);
+  const [activeProbe, setActiveProbe] = useState<SignalProbe | null>(null);
+  const [probeResponse, setProbeResponse] = useState("");
+
+  const mode = useMemo(() => inferOnboardingMode(selectedPrompts), [selectedPrompts]);
+  const probeSet = useMemo(() => createSignalProbes(mode), [mode]);
+  const coverage = useMemo(
+    () => calculateProfileCoverage(domainStates, mode),
+    [domainStates, mode]
+  );
+
+  useEffect(() => {
+    setDomainStates(estimateDomainsFromSelection(selectedPrompts, selectedDirections));
+    setProbeHistory([]);
+    setActiveProbe(null);
+    setProbeResponse("");
+  }, [selectedPrompts.join(","), selectedDirections.join(",")]);
+
+  useEffect(() => {
+    if (shouldTriggerStrategicObservation(signals)) {
+      const text = buildOnboardingObservation(selectedPrompts, selectedDirections);
+      setObservation(text);
+      setSignals((signal) => markObservationShown(signal));
+    }
+  }, [signals, selectedDirections, selectedPrompts]);
+
+  // focus first prompt button for keyboard users when prompts revealed
+  useEffect(() => {
+    if (showPrompts) {
+      try {
+        const root = document.getElementById("prompt-reveal");
+        const btn = root?.querySelector("button");
+        if (btn && typeof (btn as HTMLElement).focus === "function") (btn as HTMLElement).focus();
+      } catch (err) {
+        /* ignore */
+      }
+    }
+  }, [showPrompts]);
 
   const promptLabels = useMemo(
     () => new Map(promptOptions.map((item) => [item.id, item.label])),
@@ -65,27 +120,6 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
     });
   };
 
-  useEffect(() => {
-    if (shouldTriggerStrategicObservation(signals)) {
-      const text = buildOnboardingObservation(selectedPrompts, selectedDirections);
-      setObservation(text);
-      setSignals((signal) => markObservationShown(signal));
-    }
-  }, [signals, selectedDirections, selectedPrompts]);
-
-  // focus first prompt button for keyboard users when prompts revealed
-  useEffect(() => {
-    if (showPrompts) {
-      try {
-        const root = document.getElementById("prompt-reveal");
-        const btn = root?.querySelector("button");
-        if (btn && typeof (btn as HTMLElement).focus === "function") (btn as HTMLElement).focus();
-      } catch (err) {
-        /* ignore */
-      }
-    }
-  }, [showPrompts]);
-
   const completeOnboarding = () => {
     const archetype = inferArchetypeFromSelection(selectedPrompts, selectedDirections);
     const identity = createIdentityProfile({
@@ -95,7 +129,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       knownToAlice: false,
     });
     const onboardingProfile = createOnboardingProfile({
-      mode: inferOnboardingMode(selectedPrompts),
+      mode,
       certaintyScore: selectedPrompts.includes("precision") ? 0.88 : 0.68,
       explorationLevel: selectedPrompts.includes("exploration") || selectedPrompts.includes("discovery") ? 0.92 : 0.55,
       preferredIndustries: selectedDirections,
@@ -103,12 +137,14 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
       directionInterests: selectedDirections,
       clusterAffinities: {},
+      domainStates,
     });
 
     persistOnboardingProfile(auth.user?.id, onboardingProfile);
     if (auth.user) {
       persistIdentityProfile(auth.user.id, identity);
     }
+    console.debug("ALICE onboarding coverage", coverage);
     onComplete();
   };
 
@@ -128,13 +164,41 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
       directionInterests: selectedDirections,
       clusterAffinities: {},
+      domainStates,
     });
 
     persistOnboardingProfile(auth.user?.id, onboardingProfile);
     if (auth.user) {
       persistIdentityProfile(auth.user.id, identity);
     }
+    console.debug("ALICE anonymous onboarding coverage", coverage);
     onComplete();
+  };
+
+  const handleContinue = () => {
+    const nextProbe = selectNextProbe(domainStates, mode, probeHistory, probeSet);
+    if (!shouldContinueOnboarding(domainStates, mode, probeHistory.length, probeSet) || !nextProbe) {
+      completeOnboarding();
+      return;
+    }
+    setActiveProbe(nextProbe);
+    setProbeResponse("");
+  };
+
+  const handleProbeSubmit = () => {
+    if (!activeProbe) return;
+    const next = evaluateProbeResponse(activeProbe, probeResponse, domainStates);
+    setDomainStates(next);
+    setProbeHistory((history) => [...history, activeProbe.id]);
+    setActiveProbe(null);
+    setProbeResponse("");
+  };
+
+  const handleProbeSkip = () => {
+    if (!activeProbe) return;
+    setProbeHistory((history) => [...history, activeProbe.id]);
+    setActiveProbe(null);
+    setProbeResponse("");
   };
 
   return (
@@ -151,7 +215,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
         showWelcome={showWelcome}
         showQuestion={showQuestion}
         showHint={showHint}
-        reserveBottom={showPrompts ? 420 : 180}
+        reserveBottom={showPrompts ? 520 : 180}
       />
 
       <div
@@ -169,7 +233,6 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
           gap: "12px",
         }}
       >
-
         {showPrompts ? (
           <div
             style={{
@@ -178,6 +241,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
               pointerEvents: "auto",
               display: "flex",
               justifyContent: "center",
+              flexDirection: "column",
             }}
           >
             <PromptReveal
@@ -187,10 +251,42 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
               selectedDirections={selectedDirections}
               onPromptToggle={handlePromptToggle}
               onDirectionToggle={handleDirectionToggle}
-              onContinue={completeOnboarding}
+              onContinue={handleContinue}
               onExploreAnonymously={exploreAnonymously}
             />
+
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "14px 16px",
+                borderRadius: "18px",
+                background: "rgba(15,23,42,0.82)",
+                border: "1px solid rgba(148,163,184,0.14)",
+                color: "rgba(226,232,240,0.88)",
+                fontSize: "0.95rem",
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ marginBottom: "8px", fontWeight: 700 }}>
+                Onboarding readiness: {Math.round(coverage.totalProfileConfidence * 100)}%
+              </div>
+              <div>
+                {coverage.onboardingReadiness
+                  ? "ALICE has enough signal to build your foundational profile."
+                  : "ALICE is collecting a few more adaptive signals before it finalizes recommendations."}
+              </div>
+            </div>
           </div>
+        ) : null}
+
+        {activeProbe ? (
+          <SignalProbePanel
+            probe={activeProbe}
+            response={probeResponse}
+            onResponseChange={setProbeResponse}
+            onSubmit={handleProbeSubmit}
+            onSkip={handleProbeSkip}
+          />
         ) : null}
 
         {observation ? (

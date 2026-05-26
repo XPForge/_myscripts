@@ -4,6 +4,7 @@ export type OnboardingMode =
   | "discovery"
   | "reset"
   | "hybrid";
+import type { ConfidenceDomains } from "./confidenceDomains";
 
 export type OnboardingProfile = {
   id: string;
@@ -17,6 +18,7 @@ export type OnboardingProfile = {
   clusterAffinities: Record<string, number>;
   confirmedObservations: string[];
   rejectedObservations: string[];
+  domainStates?: ConfidenceDomains;
   createdAt: string;
   lastUpdated: string;
 };
@@ -68,6 +70,7 @@ export function createOnboardingProfile(options: {
   clusterAffinities?: Record<string, number>;
   confirmedObservations?: string[];
   rejectedObservations?: string[];
+  domainStates?: ConfidenceDomains;
 }): OnboardingProfile {
   const now = new Date().toISOString();
   return {
@@ -82,6 +85,7 @@ export function createOnboardingProfile(options: {
     clusterAffinities: options.clusterAffinities ?? {},
     confirmedObservations: options.confirmedObservations ?? [],
     rejectedObservations: options.rejectedObservations ?? [],
+    domainStates: options.domainStates,
     createdAt: now,
     lastUpdated: now,
   };
