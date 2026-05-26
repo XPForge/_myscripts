@@ -123,6 +123,31 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <button
+          type="button"
+          onClick={() => {
+            const now = Date.now();
+            const email = `dev+${now}@alice.local`;
+            const name = `ALICE Dev ${now}`;
+            const password = "DevUser123!";
+            auth.register(email, name, password);
+          }}
+          style={{
+            width: "100%",
+            marginTop: "14px",
+            borderRadius: "16px",
+            border: "1px solid rgba(148,163,184,0.18)",
+            background: "rgba(255,255,255,0.03)",
+            color: "#93c5fd",
+            padding: "14px 16px",
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Dev access: create fresh user
+        </button>
+
         <div
           style={{
             marginTop: "22px",

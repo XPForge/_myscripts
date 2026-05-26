@@ -12,6 +12,7 @@ import {
   loadSessionMember,
   validateCredentials,
   clearSession,
+  persistSession,
 } from "../services/authService";
 
 type AuthMode = "login" | "signup";
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!member) {
       return { success: false, error: "Invalid email address or password." };
     }
+    persistSession({ userId: member.id });
     setUser(member);
     return { success: true };
   };
