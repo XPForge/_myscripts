@@ -55,7 +55,10 @@ export default function PromptReveal({
             marginBottom: "10px",
           }}
         >
-        Adaptive question flow
+          Adaptive question flow
+        </div>
+
+        <div style={{ display: "grid", gap: "10px", marginBottom: "18px" }}>
           {prompts.map((item) => {
             const active = selectedPrompts.includes(item.id);
             return (

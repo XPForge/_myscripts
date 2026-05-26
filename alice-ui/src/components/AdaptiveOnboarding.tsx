@@ -217,31 +217,29 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
     <div
       style={{
         minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
         background: "radial-gradient(circle at top, rgba(30,58,138,0.36), transparent 24%), #020617",
         color: "#e2e8f0",
         overflow: "hidden",
       }}
     >
-      {/* reserve bottom space for prompts/listening panel to avoid overlap */}
       <ArrivalScreen
         showWelcome={showWelcome}
         showQuestion={showQuestion}
         showHint={showHint}
-        reserveBottom={showPrompts ? 520 : 180}
+        reserveBottom={0}
       />
 
       <div
         style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
+          position: "relative",
           display: "flex",
           flexDirection: "column",
           justifyContent: "flex-end",
           alignItems: "center",
-          padding: "20px 16px 24px",
-          pointerEvents: "none",
+          padding: "20px 16px 32px",
           gap: "12px",
         }}
       >
