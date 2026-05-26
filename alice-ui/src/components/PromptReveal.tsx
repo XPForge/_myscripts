@@ -31,10 +31,6 @@ export default function PromptReveal({
         margin: "0 auto",
         padding: "0 16px 12px",
         color: "#cbd5e1",
-        maxHeight: "42vh",
-        overflowY: "auto",
-        WebkitOverflowScrolling: "touch",
-        overscrollBehaviorY: "contain",
       }}
       id="prompt-reveal"
       role="region"
