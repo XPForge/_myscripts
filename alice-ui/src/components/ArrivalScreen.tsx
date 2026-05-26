@@ -22,7 +22,8 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
   const dynamicContainer: CSSProperties = {
     position: "relative",
     width: "100%",
-    minHeight: reserveBottom ? `calc(100vh - ${reserveBottom}px)` : "100vh",
+    height: reserveBottom ? `calc(100vh - ${reserveBottom}px)` : "100vh",
+    minHeight: reserveBottom ? undefined : "100vh",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",

@@ -229,7 +229,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
         showWelcome={showWelcome}
         showQuestion={showQuestion}
         showHint={showHint}
-        reserveBottom={0}
+        reserveBottom={360}
       />
 
       <div
