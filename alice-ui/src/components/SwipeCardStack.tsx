@@ -1,5 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useSavedJobs } from "../context/SavedJobsContext";
 import { type JobCard } from "../services/jobService";
 import { loadOpportunityFeed } from "../services/feedManager";
@@ -152,6 +153,7 @@ const themes = [
 ];
 
 export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
+  const { user } = useAuth();
   const { saveJob, dismissJobId } = useSavedJobs();
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [index, setIndex] = useState(0);
@@ -182,7 +184,7 @@ export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
     setIsLeaving(false);
     setLoading(true);
 
-    loadOpportunityFeed()
+    loadOpportunityFeed(user?.id)
       .then((fetched) => {
         if (!active) return;
         setJobs(fetched);

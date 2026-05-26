@@ -157,7 +157,7 @@ export default function PromptReveal({
               fontSize: "0.92rem",
             }}
           >
-            Continue with this path
+            Shape my recommendations
           </button>
           <button
             type="button"

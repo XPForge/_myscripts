@@ -4,6 +4,7 @@ import PromptReveal from "./PromptReveal";
 import {
   buildOnboardingObservation,
   directionOptions,
+  inferOnboardingMode,
   promptOptions,
 } from "../services/onboardingEngine";
 import {
@@ -18,6 +19,10 @@ import {
   inferArchetypeFromSelection,
   persistIdentityProfile,
 } from "../services/identityConfidence";
+import {
+  createOnboardingProfile,
+  persistOnboardingProfile,
+} from "../services/onboardingProfile";
 import { useAuth } from "../context/AuthContext";
 
 type AdaptiveOnboardingProps = {
@@ -83,31 +88,51 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
 
   const completeOnboarding = () => {
     const archetype = inferArchetypeFromSelection(selectedPrompts, selectedDirections);
-    const profile = createIdentityProfile({
+    const identity = createIdentityProfile({
       archetype,
       promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
       directionInterests: selectedDirections,
       knownToAlice: false,
     });
+    const onboardingProfile = createOnboardingProfile({
+      mode: inferOnboardingMode(selectedPrompts),
+      certaintyScore: selectedPrompts.includes("precision") ? 0.88 : 0.68,
+      explorationLevel: selectedPrompts.includes("exploration") || selectedPrompts.includes("discovery") ? 0.92 : 0.55,
+      preferredIndustries: selectedDirections,
+      excludedIndustries: [],
+      promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
+      directionInterests: selectedDirections,
+      clusterAffinities: {},
+    });
+
+    persistOnboardingProfile(auth.user?.id, onboardingProfile);
     if (auth.user) {
-      persistIdentityProfile(auth.user.id, profile);
+      persistIdentityProfile(auth.user.id, identity);
     }
     onComplete();
   };
 
-  const handleSignIn = () => {
-    auth.setAuthMode("login");
-  };
-
   const exploreAnonymously = () => {
-    const profile = createIdentityProfile({
+    const identity = createIdentityProfile({
       archetype: "Strategic Explorer",
       promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
       directionInterests: selectedDirections,
       knownToAlice: false,
     });
+    const onboardingProfile = createOnboardingProfile({
+      mode: "exploration",
+      certaintyScore: 0.6,
+      explorationLevel: 0.98,
+      preferredIndustries: selectedDirections,
+      excludedIndustries: [],
+      promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
+      directionInterests: selectedDirections,
+      clusterAffinities: {},
+    });
+
+    persistOnboardingProfile(auth.user?.id, onboardingProfile);
     if (auth.user) {
-      persistIdentityProfile(auth.user.id, profile);
+      persistIdentityProfile(auth.user.id, identity);
     }
     onComplete();
   };
@@ -167,32 +192,6 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
             />
           </div>
         ) : null}
-
-        <div
-          style={{
-            marginTop: "6px",
-            color: "rgba(148,163,184,0.72)",
-            fontSize: "0.9rem",
-            textAlign: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          Already known to ALICE?{" "}
-          <button
-            type="button"
-            onClick={handleSignIn}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#93c5fd",
-              cursor: "pointer",
-              textDecoration: "underline",
-              fontWeight: 700,
-            }}
-          >
-            Sign In
-          </button>
-        </div>
 
         {observation ? (
           <div

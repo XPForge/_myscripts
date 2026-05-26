@@ -97,7 +97,7 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
             marginTop: "4px",
           }}
         >
-          Answer naturally or wait for the prompts.
+          Select the response that should shape your opportunity feed.
         </div>
       </div>
     </div>
