@@ -31,7 +31,6 @@ const actionButtonStyle = {
   fontWeight: 700,
   textAlign: "left" as const,
   cursor: "pointer",
-  transition: "background 0.18s ease, border-color 0.18s ease, transform 0.18s ease",
 };
 
 const confirmButtonStyle = {

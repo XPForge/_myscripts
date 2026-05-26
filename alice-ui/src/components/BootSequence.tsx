@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 type Props = {
   onComplete: () => void;
@@ -8,33 +8,9 @@ type Props = {
 export default function BootSequence({
   onComplete,
 }: Props) {
-  const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 700),
-      setTimeout(() => setPhase(2), 1800),
-      setTimeout(() => setPhase(3), 3400),
-      setTimeout(() => onComplete(), 5200),
-    ];
-
-    const synth = window.speechSynthesis;
-
-    const speak = (text: string, delay: number) => {
-      setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.92;
-        utterance.pitch = 0.95;
-        utterance.volume = 0.72;
-        synth.speak(utterance);
-      }, delay);
-    };
-
-    speak("Welcome back, Paul.", 3200);
-
-    return () => {
-      timers.forEach(clearTimeout);
-    };
+    onComplete();
   }, [onComplete]);
 
   return (
@@ -56,12 +32,11 @@ export default function BootSequence({
       <div
         style={{
           position: "absolute",
-          width: phase >= 1 ? "360px" : "120px",
-          height: phase >= 1 ? "360px" : "120px",
+          width: "360px",
+          height: "360px",
           borderRadius: "999px",
           background: "rgba(59,130,246,0.18)",
           filter: "blur(100px)",
-          transition: "all 2.2s ease",
         }}
       />
 
@@ -69,10 +44,9 @@ export default function BootSequence({
         src="/ALICE-title-screen_solo.PNG"
         alt="ALICE"
         style={{
-          width: phase >= 1 ? "240px" : "160px",
-          opacity: phase >= 1 ? 1 : 0.25,
-          transform: phase >= 1 ? "scale(1)" : "scale(0.82)",
-          transition: "all 1.8s ease",
+          width: "240px",
+          opacity: 1,
+          transform: "scale(1)",
           zIndex: 2,
         }}
       />
@@ -80,8 +54,7 @@ export default function BootSequence({
       <div
         style={{
           marginTop: "24px",
-          opacity: phase >= 2 ? 0.7 : 0,
-          transition: "opacity 1.4s ease",
+          opacity: 0.7,
           letterSpacing: "0.08em",
           fontSize: "14px",
         }}

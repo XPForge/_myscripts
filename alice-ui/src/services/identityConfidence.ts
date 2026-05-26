@@ -9,7 +9,11 @@ export type IdentityProfile = {
   knownToAlice: boolean;
 };
 
-const IDENTITY_KEY = "alice.identityProfile";
+const IDENTITY_KEY_PREFIX = "alice.identityProfile.";
+
+function storageKey(userId: string): string {
+  return `${IDENTITY_KEY_PREFIX}${userId}`;
+}
 
 function safeParse(raw: string | null): IdentityProfile | null {
   if (!raw) return null;
@@ -24,18 +28,19 @@ function safeParse(raw: string | null): IdentityProfile | null {
   return null;
 }
 
-export function loadIdentityProfile(): IdentityProfile | null {
-  if (typeof window === "undefined") return null;
-  return safeParse(localStorage.getItem(IDENTITY_KEY));
+export function loadIdentityProfile(userId: string | null): IdentityProfile | null {
+  if (!userId || typeof window === "undefined") return null;
+  return safeParse(localStorage.getItem(storageKey(userId)));
 }
 
-export function hasKnownIdentity(): boolean {
-  return Boolean(loadIdentityProfile());
+export function hasKnownIdentity(userId: string | null): boolean {
+  return Boolean(loadIdentityProfile(userId));
 }
 
-export function persistIdentityProfile(profile: IdentityProfile): void {
+export function persistIdentityProfile(userId: string, profile: IdentityProfile): void {
+  if (!userId) return;
   try {
-    localStorage.setItem(IDENTITY_KEY, JSON.stringify(profile));
+    localStorage.setItem(storageKey(userId), JSON.stringify(profile));
   } catch {
     // ignore storage failures
   }

@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 const COLLAPSED_HEIGHT = 140;
 const EXPANDED_HEIGHT = 320;
-const EXPAND_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 const frameStyle: CSSProperties = {
   borderRadius: "18px",
@@ -57,7 +56,6 @@ export default function DescriptionViewport({
           position: "relative",
           height: `${height}px`,
           overflow: "hidden",
-          transition: `height 0.42s ${EXPAND_EASING}, box-shadow 0.42s ${EXPAND_EASING}`,
           boxShadow: expanded
             ? "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 28px rgba(2,6,23,0.35)"
             : "inset 0 1px 0 rgba(255,255,255,0.04)",

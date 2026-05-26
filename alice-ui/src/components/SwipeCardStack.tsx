@@ -219,16 +219,10 @@ export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
     }
 
     setIsLeaving(true);
-
-    requestAnimationFrame(() => {
-      setDragX(direction * window.innerWidth * 1.8);
-    });
-
-    setTimeout(() => {
-      setIndex((prev) => Math.min(prev + 1, jobs.length - 1));
-      setDragX(0);
-      setIsLeaving(false);
-    }, 260);
+    setDragX(direction * window.innerWidth * 1.8);
+    setIndex((prev) => Math.min(prev + 1, jobs.length - 1));
+    setDragX(0);
+    setIsLeaving(false);
   };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -477,7 +471,6 @@ export default function SwipeCardStack({ feedKey }: { feedKey: number }) {
           style={{
             ...cardStyles(activeTheme),
             transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
-            transition: isLeaving ? "transform 0.26s ease-out" : "none",
             zIndex: 3,
           }}
         >

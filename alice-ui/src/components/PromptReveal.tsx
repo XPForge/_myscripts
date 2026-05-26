@@ -44,7 +44,6 @@ export default function PromptReveal({
         style={{
           opacity: 1,
           transform: "translateY(0)",
-          transition: "opacity 0.5s ease, transform 0.5s ease",
         }}
       >
         <div
@@ -86,11 +85,8 @@ export default function PromptReveal({
                   color: "#e2e8f0",
                   cursor: "pointer",
                   boxShadow: active ? "0 10px 24px rgba(2,6,23,0.38)" : "0 4px 14px rgba(2,6,23,0.32)",
-                  transition: "transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms",
                   outline: "none",
                 }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.998)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "")}
               >
                 <div style={{ fontWeight: 800, marginBottom: "4px", fontSize: "0.96rem" }}>{item.label}</div>
                 <div style={{ fontSize: "0.85rem", lineHeight: 1.4, color: "rgba(203,213,225,0.7)" }}>
@@ -132,12 +128,9 @@ export default function PromptReveal({
                   padding: "8px 12px",
                   cursor: "pointer",
                   boxShadow: active ? "0 8px 22px rgba(2,6,23,0.35)" : "0 4px 12px rgba(2,6,23,0.28)",
-                  transition: "transform 140ms, box-shadow 160ms",
                   outline: "none",
                   fontSize: "0.88rem",
                 }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px) scale(0.997)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "")}
               >
                 {direction.label}
               </button>
@@ -161,7 +154,6 @@ export default function PromptReveal({
               fontWeight: 800,
               cursor: hasSelection ? "pointer" : "not-allowed",
               boxShadow: hasSelection ? "0 10px 28px rgba(2,6,23,0.35)" : "0 5px 16px rgba(2,6,23,0.3)",
-              transition: "transform 160ms, box-shadow 180ms",
               fontSize: "0.92rem",
             }}
           >

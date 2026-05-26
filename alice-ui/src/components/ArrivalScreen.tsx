@@ -33,11 +33,6 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
 
   return (
     <div style={dynamicContainer} role="region" aria-label="Welcome to ALICE">
-      <style>{`
-        @keyframes ambientPulse { 0%,100%{ transform: scale(1); opacity: 0.18 } 50%{ transform: scale(1.06); opacity: 0.28 } }
-        .fadeIn { transition: opacity 900ms cubic-bezier(.22,1,.36,1) }
-      `}</style>
-
       <div
         style={{
           position: "absolute",
@@ -71,7 +66,6 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
         </div>
 
         <div
-          className="fadeIn"
           style={{
             opacity: showWelcome ? 1 : 0,
             fontSize: "clamp(1.7rem, 3.8vw, 2.4rem)",
@@ -84,10 +78,8 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
         </div>
 
         <div
-          className="fadeIn"
           style={{
             opacity: showQuestion ? 1 : 0,
-            transitionDelay: showQuestion ? "220ms" : undefined,
             fontSize: "clamp(0.95rem, 1.7vw, 1.15rem)",
             color: "rgba(226,232,240,0.92)",
             marginBottom: "6px",
@@ -98,10 +90,8 @@ export default function ArrivalScreen({ showWelcome, showQuestion, showHint, res
         </div>
 
         <div
-          className="fadeIn"
           style={{
             opacity: showHint ? 1 : 0,
-            transitionDelay: showHint ? "460ms" : undefined,
             color: "rgba(148,163,184,0.78)",
             fontSize: "0.88rem",
             marginTop: "4px",

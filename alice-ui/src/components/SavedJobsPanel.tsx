@@ -28,7 +28,6 @@ export default function SavedJobsPanel({
           backdropFilter: "blur(2px)",
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? "auto" : "none",
-          transition: "opacity 0.22s ease",
         }}
       />
 
@@ -52,8 +51,6 @@ export default function SavedJobsPanel({
           transform: isOpen ? "translateY(0)" : "translateY(-108%)",
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? "auto" : "none",
-          transition:
-            "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease",
         }}
       >
         <div
@@ -135,7 +132,6 @@ export default function SavedJobsPanel({
                   textAlign: "left",
                   cursor: "pointer",
                   display: "block",
-                  transition: "background 0.18s ease, border-color 0.18s ease",
                 }}
               >
                 <div

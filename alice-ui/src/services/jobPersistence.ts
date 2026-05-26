@@ -3,9 +3,13 @@ import type { JobCard } from "./jobService";
 const SAVED_JOBS_KEY = "alice.savedJobs";
 const DISMISSED_JOBS_KEY = "alice.dismissedJobIds";
 
-export function loadSavedJobs(): JobCard[] {
+function storageKey(base: string, userId?: string): string {
+  return userId ? `${base}.${userId}` : base;
+}
+
+export function loadSavedJobs(userId?: string): JobCard[] {
   try {
-    const raw = localStorage.getItem(SAVED_JOBS_KEY);
+    const raw = localStorage.getItem(storageKey(SAVED_JOBS_KEY, userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as JobCard[]) : [];
@@ -14,9 +18,9 @@ export function loadSavedJobs(): JobCard[] {
   }
 }
 
-export function loadDismissedJobs(): string[] {
+export function loadDismissedJobs(userId?: string): string[] {
   try {
-    const raw = localStorage.getItem(DISMISSED_JOBS_KEY);
+    const raw = localStorage.getItem(storageKey(DISMISSED_JOBS_KEY, userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -27,10 +31,10 @@ export function loadDismissedJobs(): string[] {
   }
 }
 
-export function persistSavedJobs(jobs: JobCard[]): void {
-  localStorage.setItem(SAVED_JOBS_KEY, JSON.stringify(jobs));
+export function persistSavedJobs(jobs: JobCard[], userId?: string): void {
+  localStorage.setItem(storageKey(SAVED_JOBS_KEY, userId), JSON.stringify(jobs));
 }
 
-export function persistDismissedJobs(ids: string[]): void {
-  localStorage.setItem(DISMISSED_JOBS_KEY, JSON.stringify(ids));
+export function persistDismissedJobs(ids: string[], userId?: string): void {
+  localStorage.setItem(storageKey(DISMISSED_JOBS_KEY, userId), JSON.stringify(ids));
 }

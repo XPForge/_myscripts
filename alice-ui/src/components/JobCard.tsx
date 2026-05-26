@@ -160,7 +160,6 @@ function SmallButton({
     border: "1px solid",
     fontWeight: 600,
     cursor: "pointer",
-    transition: "0.2s ease",
     padding: "8px 12px",
     fontSize: "13px",
   };

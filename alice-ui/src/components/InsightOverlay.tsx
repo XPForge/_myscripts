@@ -13,7 +13,6 @@ const overlayStyle: CSSProperties = {
   boxShadow: "0 20px 40px rgba(8,18,38,0.42)",
   padding: "16px 18px",
   overflow: "hidden",
-  transition: "opacity 220ms ease, transform 220ms ease",
 };
 
 export default function InsightOverlay({ label, text, isOpen }: InsightOverlayProps) {

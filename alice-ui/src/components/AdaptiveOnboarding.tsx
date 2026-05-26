@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ArrivalScreen from "./ArrivalScreen";
-import ListeningState from "./ListeningState";
 import PromptReveal from "./PromptReveal";
 import {
-  buildAdaptiveArchetype,
   buildOnboardingObservation,
   directionOptions,
   promptOptions,
@@ -20,17 +18,18 @@ import {
   inferArchetypeFromSelection,
   persistIdentityProfile,
 } from "../services/identityConfidence";
+import { useAuth } from "../context/AuthContext";
 
 type AdaptiveOnboardingProps = {
   onComplete: () => void;
 };
 
 export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingProps) {
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showQuestion, setShowQuestion] = useState(false);
-  const [showHint, setShowHint] = useState(false);
-  const [showListening, setShowListening] = useState(false);
-  const [showPrompts, setShowPrompts] = useState(false);
+  const auth = useAuth();
+  const [showWelcome] = useState(true);
+  const [showQuestion] = useState(true);
+  const [showHint] = useState(true);
+  const [showPrompts] = useState(true);
   const [selectedPrompts, setSelectedPrompts] = useState<string[]>([]);
   const [selectedDirections, setSelectedDirections] = useState<string[]>([]);
   const [signals, setSignals] = useState(createOnboardingSignals());
@@ -40,18 +39,6 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
     () => new Map(promptOptions.map((item) => [item.id, item.label])),
     []
   );
-
-  useEffect(() => {
-    const timers: number[] = [];
-    timers.push(window.setTimeout(() => setShowWelcome(true), 120));
-    timers.push(window.setTimeout(() => setShowQuestion(true), 720));
-    timers.push(window.setTimeout(() => setShowHint(true), 1200));
-    timers.push(window.setTimeout(() => setShowListening(true), 1800));
-    timers.push(window.setTimeout(() => setShowPrompts(true), 3000));
-    return () => {
-      timers.forEach(window.clearTimeout);
-    };
-  }, []);
 
   const handlePromptToggle = (id: string) => {
     setSelectedPrompts((current) => {
@@ -84,16 +71,13 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
   // focus first prompt button for keyboard users when prompts revealed
   useEffect(() => {
     if (showPrompts) {
-      const t = window.setTimeout(() => {
-        try {
-          const root = document.getElementById("prompt-reveal");
-          const btn = root?.querySelector("button");
-          if (btn && typeof (btn as HTMLElement).focus === "function") (btn as HTMLElement).focus();
-        } catch (err) {
-          /* ignore */
-        }
-      }, 360);
-      return () => window.clearTimeout(t);
+      try {
+        const root = document.getElementById("prompt-reveal");
+        const btn = root?.querySelector("button");
+        if (btn && typeof (btn as HTMLElement).focus === "function") (btn as HTMLElement).focus();
+      } catch (err) {
+        /* ignore */
+      }
     }
   }, [showPrompts]);
 
@@ -105,20 +89,14 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       directionInterests: selectedDirections,
       knownToAlice: false,
     });
-    persistIdentityProfile(profile);
+    if (auth.user) {
+      persistIdentityProfile(auth.user.id, profile);
+    }
     onComplete();
   };
 
-  const signIn = () => {
-    const archetype = buildAdaptiveArchetype(selectedPrompts, selectedDirections);
-    const profile = createIdentityProfile({
-      archetype,
-      promptHistory: selectedPrompts.map((id) => promptLabels.get(id) ?? id),
-      directionInterests: selectedDirections,
-      knownToAlice: true,
-    });
-    persistIdentityProfile(profile);
-    onComplete();
+  const handleSignIn = () => {
+    auth.setAuthMode("login");
   };
 
   const exploreAnonymously = () => {
@@ -128,7 +106,9 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
       directionInterests: selectedDirections,
       knownToAlice: false,
     });
-    persistIdentityProfile(profile);
+    if (auth.user) {
+      persistIdentityProfile(auth.user.id, profile);
+    }
     onComplete();
   };
 
@@ -159,12 +139,11 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
           flexDirection: "column",
           justifyContent: "flex-end",
           alignItems: "center",
-          padding: "20px 16px 36px",
+          padding: "20px 16px 24px",
           pointerEvents: "none",
           gap: "12px",
         }}
       >
-        {showListening ? <ListeningState /> : null}
 
         {showPrompts ? (
           <div
@@ -201,7 +180,7 @@ export default function AdaptiveOnboarding({ onComplete }: AdaptiveOnboardingPro
           Already known to ALICE?{" "}
           <button
             type="button"
-            onClick={signIn}
+            onClick={handleSignIn}
             style={{
               border: "none",
               background: "transparent",

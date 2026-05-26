@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -13,6 +14,7 @@ import {
   persistDismissedJobs,
   persistSavedJobs,
 } from "../services/jobPersistence";
+import { useAuth } from "./AuthContext";
 
 type SavedJobsContextValue = {
   savedJobs: JobCard[];
@@ -29,11 +31,18 @@ type SavedJobsContextValue = {
 const SavedJobsContext = createContext<SavedJobsContextValue | null>(null);
 
 export function SavedJobsProvider({ children }: { children: ReactNode }) {
-  const [savedJobs, setSavedJobs] = useState<JobCard[]>(() => loadSavedJobs());
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [savedJobs, setSavedJobs] = useState<JobCard[]>(() => loadSavedJobs(userId));
   const [dismissedJobIds, setDismissedJobIds] = useState<string[]>(() =>
-    loadDismissedJobs()
+    loadDismissedJobs(userId)
   );
   const [savedPanelOpen, setSavedPanelOpen] = useState(false);
+
+  useEffect(() => {
+    setSavedJobs(loadSavedJobs(userId));
+    setDismissedJobIds(loadDismissedJobs(userId));
+  }, [userId]);
 
   const dismissedSet = useMemo(
     () => new Set(dismissedJobIds),
@@ -44,35 +53,35 @@ export function SavedJobsProvider({ children }: { children: ReactNode }) {
     setSavedJobs((prev) => {
       if (prev.some((item) => item.id === job.id)) return prev;
       const next = [...prev, job];
-      persistSavedJobs(next);
+      persistSavedJobs(next, userId);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const dismissJobId = useCallback((id: string) => {
     setDismissedJobIds((prev) => {
       if (prev.includes(id)) return prev;
       const next = [...prev, id];
-      persistDismissedJobs(next);
+      persistDismissedJobs(next, userId);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const clearSavedJobs = useCallback(() => {
     setSavedJobs(() => {
       const next: JobCard[] = [];
-      persistSavedJobs(next);
+      persistSavedJobs(next, userId);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const clearDismissedJobs = useCallback(() => {
     setDismissedJobIds(() => {
       const next: string[] = [];
-      persistDismissedJobs(next);
+      persistDismissedJobs(next, userId);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const isDismissed = useCallback(
     (id: string) => dismissedSet.has(id),

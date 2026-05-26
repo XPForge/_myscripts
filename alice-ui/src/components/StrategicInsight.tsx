@@ -35,7 +35,6 @@ const chipStyle: CSSProperties = {
   fontSize: "12px",
   fontWeight: 700,
   cursor: "pointer",
-  transition: "transform 160ms ease, background 160ms ease, border-color 160ms ease",
 };
 
 const chipActiveStyle: CSSProperties = {

@@ -1,12 +1,16 @@
 import { createPortal } from "react-dom";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useSavedJobs } from "../context/SavedJobsContext";
 import { clearAdaptivePreferences } from "../services/feedManager";
 import SavedJobsPanel from "./SavedJobsPanel";
 import SwipeCardStack from "./SwipeCardStack";
 import TopCommandBar from "./TopCommandBar";
 
-export default function AppShell() {
+type AppShellProps = {
+  onViewProfile: () => void;
+};
+
+export default function AppShell({ onViewProfile }: AppShellProps) {
   const {
     savedJobs,
     savedPanelOpen,
@@ -18,17 +22,9 @@ export default function AppShell() {
 
   const [feedKey, setFeedKey] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
-  const statusTimer = useRef<number | null>(null);
 
   const showStatus = (message: string) => {
     setStatusMessage(message);
-    if (statusTimer.current) {
-      window.clearTimeout(statusTimer.current);
-    }
-    statusTimer.current = window.setTimeout(() => {
-      setStatusMessage("");
-      statusTimer.current = null;
-    }, 2800);
   };
 
   const handleRefresh = () => {
@@ -69,6 +65,7 @@ export default function AppShell() {
         onRefreshOpportunities={handleRefresh}
         onResetDismissedJobs={handleResetDismissed}
         onFullStrategicReset={handleFullReset}
+        onViewProfile={onViewProfile}
       />
       {statusMessage ? (
         <div

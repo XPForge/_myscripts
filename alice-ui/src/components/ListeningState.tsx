@@ -44,7 +44,6 @@ export default function ListeningState({ compact = false }: ListeningStateProps)
             height: `${innerSize}px`,
             borderRadius: "50%",
             background: "rgba(59,130,246,0.12)",
-            animation: "pulseGlow 3.2s ease-in-out infinite",
           }}
         />
         <div
@@ -68,27 +67,20 @@ export default function ListeningState({ compact = false }: ListeningStateProps)
         }}
       >
         {bars.map((b, i) => (
-          <span key={i} style={barStyle(b, i)} />
+          <span key={i} style={barStyle(b)} />
         ))}
       </div>
 
-      <style>{`
-        @keyframes pulseGlow { 0%,100%{ transform: scale(1); opacity: 0.22 } 50%{ transform: scale(1.12); opacity: 0.36 } }
-        @keyframes waveformMove { 0% { transform: scaleY(0.72);} 50% { transform: scaleY(1);} 100% { transform: scaleY(0.72);} }
-      `}</style>
     </div>
   );
 }
 
-function barStyle(multiplier: number, index: number): CSSProperties {
-  const dur = 1.1 + multiplier * 0.6;
-  const delay = 0.06 * index;
+function barStyle(multiplier: number): CSSProperties {
   return {
     display: "block",
     width: "100%",
     height: `${10 + multiplier * 18}px`,
     borderRadius: "999px",
     background: "rgba(148,163,184,0.5)",
-    animation: `waveformMove ${dur}s ease-in-out ${delay}s infinite`,
   } as const;
 }
