@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSavedJobs } from "../context/SavedJobsContext";
 import { clearAdaptivePreferences } from "../services/feedManager";
 import SavedJobsPanel from "./SavedJobsPanel";
@@ -9,9 +9,10 @@ import TopCommandBar from "./TopCommandBar";
 
 type AppShellProps = {
   onViewProfile: () => void;
+  children?: ReactNode;
 };
 
-export default function AppShell({ onViewProfile }: AppShellProps) {
+export default function AppShell({ onViewProfile, children }: AppShellProps) {
   const {
     savedJobs,
     savedPanelOpen,
@@ -102,7 +103,16 @@ export default function AppShell({ onViewProfile }: AppShellProps) {
         isOpen={inspectorOpen}
         onClose={() => setInspectorOpen(false)}
       />
-      <SwipeCardStack feedKey={feedKey} />
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {children ?? <SwipeCardStack feedKey={feedKey} />}
+      </div>
     </div>
   );
 }
