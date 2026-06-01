@@ -115,10 +115,6 @@ const server = createServer(async (req, res) => {
             },
           },
         },
-        metadata: {
-          profileMetadata,
-          discoveryPrinciplesVersion,
-        },
       },
     };
 
@@ -127,6 +123,7 @@ const server = createServer(async (req, res) => {
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
+        "OpenAI-Beta": "realtime=v1",
       },
       body: JSON.stringify(openAiPayload),
     });
