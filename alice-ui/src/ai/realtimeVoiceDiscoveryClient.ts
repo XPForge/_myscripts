@@ -37,13 +37,16 @@ function extractTextFromEvent(event: Record<string, unknown>) {
   const text = typeof event.text === "string" ? event.text : undefined;
   const content = delta && typeof delta.content === "string" ? delta.content : undefined;
 
-  if (event.type === "response.delta" || event.type === "response.output_text.delta") {
+  if (
+    event.type === "response.delta" ||
+    event.type === "response.output_text.delta"
+  ) {
     if (content) {
       return { type: "assistant", text: content };
     }
   }
 
-  if (event.type === "response.completed") {
+  if (event.type === "response.completed" || event.type === "response.output_text.completed") {
     if (content) {
       return { type: "assistant", text: content, isFinal: true };
     }
@@ -52,13 +55,21 @@ function extractTextFromEvent(event: Record<string, unknown>) {
     }
   }
 
-  if (event.type === "transcript.delta" || event.type === "input_transcript.delta" || event.type === "response.output_audio_transcript.delta") {
+  if (
+    event.type === "transcript.delta" ||
+    event.type === "input_transcript.delta" ||
+    event.type === "response.output_audio_transcript.delta"
+  ) {
     if (content) {
       return { type: "transcript", text: content, isFinal: false };
     }
   }
 
-  if (event.type === "transcript.final" || event.type === "input_transcript" || event.type === "response.output_audio_transcript") {
+  if (
+    event.type === "transcript.final" ||
+    event.type === "input_transcript" ||
+    event.type === "response.output_audio_transcript"
+  ) {
     if (transcript) {
       return { type: "transcript", text: transcript, isFinal: true };
     }
@@ -309,6 +320,7 @@ export async function startRealtimeVoiceDiscovery(
     headers: {
       Authorization: `Bearer ${realtimeSession.token}`,
       "Content-Type": "application/sdp",
+      Accept: "application/sdp",
     },
     body: localSdp,
   });
