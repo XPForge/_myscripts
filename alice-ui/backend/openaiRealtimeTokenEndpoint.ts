@@ -123,7 +123,6 @@ const server = createServer(async (req, res) => {
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
-        "OpenAI-Beta": "realtime=v1",
       },
       body: JSON.stringify(openAiPayload),
     });
@@ -146,7 +145,7 @@ const server = createServer(async (req, res) => {
       sessionId: data?.session?.id || null,
       token,
       model: returnedModel,
-      endpoint: `${OPENAI_API_BASE}/v1/realtime?model=${encodeURIComponent(returnedModel)}`,
+      endpoint: `${OPENAI_API_BASE}/v1/realtime/calls`,
     });
   } catch (error) {
     sendJson(res, 500, {
