@@ -52,6 +52,7 @@ export interface EvidenceReference {
   strength: EvidenceStrength;
   transcriptSegment?: TranscriptSegmentReference;
   capturedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ConfidenceAssessment {
@@ -61,6 +62,7 @@ export interface ConfidenceAssessment {
   evidenceCount: number;
   evidenceStrength: EvidenceStrength;
   unresolvedQuestions: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentObservation {
@@ -75,6 +77,7 @@ export interface AgentObservation {
   confidence: ConfidenceAssessment;
   createdAt: string;
   updatedAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ObservationSet {
@@ -101,6 +104,7 @@ export interface AgentPattern {
   confidence: ConfidenceAssessment;
   createdAt: string;
   updatedAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UnderstandingArea {
@@ -120,6 +124,7 @@ export interface UnderstandingAssessment {
   supportingPatternIds: string[];
   confidence: ConfidenceAssessment;
   remainingQuestions: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface CoverageArea {
@@ -130,6 +135,7 @@ export interface CoverageArea {
   needsExploration: string[];
   observationIds: string[];
   patternIds: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface CoverageAssessment {

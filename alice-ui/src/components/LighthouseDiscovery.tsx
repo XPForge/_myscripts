@@ -25,6 +25,7 @@ import {
   appendAssistantTranscriptEvent,
   appendParticipantTranscriptEvent,
   loadOrCreateDiscoverySessionState,
+  processDiscoveryPerception,
   updateDiscoverySessionState,
 } from "../engine/agent/discovery";
 
@@ -135,9 +136,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    updateDiscoverySessionState(session.sessionId, (state) =>
-      appendParticipantTranscriptEvent(state, normalized, true)
-    );
+    updateDiscoverySessionState(session.sessionId, (state) => {
+      const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
+      return processDiscoveryPerception(withTranscriptEvent);
+    });
     const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       setProfile(updatedProfile);

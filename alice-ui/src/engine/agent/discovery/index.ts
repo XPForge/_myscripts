@@ -15,9 +15,11 @@ export {
   loadOrCreateDiscoverySessionState,
   persistDiscoverySessionState,
   updateDiscoverySessionState,
+  type DiscoveryBehaviorDecision,
   type DiscoverySessionState,
   type OpenQuestion,
   type ParticipantConfirmation,
+  type ReflectionOpportunity,
 } from "./DiscoverySessionState";
 export {
   appendAssistantTranscriptEvent,
@@ -25,3 +27,17 @@ export {
   createAssistantTranscriptTurn,
   createParticipantTranscriptTurn,
 } from "./DiscoveryTranscriptAdapter";
+export {
+  processDiscoveryPerception,
+} from "./DiscoveryPerceptionProcessor";
+export {
+  processDiscoveryUnderstanding,
+} from "./DiscoveryUnderstandingProcessor";
+export {
+  evaluateDiscoveryBehaviorDecision,
+  processDiscoveryBehaviorDecision,
+  type DiscoveryBehaviorDecisionResult,
+  type DiscoveryCompletionReadiness,
+  type DiscoveryDecisionAlternative,
+  type DiscoveryDecisionConfidenceLevel,
+} from "./DiscoveryBehaviorDecisionEngine";

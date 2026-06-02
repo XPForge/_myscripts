@@ -2,8 +2,12 @@ import type {
   AgentEvent,
   AgentInstance,
   AgentParticipantMetadata,
+  AgentSessionMetadata,
   AgentTranscriptState,
 } from "../instance";
+import type {
+  DiscoveryBehaviorRequest,
+} from "../prompt";
 import type {
   CoverageAssessment,
   EvidenceReference,
@@ -34,6 +38,31 @@ export type OpenQuestion = {
   status: "open" | "answered" | "retired";
 };
 
+export type ReflectionOpportunity = {
+  id: string;
+  sourceType: "observation" | "pattern" | "coverage" | "participant-correction" | "tension";
+  sourceId: string;
+  reason: string;
+  createdAt: string;
+  status: "open" | "used" | "retired";
+};
+
+export type DiscoveryBehaviorDecision = {
+  id: string;
+  selectedRequest: DiscoveryBehaviorRequest;
+  confidence: "low" | "medium" | "high";
+  rationale: string;
+  supportingEvidenceIds: string[];
+  candidateAlternatives: {
+    request: DiscoveryBehaviorRequest;
+    confidence: "low" | "medium" | "high";
+    rationale: string;
+  }[];
+  sessionMetadata?: AgentSessionMetadata;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type DiscoverySessionState = {
   stateId: string;
   agentId: string;
@@ -43,8 +72,12 @@ export type DiscoverySessionState = {
   transcript: AgentTranscriptState;
   intelligenceSnapshot: IntelligenceSnapshot;
   evidence: EvidenceReference[];
+  processedTranscriptTurnIds: string[];
   participantConfirmations: ParticipantConfirmation[];
   openQuestions: OpenQuestion[];
+  reflectionOpportunities: ReflectionOpportunity[];
+  latestBehaviorDecision?: DiscoveryBehaviorDecision;
+  behaviorDecisionHistory: DiscoveryBehaviorDecision[];
   eventLog: AgentEvent[];
   createdAt: string;
   updatedAt: string;
@@ -133,8 +166,11 @@ export function createDiscoverySessionState(
     transcript,
     intelligenceSnapshot: instance.intelligenceSnapshot,
     evidence: [],
+    processedTranscriptTurnIds: [],
     participantConfirmations: [],
     openQuestions: [],
+    reflectionOpportunities: [],
+    behaviorDecisionHistory: [],
     eventLog: [],
     createdAt: now,
     updatedAt: now,

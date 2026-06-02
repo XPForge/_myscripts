@@ -46,6 +46,15 @@ export type {
   AgentTranscriptState,
   AgentTranscriptTurn,
   AssistantResponseEvent,
+  BehaviorDecisionRejectedEvent,
+  BehaviorDecisionReprioritizedEvent,
+  BehaviorDecisionSelectedEvent,
+  CompletionReadinessUpdatedEvent,
+  EvidenceAddedEvent,
+  OpenQuestionCreatedEvent,
+  PatternCreatedEvent,
+  ReflectionOpportunityCreatedEvent,
+  UnderstandingUpdatedEvent,
 } from "./instance";
 export type {
   AgentPromptAssemblyResult,
@@ -56,6 +65,14 @@ export type {
   AgentPromptSessionContext,
   AgentPromptStrategy,
   AgentPromptStrategyType,
+  DiscoveryBehaviorRequest,
+  DiscoveryBehaviorRequestType,
+  DiscoveryPromptAssemblyContract,
+  DiscoveryPromptBoundaries,
+  DiscoveryPromptCompositionStrategy,
+  DiscoveryPromptInputs,
+  DiscoveryPromptOutputs,
+  DiscoveryPromptUpdateStrategy,
 } from "./prompt";
 export type {
   AgentPerceptionPipeline,

@@ -1,10 +1,16 @@
 import type { AgentDefinition } from "../core";
 import type {
+  AgentPattern,
   AgentObservation,
   ConfidenceAssessment,
   CoverageAssessment,
+  EvidenceReference,
   IntelligenceSnapshot,
+  UnderstandingAssessment,
 } from "../intelligence";
+import type {
+  DiscoveryBehaviorRequest,
+} from "../prompt/discovery/DiscoveryBehaviorRequests";
 
 export type AgentLifecycleStatus =
   | "created"
@@ -22,8 +28,17 @@ export type AgentEventType =
   | "agent.response"
   | "transcript.update"
   | "observation.created"
+  | "evidence.added"
   | "confidence.updated"
+  | "pattern.created"
   | "coverage.updated"
+  | "understanding.updated"
+  | "open_question.created"
+  | "reflection_opportunity.created"
+  | "decision.selected"
+  | "decision.rejected"
+  | "decision.reprioritized"
+  | "completion.readiness.updated"
   | "session.completed"
   | "error";
 
@@ -119,15 +134,107 @@ export interface ObservationCreatedEvent extends AgentEventBase {
   observation: AgentObservation;
 }
 
+export interface EvidenceAddedEvent extends AgentEventBase {
+  type: "evidence.added";
+  evidence: EvidenceReference;
+  observationId: string;
+}
+
 export interface ConfidenceUpdatedEvent extends AgentEventBase {
   type: "confidence.updated";
   targetId: string;
   confidence: ConfidenceAssessment;
 }
 
+export interface PatternCreatedEvent extends AgentEventBase {
+  type: "pattern.created";
+  pattern: AgentPattern;
+}
+
 export interface CoverageUpdatedEvent extends AgentEventBase {
   type: "coverage.updated";
   coverage: CoverageAssessment;
+}
+
+export interface UnderstandingUpdatedEvent extends AgentEventBase {
+  type: "understanding.updated";
+  understanding: UnderstandingAssessment[];
+}
+
+export interface OpenQuestionCreatedEvent extends AgentEventBase {
+  type: "open_question.created";
+  question: {
+    id: string;
+    areaId?: string;
+    question: string;
+    sourceId?: string;
+    createdAt: string;
+    status: "open" | "answered" | "retired";
+  };
+}
+
+export interface ReflectionOpportunityCreatedEvent extends AgentEventBase {
+  type: "reflection_opportunity.created";
+  opportunity: {
+    id: string;
+    sourceType: "observation" | "pattern" | "coverage" | "participant-correction" | "tension";
+    sourceId: string;
+    reason: string;
+    createdAt: string;
+    status: "open" | "used" | "retired";
+  };
+}
+
+export interface BehaviorDecisionSelectedEvent extends AgentEventBase {
+  type: "decision.selected";
+  decision: {
+    id: string;
+    selectedRequest: DiscoveryBehaviorRequest;
+    confidence: "low" | "medium" | "high";
+    rationale: string;
+    supportingEvidenceIds: string[];
+    candidateAlternatives: {
+      request: DiscoveryBehaviorRequest;
+      confidence: "low" | "medium" | "high";
+      rationale: string;
+    }[];
+    createdAt: string;
+    metadata?: Record<string, unknown>;
+  };
+}
+
+export interface BehaviorDecisionRejectedEvent extends AgentEventBase {
+  type: "decision.rejected";
+  decisionId: string;
+  alternative: {
+    request: DiscoveryBehaviorRequest;
+    confidence: "low" | "medium" | "high";
+    rationale: string;
+  };
+}
+
+export interface BehaviorDecisionReprioritizedEvent extends AgentEventBase {
+  type: "decision.reprioritized";
+  decisionId: string;
+  alternative: {
+    request: DiscoveryBehaviorRequest;
+    confidence: "low" | "medium" | "high";
+    rationale: string;
+  };
+}
+
+export interface CompletionReadinessUpdatedEvent extends AgentEventBase {
+  type: "completion.readiness.updated";
+  readiness: {
+    status: "not-ready" | "summarization-ready" | "completion-ready";
+    score: number;
+    rationale: string;
+    exploredDomainCount: number;
+    underexploredDomainCount: number;
+    openQuestionCount: number;
+    supportedPatternCount: number;
+    participantConfirmationCount: number;
+  };
 }
 
 export interface SessionCompletedEvent extends AgentEventBase {
@@ -151,7 +258,16 @@ export type AgentEvent =
   | AgentResponseEvent
   | TranscriptUpdateEvent
   | ObservationCreatedEvent
+  | EvidenceAddedEvent
   | ConfidenceUpdatedEvent
+  | PatternCreatedEvent
   | CoverageUpdatedEvent
+  | UnderstandingUpdatedEvent
+  | OpenQuestionCreatedEvent
+  | ReflectionOpportunityCreatedEvent
+  | BehaviorDecisionSelectedEvent
+  | BehaviorDecisionRejectedEvent
+  | BehaviorDecisionReprioritizedEvent
+  | CompletionReadinessUpdatedEvent
   | SessionCompletedEvent
   | AgentErrorEvent;
