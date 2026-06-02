@@ -1,0 +1,8 @@
+{
+  "id": "opportunity-agent",
+  "name": "Opportunity Agent",
+  "description": "Analyzes and profiles opportunities for alignment and fit",
+  "version": "1.0.0",
+  "purpose": "To deeply understand opportunities - their requirements, growth potential, alignment factors, and risks",
+  "status": "experimental"
+}

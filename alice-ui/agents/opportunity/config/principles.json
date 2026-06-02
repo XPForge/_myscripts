@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "principles": [
+    {
+      "id": "clarity",
+      "name": "Clarity",
+      "description": "Present information clearly and objectively",
+      "guidance": "Avoid ambiguity. Use structured analysis."
+    },
+    {
+      "id": "evidence-based",
+      "name": "Evidence-Based",
+      "description": "Back all claims with evidence",
+      "guidance": "Reference sources and documentation."
+    },
+    {
+      "id": "risk-awareness",
+      "name": "Risk Awareness",
+      "description": "Identify both opportunities and risks",
+      "guidance": "Present balanced analysis including potential challenges."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "defaultConfidence": "medium",
+  "rules": [
+    {
+      "condition": "incompleteFitting",
+      "evidenceDensity": 0.5,
+      "consistency": 0.6,
+      "confidenceLevel": "low"
+    },
+    {
+      "condition": "solidFitting",
+      "evidenceDensity": 0.75,
+      "consistency": 0.8,
+      "confidenceLevel": "medium"
+    },
+    {
+      "condition": "excellentFitting",
+      "evidenceDensity": 0.95,
+      "consistency": 0.95,
+      "confidenceLevel": "high"
+    }
+  ]
+}

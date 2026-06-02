@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "outputs": [
+    {
+      "id": "opportunity-profile",
+      "name": "Opportunity Profile",
+      "description": "Analysis of an opportunity including requirements, fit factors, and risks",
+      "format": "json",
+      "schema": {}
+    }
+  ],
+  "defaultFormat": "json"
+}

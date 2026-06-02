@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "strategy": "profile",
+  "maxMemorySize": 50000,
+  "retentionPolicy": "lifetime",
+  "scope": "user"
+}

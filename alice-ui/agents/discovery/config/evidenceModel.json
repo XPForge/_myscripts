@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "requireEvidence": true,
+  "minEvidenceThreshold": 0.75,
+  "supportedEvidenceTypes": [
+    "transcript",
+    "interaction",
+    "document",
+    "observation",
+    "metric"
+  ]
+}

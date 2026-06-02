@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "name": "Discovery Schema",
+  "description": "Defines what the Discovery Agent seeks to understand about a person",
+  "fields": [
+    {
+      "name": "identity",
+      "type": "object",
+      "description": "Core aspects of who the person is",
+      "required": true
+    },
+    {
+      "name": "strengths",
+      "type": "array",
+      "description": "Key competencies, skills, and abilities",
+      "required": true
+    },
+    {
+      "name": "motivators",
+      "type": "array",
+      "description": "What drives and energizes the person",
+      "required": true
+    },
+    {
+      "name": "values",
+      "type": "array",
+      "description": "Core principles and what matters most",
+      "required": true
+    },
+    {
+      "name": "workStyle",
+      "type": "object",
+      "description": "How the person prefers to work",
+      "required": false
+    },
+    {
+      "name": "environmentFit",
+      "type": "object",
+      "description": "Environments where the person thrives",
+      "required": false
+    },
+    {
+      "name": "growthAreas",
+      "type": "array",
+      "description": "Opportunities for development and growth",
+      "required": false
+    },
+    {
+      "name": "opportunitySignals",
+      "type": "array",
+      "description": "Indicators of high-fit opportunities",
+      "required": false
+    }
+  ]
+}

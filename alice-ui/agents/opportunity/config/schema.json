@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "name": "Opportunity Schema",
+  "description": "Defines what the Opportunity Agent seeks to understand about opportunities",
+  "fields": [
+    {
+      "name": "requirements",
+      "type": "object",
+      "description": "Skills, experience, and qualifications required",
+      "required": true
+    },
+    {
+      "name": "skills",
+      "type": "array",
+      "description": "Technical and soft skills needed",
+      "required": true
+    },
+    {
+      "name": "environment",
+      "type": "object",
+      "description": "Work environment and setting",
+      "required": true
+    },
+    {
+      "name": "culture",
+      "type": "object",
+      "description": "Organizational culture and values",
+      "required": false
+    },
+    {
+      "name": "growthPotential",
+      "type": "array",
+      "description": "Learning and development opportunities",
+      "required": false
+    },
+    {
+      "name": "risks",
+      "type": "array",
+      "description": "Potential challenges or red flags",
+      "required": false
+    },
+    {
+      "name": "compensation",
+      "type": "object",
+      "description": "Salary, benefits, and total package",
+      "required": false
+    },
+    {
+      "name": "alignmentFactors",
+      "type": "array",
+      "description": "Key factors for determining person-opportunity fit",
+      "required": false
+    }
+  ]
+}

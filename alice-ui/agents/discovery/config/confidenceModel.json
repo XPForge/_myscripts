@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "defaultConfidence": "medium",
+  "rules": [
+    {
+      "condition": "singleEvidenceSource",
+      "evidenceDensity": 0.33,
+      "consistency": 0.5,
+      "confidenceLevel": "low"
+    },
+    {
+      "condition": "multipleConsistentSources",
+      "evidenceDensity": 0.66,
+      "consistency": 0.8,
+      "confidenceLevel": "medium"
+    },
+    {
+      "condition": "strongConsensus",
+      "evidenceDensity": 0.9,
+      "consistency": 0.95,
+      "confidenceLevel": "high"
+    }
+  ]
+}

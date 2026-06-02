@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "strategy": "session",
+  "maxMemorySize": 10000,
+  "retentionPolicy": "session",
+  "scope": "agent"
+}

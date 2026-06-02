@@ -1,0 +1,8 @@
+{
+  "id": "discovery-agent",
+  "name": "Discovery Agent",
+  "description": "Discovers and articulates what makes someone unique - their strengths, values, motivators, and potential",
+  "version": "1.0.0",
+  "purpose": "To deeply understand a person's identity, strengths, motivators, values, work style, and growth potential through structured inquiry and observation",
+  "status": "active"
+}

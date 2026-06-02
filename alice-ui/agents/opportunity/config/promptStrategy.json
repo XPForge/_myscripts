@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "components": [
+    {
+      "id": "purpose",
+      "type": "purpose",
+      "content": "Your purpose is: {agentPurpose}",
+      "priority": 100
+    },
+    {
+      "id": "schema",
+      "type": "schema",
+      "content": "Analyze the following opportunity aspects: {schemaDescription}",
+      "priority": 90
+    },
+    {
+      "id": "personality",
+      "type": "personality",
+      "content": "Present analysis in a clear, objective manner with supporting evidence.",
+      "priority": 80
+    }
+  ],
+  "maxTokens": 2000
+}

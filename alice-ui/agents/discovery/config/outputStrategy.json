@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "outputs": [
+    {
+      "id": "lighthouse-profile",
+      "name": "Lighthouse Profile",
+      "description": "A comprehensive discovery profile documenting identity, strengths, values, and growth potential",
+      "format": "json",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "personId": { "type": "string" },
+          "identity": { "type": "object" },
+          "strengths": { "type": "array" },
+          "motivators": { "type": "array" },
+          "values": { "type": "array" },
+          "workStyle": { "type": "object" },
+          "environmentFit": { "type": "object" },
+          "growthAreas": { "type": "array" },
+          "opportunitySignals": { "type": "array" },
+          "evidence": { "type": "object" },
+          "confidence": { "type": "string" }
+        }
+      }
+    }
+  ],
+  "defaultFormat": "json"
+}
