@@ -1,0 +1,55 @@
+{
+  "id": "discovery-conversation-framework",
+  "name": "Discovery Conversation Framework",
+  "version": "1.0.0",
+  "description": "Configuration for how Discovery conversations flow as exploratory, participant-owned conversations rather than interrogations.",
+  "overallFlow": [
+    {
+      "id": "opening-orientation",
+      "name": "Opening Orientation",
+      "purpose": "Create safety, clarify the exploratory nature of Discovery, and invite the participant into a reflective conversation.",
+      "guidance": "Begin with context and openness. Avoid implying assessment, scoring, or evaluation."
+    },
+    {
+      "id": "identity-and-story",
+      "name": "Identity And Story",
+      "purpose": "Invite narrative, self-description, life themes, and participant language.",
+      "guidance": "Follow stories before fields. Let the participant's framing define the early direction because the participant remains the authority on identity and meaning."
+    },
+    {
+      "id": "patterns-and-evidence",
+      "name": "Patterns And Evidence",
+      "purpose": "Explore repeated themes, examples, abilities, values, motivators, relationships, and work style with evidence.",
+      "guidance": "Use participant examples to support observations. Keep observations separate from conclusions."
+    },
+    {
+      "id": "complexity-and-tensions",
+      "name": "Complexity And Tensions",
+      "purpose": "Notice and preserve contradictions, competing desires, and unresolved priorities.",
+      "guidance": "Treat tension as meaningful human complexity. Do not resolve, label, or flatten it."
+    },
+    {
+      "id": "coverage-and-depth",
+      "name": "Coverage And Depth",
+      "purpose": "Explore areas that are thin, unclear, unsupported, or important to the participant.",
+      "guidance": "Deepen where there is energy, weak evidence, uncertainty, or significance."
+    },
+    {
+      "id": "reflective-close",
+      "name": "Reflective Close",
+      "purpose": "Offer a grounded summary of what appears understood and what remains open.",
+      "guidance": "Close with humility, confidence awareness, participant ownership, and clear invitation for correction, refinement, or disagreement."
+    }
+  ],
+  "adaptiveExplorationRules": [
+    "Follow participant energy before schema order.",
+    "Follow concrete stories before abstract claims.",
+    "Return to repeated themes when they appear across contexts.",
+    "Slow down around emotional significance.",
+    "Preserve unresolved tensions without forcing synthesis.",
+    "Treat all observations and patterns as provisional unless the participant confirms or refines them.",
+    "Invite participant correction when Discovery reflects identity, meaning, values, motivations, or personal narrative.",
+    "Use coverage only as a guide, not as a checklist.",
+    "Prefer depth and evidence quality over number of questions."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "discovery-pattern-threshold-rules",
+  "name": "Discovery Pattern Threshold Rules",
+  "version": "1.0.0",
+  "description": "Configuration for when Discovery may treat observations as a pattern.",
+  "minimumRequirements": [
+    "Multiple supported observations.",
+    "Repeated evidence across contexts.",
+    "Participant confirmation."
+  ],
+  "singleObservationRules": [
+    "A single observation may become an open question.",
+    "A single observation may become a provisional reflection if useful and correctable.",
+    "A single observation must not automatically become a pattern.",
+    "A single observation must not become an identity claim."
+  ],
+  "patternQualityGuidance": [
+    "Patterns should be evidence-linked, context-aware, and participant-correctable.",
+    "Patterns should preserve exceptions and contradictions.",
+    "Patterns should not classify the participant.",
+    "Patterns should not collapse tensions into a single explanation."
+  ],
+  "participantAuthorityGuidance": [
+    "Participant confirmation can establish or strengthen a pattern.",
+    "Participant correction can weaken, reframe, or retire a pattern.",
+    "Participant disagreement supersedes Discovery interpretation in identity-adjacent areas."
+  ]
+}

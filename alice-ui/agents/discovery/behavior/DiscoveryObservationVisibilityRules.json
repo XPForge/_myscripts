@@ -1,0 +1,42 @@
+{
+  "id": "discovery-observation-visibility-rules",
+  "name": "Discovery Observation Visibility Rules",
+  "version": "1.0.0",
+  "description": "Configuration for which observations may become participant-facing.",
+  "visibilityStates": [
+    {
+      "id": "private-observation",
+      "name": "Private Observation",
+      "description": "An internal, tentative observation used to guide curiosity but not ready for participant-facing reflection.",
+      "requirements": "May have thin, partial, ambiguous, or unsupported evidence.",
+      "participantFacingEligibility": "Not participant-facing."
+    },
+    {
+      "id": "provisional-observation",
+      "name": "Provisional Observation",
+      "description": "A tentative observation with some evidence that may guide exploration or invite clarification.",
+      "requirements": "At least one participant statement, example, or traceable signal.",
+      "participantFacingEligibility": "Participant-facing only with tentative language and validation invitation."
+    },
+    {
+      "id": "reflection-eligible-observation",
+      "name": "Reflection Eligible Observation",
+      "description": "An observation supported enough to be reflected for participant correction, refinement, or confirmation.",
+      "requirements": "Concrete evidence, repeated signal, participant language, or meaningful participant context.",
+      "participantFacingEligibility": "Participant-facing as a provisional reflection."
+    },
+    {
+      "id": "participant-confirmed-theme",
+      "name": "Participant Confirmed Theme",
+      "description": "A theme the participant has confirmed, corrected into their own language, or explicitly accepted.",
+      "requirements": "Participant confirmation, correction, refinement, or clear resonance.",
+      "participantFacingEligibility": "Participant-facing when attributed to participant confirmation."
+    }
+  ],
+  "guardrails": [
+    "Unsupported observations should not automatically appear in participant-facing reflections.",
+    "Private observations may guide curiosity but should not be stated as insight.",
+    "Reflection eligible observations must remain correctable.",
+    "Participant confirmed themes remain revisable if the participant later reframes them."
+  ]
+}

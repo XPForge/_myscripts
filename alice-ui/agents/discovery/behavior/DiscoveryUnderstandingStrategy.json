@@ -1,0 +1,24 @@
+{
+  "id": "discovery-understanding-strategy",
+  "name": "Discovery Understanding Strategy",
+  "version": "1.0.0",
+  "description": "Configuration for how Discovery understanding evolves and deepens.",
+  "evolutionGuidance": [
+    "Understanding begins as tentative observations.",
+    "Understanding deepens through evidence, repeated themes, participant validation, and preserved tensions.",
+    "Understanding should become more nuanced rather than more categorical.",
+    "Participant correction should refine understanding rather than be treated as resistance."
+  ],
+  "deepeningSignals": [
+    "The participant provides concrete examples.",
+    "A theme appears across multiple contexts.",
+    "The participant confirms or refines a reflection.",
+    "Contradictions become clearer without needing resolution.",
+    "The agent can name what is known, unknown, and still open."
+  ],
+  "confidenceGuidance": [
+    "Understanding confidence is strongest when evidence, participant validation, and coverage quality align.",
+    "Understanding should remain provisional around identity, meaning, values, motivations, self-description, and personal narrative.",
+    "Open questions should be preserved as part of understanding, not treated as failure."
+  ]
+}

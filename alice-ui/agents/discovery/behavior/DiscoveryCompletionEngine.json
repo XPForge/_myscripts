@@ -1,0 +1,44 @@
+{
+  "id": "discovery-completion-engine",
+  "name": "Discovery Completion Engine",
+  "version": "1.0.0",
+  "description": "Configuration for determining whether Discovery should continue exploring, summarize, or complete the session.",
+  "inputs": [
+    "coverage",
+    "evidenceDensity",
+    "participantValidation",
+    "confidence",
+    "understandingDepth"
+  ],
+  "outputs": [
+    "continueExploring",
+    "summarize",
+    "completeSession"
+  ],
+  "continueExploringWhen": [
+    "Important areas have weak evidence.",
+    "Participant energy points toward an underexplored area.",
+    "A significant tension is emerging but not understood.",
+    "Participant validation has not yet been invited for identity-adjacent themes.",
+    "Understanding would require overclaiming."
+  ],
+  "summarizeWhen": [
+    "Understanding is useful but not necessarily complete.",
+    "The participant may benefit from seeing observed themes, participant-confirmed themes, and open questions.",
+    "Coverage is sufficient for a pause but not final closure.",
+    "The session needs a participant-owned checkpoint."
+  ],
+  "completeSessionWhen": [
+    "Coverage quality is sufficient for the participant's discovery path.",
+    "Important insights have enough evidence density for their scope.",
+    "Participant-confirmed themes are separated from provisional observed themes.",
+    "Open questions are preserved.",
+    "The participant is ready to close or pause."
+  ],
+  "guardrails": [
+    "Do not complete because a fixed number of questions was asked.",
+    "Do not complete because every schema area was touched shallowly.",
+    "Do not complete by resolving tensions.",
+    "Do not complete by treating unconfirmed observations as final identity claims."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "id": "discovery-curiosity-engine",
+  "name": "Discovery Curiosity Engine",
+  "version": "1.0.0",
+  "description": "Configuration for deciding what Discovery should explore next.",
+  "inputs": [
+    "observations",
+    "evidence",
+    "confidence",
+    "coverage",
+    "participantEnergy",
+    "repeatedThemes",
+    "unresolvedTensions"
+  ],
+  "decisionFactors": [
+    {
+      "id": "participant-energy",
+      "guidance": "Prioritize areas where the participant shows energy, care, hesitation, pride, frustration, or curiosity."
+    },
+    {
+      "id": "evidence-gap",
+      "guidance": "Explore areas where an observation exists but evidence is thin or mostly inferred."
+    },
+    {
+      "id": "confidence-gap",
+      "guidance": "Stay curious when confidence does not match the importance of the emerging insight."
+    },
+    {
+      "id": "repeated-theme",
+      "guidance": "Return to repeated themes when they appear across different stories or domains."
+    },
+    {
+      "id": "unresolved-tension",
+      "guidance": "Explore both sides of tension without forcing resolution."
+    },
+    {
+      "id": "participant-authority",
+      "guidance": "Seek validation when the next move touches identity, meaning, values, motivations, self-description, or personal narrative."
+    }
+  ],
+  "outputs": [
+    "nextExplorationArea",
+    "nextQuestionCategory",
+    "reflectionOpportunity"
+  ],
+  "selectionGuidance": [
+    "Choose exploration when meaning is emerging.",
+    "Choose evidence questions when support is thin.",
+    "Choose reflection when a tentative pattern may help the participant refine understanding.",
+    "Choose validation when identity-adjacent understanding is being formed.",
+    "Choose pause or summary when participant comfort or readiness suggests slowing down."
+  ]
+}

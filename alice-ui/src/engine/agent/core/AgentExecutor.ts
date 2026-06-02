@@ -11,6 +11,7 @@ import type {
   AgentExecutionResult,
   EvidencedObservation,
   ConfidenceLevel,
+  PromptComponent,
 } from "../models/AgentTypes.ts";
 
 /**
@@ -108,7 +109,7 @@ export class AgentExecutor {
    * Interpolate a prompt component with context data
    */
   private interpolateComponent(
-    component: any,
+    component: PromptComponent,
     context: AgentExecutionContext
   ): string {
     let content = component.content;
@@ -149,7 +150,8 @@ export class AgentExecutor {
   /**
    * Extract observations with evidence from LLM response
    */
-  private extractObservations(response: string): EvidencedObservation[] {
+  private extractObservations(_response: string): EvidencedObservation[] {
+    void _response;
     // TODO: Parse LLM response to extract structured observations
     // This would parse JSON, Markdown, or other structured formats
     // and extract evidence references
@@ -203,9 +205,11 @@ export class AgentExecutor {
    * Store observations in memory according to strategy
    */
   private async storeInMemory(
-    context: AgentExecutionContext,
-    observations: EvidencedObservation[]
+    _context: AgentExecutionContext,
+    _observations: EvidencedObservation[]
   ): Promise<void> {
+    void _context;
+    void _observations;
     const strategy = this.definition.memoryStrategy.strategy;
 
     if (strategy === "session") {

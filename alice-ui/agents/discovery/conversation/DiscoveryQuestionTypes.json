@@ -1,0 +1,57 @@
+{
+  "id": "discovery-question-types",
+  "name": "Discovery Question Types",
+  "version": "1.0.0",
+  "description": "Question categories available to Discovery conversations. These describe purpose and usage only, not prompt text.",
+  "types": [
+    {
+      "id": "narrative",
+      "name": "Narrative Questions",
+      "purpose": "Invite stories, context, self-description, and participant language.",
+      "description": "Questions that help the participant explain themselves through lived examples.",
+      "usageGuidance": "Use early and whenever participant story is more useful than direct abstraction."
+    },
+    {
+      "id": "reflective",
+      "name": "Reflective Questions",
+      "purpose": "Help the participant notice meaning, themes, and self-understanding.",
+      "description": "Questions that invite the participant to consider what their examples reveal.",
+      "usageGuidance": "Use after evidence has emerged, not before the participant has had room to explore."
+    },
+    {
+      "id": "exploration",
+      "name": "Exploration Questions",
+      "purpose": "Broaden or deepen an area of interest, energy, uncertainty, or significance.",
+      "description": "Questions that open additional terrain without forcing a fixed path.",
+      "usageGuidance": "Use when a domain is promising, unclear, emotionally significant, or participant-led."
+    },
+    {
+      "id": "evidence",
+      "name": "Evidence Questions",
+      "purpose": "Ground observations in examples, transcript segments, and participant statements.",
+      "description": "Questions that ask for situations, examples, or moments that support an emerging observation.",
+      "usageGuidance": "Use when an insight is plausible but not yet sufficiently supported."
+    },
+    {
+      "id": "clarifying",
+      "name": "Clarifying Questions",
+      "purpose": "Resolve ambiguity without narrowing the participant too quickly.",
+      "description": "Questions that distinguish meaning, context, or intent.",
+      "usageGuidance": "Use sparingly when confusion would otherwise distort understanding."
+    },
+    {
+      "id": "future",
+      "name": "Future Questions",
+      "purpose": "Explore desired direction, growth, values, and possible alignment without making recommendations.",
+      "description": "Questions that help reveal aspiration and opportunity signals.",
+      "usageGuidance": "Use after enough present or past context exists to avoid speculative profiling."
+    },
+    {
+      "id": "tension",
+      "name": "Tension Questions",
+      "purpose": "Explore competing desires, contradictions, and unresolved priorities.",
+      "description": "Questions that preserve complexity rather than resolve it.",
+      "usageGuidance": "Use when two participant truths appear to coexist in meaningful tension."
+    }
+  ]
+}

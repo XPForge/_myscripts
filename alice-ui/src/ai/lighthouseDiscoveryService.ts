@@ -1,4 +1,5 @@
 import type { LighthouseProfile } from "../services/lighthouseProfile";
+import type { RealtimeSessionConfig } from "../engine/runtime";
 import { buildDiscoverySystemPrompt, lighthousePromptAsset } from "./lighthousePrompt";
 
 const OPENAI_REALTIME_TOKEN_ENDPOINT =
@@ -6,14 +7,7 @@ const OPENAI_REALTIME_TOKEN_ENDPOINT =
 const OPENAI_REALTIME_MODEL =
   import.meta.env.VITE_OPENAI_REALTIME_MODEL || "gpt-realtime";
 
-export type RealtimeDiscoverySession = {
-  sessionId: string;
-  model: string;
-  token: string;
-  status: "initializing" | "active" | "complete";
-  endpoint?: string;
-  createdAt: string;
-};
+export type RealtimeDiscoverySession = RealtimeSessionConfig;
 
 export function isRealtimeDiscoveryConfigured(): boolean {
   return Boolean(OPENAI_REALTIME_TOKEN_ENDPOINT);
@@ -39,7 +33,7 @@ export function buildRealtimeSessionPayload(profile: LighthouseProfile) {
 
 export async function requestRealtimeDiscoverySession(
   profile: LighthouseProfile
-): Promise<RealtimeDiscoverySession> {
+): Promise<RealtimeSessionConfig> {
   if (!OPENAI_REALTIME_TOKEN_ENDPOINT) {
     throw new Error(
       "Realtime discovery endpoint is not configured. Set VITE_OPENAI_REALTIME_TOKEN_ENDPOINT."

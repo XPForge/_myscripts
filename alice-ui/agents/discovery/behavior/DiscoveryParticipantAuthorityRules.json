@@ -1,0 +1,52 @@
+{
+  "id": "discovery-participant-authority-rules",
+  "name": "Discovery Participant Authority Rules",
+  "version": "1.0.0",
+  "description": "Configuration for preserving participant authority over identity, meaning, values, motivations, self-description, and personal narrative.",
+  "seekConfirmationWhen": [
+    "Discovery reflects an identity-adjacent theme.",
+    "A pattern is repeated enough to matter.",
+    "A summary could become part of a future profile.",
+    "The participant's own language can confirm or improve the wording."
+  ],
+  "seekCorrectionWhen": [
+    "A reflection might not match participant self-understanding.",
+    "The participant hesitates, qualifies, or seems uncertain.",
+    "The agent's framing introduces language the participant did not use.",
+    "A theme is important but still provisional."
+  ],
+  "seekDisagreementWhen": [
+    "The agent is testing a possible interpretation.",
+    "A reflection risks sounding like a label.",
+    "Evidence is mixed, thin, or contradictory.",
+    "The participant may have a better explanation."
+  ],
+  "preserveUncertaintyWhen": [
+    "The participant has not validated an observation.",
+    "A tension remains unresolved.",
+    "Evidence supports multiple interpretations.",
+    "The participant is still forming their own view."
+  ],
+  "supremacyRule": {
+    "description": "Participant correction supersedes Discovery interpretation regarding identity, meaning, values, motivations, self-description, and personal narrative.",
+    "discoveryMay": [
+      "Explore disagreement.",
+      "Ask clarifying questions.",
+      "Preserve uncertainty.",
+      "Update or retire prior interpretations."
+    ],
+    "discoveryMayNot": [
+      "Override participant self-understanding.",
+      "Treat correction as error.",
+      "Reassert an interpretation the participant has rejected.",
+      "Convert disagreement into a hidden identity claim."
+    ]
+  },
+  "prohibitedMoves": [
+    "Defining who the participant is.",
+    "Claiming certainty about identity.",
+    "Overriding participant self-understanding.",
+    "Treating disagreement as error.",
+    "Turning provisional observations into fixed conclusions."
+  ]
+}

@@ -21,6 +21,12 @@ import {
   startRealtimeVoiceDiscovery,
   type RealtimeVoiceClient,
 } from "../ai/realtimeVoiceDiscoveryClient";
+import {
+  appendAssistantTranscriptEvent,
+  appendParticipantTranscriptEvent,
+  loadOrCreateDiscoverySessionState,
+  updateDiscoverySessionState,
+} from "../engine/agent/discovery";
 
 type LighthouseDiscoveryProps = {
   onComplete: () => void;
@@ -60,6 +66,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setSession(storedSession);
     setName(storedSession.name);
     setEmail(storedSession.email);
+    loadOrCreateDiscoverySessionState(storedSession);
     const restoredStep = storedSession.step === "discovering" ? "discovering" : "capture";
     setStep(restoredStep);
 
@@ -128,6 +135,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
+    updateDiscoverySessionState(session.sessionId, (state) =>
+      appendParticipantTranscriptEvent(state, normalized, true)
+    );
     const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -148,6 +158,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
+    updateDiscoverySessionState(session.sessionId, (state) =>
+      appendAssistantTranscriptEvent(state, normalized)
+    );
     const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -200,6 +213,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     };
 
     setSession(newSession);
+    loadOrCreateDiscoverySessionState(newSession);
     setStep("launching");
     setStatusMessage("Preparing your realtime voice discovery session...");
 
@@ -207,6 +221,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const realtime = await requestRealtimeDiscoverySession(createdProfile);
       setTokenStatus("success");
       addDiagnosticLog("Token request succeeded.");
+      updateDiscoverySessionState(newSession.sessionId, (state) => ({
+        ...state,
+        instance: {
+          ...state.instance,
+          status: "active",
+          updatedAt: new Date().toISOString(),
+        },
+      }));
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -270,6 +292,17 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const realtime = await requestRealtimeDiscoverySession(profile);
       setTokenStatus("success");
       addDiagnosticLog("Token request succeeded for resume.");
+      if (session) {
+        loadOrCreateDiscoverySessionState(session);
+        updateDiscoverySessionState(session.sessionId, (state) => ({
+          ...state,
+          instance: {
+            ...state.instance,
+            status: "active",
+            updatedAt: new Date().toISOString(),
+          },
+        }));
+      }
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -327,6 +360,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     if (session) {
       saveSession({ status: "paused", step: "capture" });
+      updateDiscoverySessionState(session.sessionId, (state) => ({
+        ...state,
+        instance: {
+          ...state.instance,
+          status: "paused",
+          updatedAt: new Date().toISOString(),
+        },
+      }));
     }
 
     setResumeAvailable(false);

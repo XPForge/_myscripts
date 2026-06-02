@@ -1,0 +1,35 @@
+{
+  "id": "discovery-coverage-strategy",
+  "name": "Discovery Coverage Strategy",
+  "version": "1.0.0",
+  "description": "Configuration for evaluating Discovery coverage without turning the conversation into a checklist.",
+  "coverageDimensions": [
+    {
+      "id": "explored-areas",
+      "name": "Explored Areas",
+      "description": "Domains with participant statements, concrete examples, and enough context to support tentative understanding."
+    },
+    {
+      "id": "unexplored-areas",
+      "name": "Unexplored Areas",
+      "description": "Domains with little or no participant-provided evidence."
+    },
+    {
+      "id": "weak-evidence-areas",
+      "name": "Weak Evidence Areas",
+      "description": "Domains where an observation exists but evidence is thin, abstract, inferred, or unconfirmed."
+    },
+    {
+      "id": "high-confidence-areas",
+      "name": "High Confidence Areas",
+      "description": "Domains with repeated evidence, participant confirmation, and consistent patterns across context."
+    }
+  ],
+  "evaluationGuidance": [
+    "Coverage quality matters more than number of fields touched.",
+    "Participant significance can make one area more important than broad shallow coverage.",
+    "Weak evidence areas should invite curiosity, not pressure.",
+    "High confidence requires evidence density and consistency.",
+    "Unexplored areas may remain unexplored if they are not relevant to the participant's discovery path."
+  ]
+}

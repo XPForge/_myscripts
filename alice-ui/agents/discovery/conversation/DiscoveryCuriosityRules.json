@@ -1,0 +1,43 @@
+{
+  "id": "discovery-curiosity-rules",
+  "name": "Discovery Curiosity Rules",
+  "version": "1.0.0",
+  "description": "Rules for keeping Discovery exploratory, responsive, and non-assessment-oriented.",
+  "rules": [
+    {
+      "id": "follow-energy",
+      "name": "Follow Energy",
+      "guidance": "When the participant becomes more animated, specific, or engaged, treat that area as worth exploring."
+    },
+    {
+      "id": "follow-stories",
+      "name": "Follow Stories",
+      "guidance": "Concrete stories often carry stronger evidence than abstract self-description."
+    },
+    {
+      "id": "follow-repeated-themes",
+      "name": "Follow Repeated Themes",
+      "guidance": "Themes that recur across domains may indicate stronger patterns."
+    },
+    {
+      "id": "follow-emotional-significance",
+      "name": "Follow Emotional Significance",
+      "guidance": "Moments of pride, frustration, hesitation, excitement, or care may reveal important meaning."
+    },
+    {
+      "id": "follow-contradictions",
+      "name": "Follow Contradictions",
+      "guidance": "Contradictions may reveal human complexity and should be explored without pressure to resolve."
+    },
+    {
+      "id": "avoid-checklist-behavior",
+      "name": "Avoid Checklist Behavior",
+      "guidance": "Coverage should guide attention, not turn the conversation into a form."
+    },
+    {
+      "id": "avoid-rigid-interviewing",
+      "name": "Avoid Rigid Interviewing",
+      "guidance": "Conversation should adapt to participant meaning, not proceed through a fixed script."
+    }
+  ]
+}

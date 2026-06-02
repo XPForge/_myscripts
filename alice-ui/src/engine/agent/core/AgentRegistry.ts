@@ -7,7 +7,6 @@
 import type {
   AgentDefinition,
   AgentRegistryEntry,
-  ConfigLoadResult,
 } from "../models/AgentTypes.ts";
 
 /**

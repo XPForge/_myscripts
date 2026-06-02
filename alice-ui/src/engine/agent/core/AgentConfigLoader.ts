@@ -18,6 +18,18 @@ import type {
   ConfigLoadResult,
 } from "../models/AgentTypes.ts";
 
+type AgentConfigJson = {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  purpose: string;
+  createdAt?: number;
+  updatedAt?: number;
+  status?: "active" | "experimental" | "deprecated";
+  metadata?: Record<string, unknown>;
+};
+
 /**
  * Configuration loader for agent definitions
  */
@@ -70,24 +82,25 @@ export class AgentConfigLoader {
       this.validateOutputStrategy(outputStrategy);
 
       // Assemble complete definition
+      const agent = agentConfig as AgentConfigJson;
       const definition: AgentDefinition = {
-        id: agentConfig.id,
-        name: agentConfig.name,
-        description: agentConfig.description,
-        version: agentConfig.version,
-        purpose: agentConfig.purpose,
-        schema,
-        personality,
-        principles,
-        evidenceModel,
-        confidenceModel,
-        promptStrategy,
-        memoryStrategy,
-        outputStrategy,
-        createdAt: agentConfig.createdAt || Date.now(),
-        updatedAt: agentConfig.updatedAt || Date.now(),
-        status: agentConfig.status || "active",
-        metadata: agentConfig.metadata,
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        version: agent.version,
+        purpose: agent.purpose,
+        schema: schema as AgentSchema,
+        personality: personality as AgentPersonality,
+        principles: principles as AgentPrinciples,
+        evidenceModel: evidenceModel as AgentEvidenceModel,
+        confidenceModel: confidenceModel as AgentConfidenceModel,
+        promptStrategy: promptStrategy as AgentPromptStrategy,
+        memoryStrategy: memoryStrategy as AgentMemoryStrategy,
+        outputStrategy: outputStrategy as AgentOutputStrategy,
+        createdAt: agent.createdAt || Date.now(),
+        updatedAt: agent.updatedAt || Date.now(),
+        status: agent.status || "active",
+        metadata: agent.metadata,
       };
 
       return { success: true, data: definition };

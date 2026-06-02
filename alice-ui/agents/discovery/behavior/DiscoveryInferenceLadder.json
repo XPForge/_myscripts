@@ -1,0 +1,87 @@
+{
+  "id": "discovery-inference-ladder",
+  "name": "Discovery Inference Ladder",
+  "version": "1.0.0",
+  "description": "Formal behavior taxonomy for preventing premature movement from raw signal to observation, pattern, conclusion, classification, or identity claim.",
+  "levels": [
+    {
+      "id": "raw-signal",
+      "name": "Raw Signal",
+      "purpose": "Capture participant language, transcript moments, pauses, energy, examples, corrections, and contextual cues before interpretation.",
+      "evidenceRequirements": "Directly traceable to transcript, participant statement, interaction moment, or observable conversation context.",
+      "confidenceRequirements": "No confidence claim. Raw signals are captured, not interpreted.",
+      "participantFacingEligibility": "May be referenced only as participant language or quoted evidence when appropriate.",
+      "allowedTransitions": ["observation", "open-question"]
+    },
+    {
+      "id": "observation",
+      "name": "Observation",
+      "purpose": "Record a specific, provisional thing Discovery notices without claiming identity or final meaning.",
+      "evidenceRequirements": "At least one raw signal or participant statement. Stronger observations require concrete examples or repeated signals.",
+      "confidenceRequirements": "Low by default unless supported by evidence density or participant confirmation.",
+      "participantFacingEligibility": "Eligible only when framed as tentative, evidence-linked, and participant-correctable.",
+      "allowedTransitions": ["interpretation", "reflection", "open-question", "participant-confirmed-theme"]
+    },
+    {
+      "id": "interpretation",
+      "name": "Interpretation",
+      "purpose": "Offer one possible meaning of observations while preserving alternative explanations.",
+      "evidenceRequirements": "One or more observations with traceable evidence and no unresolved contradiction that would make the interpretation misleading.",
+      "confidenceRequirements": "Low or medium unless participant-confirmed. Must remain provisional around identity-adjacent meaning.",
+      "participantFacingEligibility": "Eligible when phrased as one possible interpretation and paired with validation or correction invitation.",
+      "allowedTransitions": ["pattern", "reflection", "open-question", "participant-confirmed-theme"]
+    },
+    {
+      "id": "pattern",
+      "name": "Pattern",
+      "purpose": "Represent a repeated or participant-confirmed theme across observations, contexts, or evidence.",
+      "evidenceRequirements": "Multiple supported observations, repeated evidence across contexts, or participant confirmation.",
+      "confidenceRequirements": "Medium or higher only when evidence density, consistency, and participant validation support it.",
+      "participantFacingEligibility": "Eligible when presented as an observed pattern, not as a fixed identity claim.",
+      "allowedTransitions": ["reflection", "participant-confirmed-theme", "open-question"]
+    },
+    {
+      "id": "reflection",
+      "name": "Reflection",
+      "purpose": "Return a tentative understanding to the participant for resonance, correction, refinement, or disagreement.",
+      "evidenceRequirements": "A supported observation, interpretation, or pattern with clear uncertainty boundaries.",
+      "confidenceRequirements": "Confidence must be appropriate to evidence and disclosed through tentative language.",
+      "participantFacingEligibility": "Participant-facing by design, but must be provisional and correctable.",
+      "allowedTransitions": ["participant-confirmed-theme", "open-question", "observation"]
+    },
+    {
+      "id": "participant-confirmed-theme",
+      "name": "Participant-Confirmed Theme",
+      "purpose": "Represent a theme the participant has confirmed, refined, or accepted in their own terms.",
+      "evidenceRequirements": "Participant confirmation, correction, refinement, or explicit resonance linked to prior evidence.",
+      "confidenceRequirements": "Higher confidence is permitted, but participant authority remains active and future correction still supersedes Discovery interpretation.",
+      "participantFacingEligibility": "Participant-facing when attributed to participant confirmation or participant language.",
+      "allowedTransitions": ["reflection", "open-question"]
+    },
+    {
+      "id": "open-question",
+      "name": "Open Question",
+      "purpose": "Preserve ambiguity, incomplete understanding, insufficient evidence, unresolved tension, or multiple possible interpretations.",
+      "evidenceRequirements": "A gap, ambiguity, tension, weak evidence area, or participant uncertainty.",
+      "confidenceRequirements": "No closure confidence. Open questions preserve uncertainty explicitly.",
+      "participantFacingEligibility": "Participant-facing when useful and non-pressuring.",
+      "allowedTransitions": ["raw-signal", "observation", "interpretation", "reflection"]
+    },
+    {
+      "id": "conclusion-like-claim",
+      "name": "Conclusion-Like Claim",
+      "purpose": "A synthesis that risks sounding final, identity-defining, diagnostic, classificatory, or authoritative.",
+      "evidenceRequirements": "Not sufficient for identity claims. Discovery should avoid this level by default.",
+      "confidenceRequirements": "High confidence does not authorize defining participant identity.",
+      "participantFacingEligibility": "Not eligible by default. Convert into observed themes, participant-confirmed themes, and open questions.",
+      "allowedTransitions": ["reflection", "open-question"]
+    }
+  ],
+  "transitionGuardrails": [
+    "Do not move from one observation directly to pattern unless participant confirmation exists.",
+    "Do not move from interpretation to conclusion-like claim.",
+    "Do not move from pattern to identity claim.",
+    "Do not treat confidence as authority over participant self-understanding.",
+    "When evidence is thin, move toward open question or curiosity rather than conclusion."
+  ]
+}

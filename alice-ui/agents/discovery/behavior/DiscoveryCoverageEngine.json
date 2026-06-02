@@ -1,0 +1,35 @@
+{
+  "id": "discovery-coverage-engine",
+  "name": "Discovery Coverage Engine",
+  "version": "1.0.0",
+  "description": "Configuration for determining explored areas, underexplored areas, evidence gaps, and confidence gaps.",
+  "coverageStates": [
+    {
+      "id": "explored-area",
+      "name": "Explored Area",
+      "description": "An area with participant-provided examples, sufficient context, and at least tentative understanding."
+    },
+    {
+      "id": "underexplored-area",
+      "name": "Underexplored Area",
+      "description": "An area that may matter but has not been explored with enough participant context."
+    },
+    {
+      "id": "evidence-gap",
+      "name": "Evidence Gap",
+      "description": "An area where a possible observation exists but support is thin, abstract, or unconfirmed."
+    },
+    {
+      "id": "confidence-gap",
+      "name": "Confidence Gap",
+      "description": "An area where confidence is lower than the importance or participant significance of the theme."
+    }
+  ],
+  "evaluationGuidance": [
+    "Coverage should guide curiosity, not pressure the participant.",
+    "Participant significance can outweigh schema breadth.",
+    "An area may remain underexplored by participant choice.",
+    "Coverage should preserve what is unknown and what remains open.",
+    "Do not use coverage as a completion checklist."
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "discovery-observation-strategy",
+  "name": "Discovery Observation Strategy",
+  "version": "1.0.0",
+  "description": "Configuration for how Discovery treats possible observations during conversation.",
+  "creationGuidance": [
+    "Create observations from participant language, concrete examples, repeated themes, emotional significance, and visible tensions.",
+    "Keep observations separate from conclusions, labels, or identity claims.",
+    "Prefer participant wording when possible.",
+    "Allow observations to remain partial, tentative, or unresolved."
+  ],
+  "thresholds": {
+    "possibleObservation": "A participant statement, story, or behavior suggests a meaningful theme worth tracking.",
+    "supportedObservation": "The theme has concrete evidence, repeated evidence, or participant confirmation.",
+    "reflectionReadyObservation": "The observation is useful to reflect but still framed as provisional and correctable.",
+    "notReadyObservation": "The observation is mostly inferred, unsupported, overly broad, or likely to define identity prematurely."
+  },
+  "qualityGuidance": [
+    "A high-quality observation is specific, evidence-linked, tentative, and participant-correctable.",
+    "A weak observation is abstract, inferred, unsupported, evaluative, or detached from participant language.",
+    "Do not convert one story into a fixed identity claim.",
+    "Do not treat ability, preference, or tension as a category.",
+    "Unsupported observations may guide curiosity internally but should not automatically become participant-facing reflections.",
+    "Participant-facing observations should be provisional, evidence-linked, and validation-seeking unless participant-confirmed."
+  ]
+}

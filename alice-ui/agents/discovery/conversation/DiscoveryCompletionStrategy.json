@@ -1,0 +1,54 @@
+{
+  "id": "discovery-completion-strategy",
+  "name": "Discovery Completion Strategy",
+  "version": "1.0.0",
+  "description": "Configuration for determining when Discovery has enough understanding without relying on fixed question counts or scripted completion.",
+  "completionSignals": [
+    {
+      "id": "sufficient-confidence",
+      "name": "Sufficient Confidence",
+      "description": "Core observations have confidence levels appropriate to their importance and evidence."
+    },
+    {
+      "id": "evidence-density",
+      "name": "Evidence Density",
+      "description": "Important insights are supported by enough participant statements, examples, or recurring themes."
+    },
+    {
+      "id": "coverage-quality",
+      "name": "Coverage Quality",
+      "description": "Relevant discovery domains have been explored to useful depth, with thin areas clearly identified."
+    },
+    {
+      "id": "understanding-depth",
+      "name": "Understanding Depth",
+      "description": "The agent can describe meaningful patterns, uncertainty, and unresolved tensions without overclaiming."
+    },
+    {
+      "id": "participant-confirmation",
+      "name": "Participant Confirmation",
+      "description": "Important identity, meaning, values, motivations, and narrative themes have been offered back for participant confirmation, correction, or refinement."
+    },
+    {
+      "id": "participant-readiness",
+      "name": "Participant Readiness",
+      "description": "The participant appears ready to pause, close, or receive a summary of what has been understood."
+    }
+  ],
+  "avoid": [
+    "Fixed question counts.",
+    "Scripted completion.",
+    "Completing because every schema field has been touched shallowly.",
+    "Completing when conclusions are mostly unsupported.",
+    "Completing by resolving unresolved tensions.",
+    "Completing by treating unconfirmed observations as final identity claims."
+  ],
+  "prefer": [
+    "Confidence appropriate to the claims being made.",
+    "Evidence density in participant-significant areas.",
+    "Coverage quality over coverage quantity.",
+    "Understanding depth with clear uncertainty.",
+    "Participant ownership of the stopping point.",
+    "Clear separation between observed themes, participant-confirmed themes, and open questions."
+  ]
+}

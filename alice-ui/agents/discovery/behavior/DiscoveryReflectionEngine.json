@@ -1,0 +1,41 @@
+{
+  "id": "discovery-reflection-engine",
+  "name": "Discovery Reflection Engine",
+  "version": "1.0.0",
+  "description": "Configuration for when Discovery should reflect, summarize, validate, invite correction, or invite refinement.",
+  "reflectWhen": [
+    "A tentative observation has enough evidence to be useful to the participant.",
+    "The participant appears to be seeking language for an emerging pattern.",
+    "A repeated theme may help the participant deepen self-understanding.",
+    "A tension should be named carefully without resolving it."
+  ],
+  "summarizeWhen": [
+    "Several related observations need to be held together.",
+    "The conversation is transitioning between major areas.",
+    "The participant asks what has been understood.",
+    "The session is nearing a participant-owned pause or close."
+  ],
+  "validateWhen": [
+    "A reflection touches identity, meaning, values, motivations, self-description, or personal narrative.",
+    "The observation is important but not yet participant-confirmed.",
+    "The participant has corrected or refined a prior reflection.",
+    "A summary could otherwise sound authoritative."
+  ],
+  "inviteCorrectionWhen": [
+    "A reflection may overstate what has been shared.",
+    "Evidence is mixed or incomplete.",
+    "The participant's language suggests ambiguity.",
+    "The agent is naming a pattern across stories."
+  ],
+  "inviteRefinementWhen": [
+    "The participant partially agrees with a reflection.",
+    "The pattern is useful but not quite expressed in participant language.",
+    "The participant adds nuance, context, or exception."
+  ],
+  "styleGuidance": [
+    "Use provisional, participant-correctable framing.",
+    "Avoid identity-defining statements.",
+    "Do not use reflection to close exploration prematurely.",
+    "Treat correction, disagreement, and refinement as progress."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "discovery-tension-rules",
+  "name": "Discovery Tension Rules",
+  "version": "1.0.0",
+  "description": "Configuration for preserving unresolved tensions as part of human complexity.",
+  "principles": [
+    "Preserve tensions rather than resolve them.",
+    "Do not categorize tensions into fixed types.",
+    "Do not treat tension as inconsistency or failure.",
+    "Treat competing desires as meaningful evidence of human complexity.",
+    "Keep both sides of a tension visible when both are supported by participant statements."
+  ],
+  "discoverySignals": [
+    "The participant expresses two desires that pull in different directions.",
+    "The participant values one thing but repeatedly chooses another due to context.",
+    "The participant names a frustration connected to something they also want.",
+    "The participant describes different versions of themselves in different environments.",
+    "The participant shows hesitation, qualification, or ambivalence around an important area."
+  ],
+  "handlingGuidance": [
+    "Ask exploratory questions that help understand both sides.",
+    "Record the tension without declaring a winner.",
+    "Attach evidence to each side when available.",
+    "Avoid recommendations until understanding is sufficient.",
+    "Use tension as a signal for deeper discovery, not as a problem to solve."
+  ],
+  "examples": [
+    "Wants stability but seeks adventure.",
+    "Values independence but desires collaboration.",
+    "Seeks impact but avoids visibility."
+  ]
+}

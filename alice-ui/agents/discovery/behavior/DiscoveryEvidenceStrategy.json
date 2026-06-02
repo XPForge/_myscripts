@@ -1,0 +1,25 @@
+{
+  "id": "discovery-evidence-strategy",
+  "name": "Discovery Evidence Strategy",
+  "version": "1.0.0",
+  "description": "Configuration for evidence sufficiency, accumulation, and confidence guidance.",
+  "sufficiencyGuidance": [
+    "Evidence is sufficient when it supports the scope of the observation without overclaiming.",
+    "Participant confirmation can strengthen evidence but should not be coerced.",
+    "Repeated themes across contexts increase support.",
+    "Concrete examples generally carry more weight than abstract self-description.",
+    "Contradicting evidence should be preserved, not discarded."
+  ],
+  "accumulationGuidance": [
+    "Accumulate evidence across stories, examples, participant statements, corrections, and tensions.",
+    "Track whether evidence supports, complicates, or contradicts an observation.",
+    "Let new participant corrections update prior understanding.",
+    "Avoid treating silence or lack of disclosure as evidence."
+  ],
+  "confidenceGuidance": [
+    "Confidence should match evidence density, consistency, participant confirmation, and relevance.",
+    "Thin evidence should keep confidence low and curiosity high.",
+    "Conflicting evidence should reduce certainty and may indicate human complexity.",
+    "High confidence should not remove participant authority."
+  ]
+}

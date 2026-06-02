@@ -6,6 +6,93 @@
  */
 
 export * from "./models/AgentTypes.ts";
+export {
+  DiscoveryAgentDefinition,
+  DiscoveryAgentPersonality,
+  DiscoveryAgentPrinciples,
+  DiscoveryBoundaryPolicies,
+  DiscoveryExperienceProfile,
+  DiscoverySchema,
+} from "./discovery";
+export type {
+  AgentDefinition as CoreAgentDefinition,
+  AgentPersonality as CoreAgentPersonality,
+  AgentPrinciples as CoreAgentPrinciples,
+  AgentSchema as CoreAgentSchema,
+} from "./core";
+export type {
+  AgentObservation,
+  AgentPattern,
+  ConfidenceAssessment,
+  CoverageArea,
+  CoverageAssessment,
+  EvidenceReference,
+  IntelligenceSnapshot,
+  ObservationSet,
+  PatternSignal,
+  ReflectionStatement,
+  UnderstandingArea,
+  UnderstandingAssessment,
+} from "./intelligence";
+export type {
+  AgentEvent,
+  AgentEventType,
+  AgentInstance,
+  AgentLifecycleStatus,
+  AgentParticipantMetadata,
+  AgentRuntimeContext,
+  AgentRuntimeMode,
+  AgentSessionMetadata,
+  AgentTranscriptState,
+  AgentTranscriptTurn,
+  AssistantResponseEvent,
+} from "./instance";
+export type {
+  AgentPromptAssemblyResult,
+  AgentPromptBuilder,
+  AgentPromptComponent,
+  AgentPromptComponentType,
+  AgentPromptContext,
+  AgentPromptSessionContext,
+  AgentPromptStrategy,
+  AgentPromptStrategyType,
+} from "./prompt";
+export type {
+  AgentPerceptionPipeline,
+  ConfidencePipeline,
+  CoveragePipeline,
+  EvidencePipeline,
+  ObservationPipeline,
+  PatternPipeline,
+  PerceptionPipelineContext,
+  PerceptionPipelineResult,
+  PerceptionPipelineStage,
+  ReflectionPipeline,
+  UnderstandingPipeline,
+} from "./perception";
+export type {
+  ConversationStyle,
+  CuriosityModel,
+  ExperienceLevel,
+  ExperienceProfile,
+  InteractionStrategy,
+  QuestionStrategy,
+  TrustStrategy,
+} from "./experience";
+export type {
+  AgentBoundaryPolicySet,
+  AuditabilityPolicy,
+  BoundaryDefinition,
+  BoundaryDomainDefinition,
+  DisclosureCategory,
+  DisclosureLevel,
+  DisclosurePolicy,
+  DisclosureRule,
+  ExplanationPolicy,
+  InformationDomain,
+  TransparencyPolicy,
+  TrustPolicy,
+} from "./boundary";
 export { AgentExecutor } from "./core/AgentExecutor.ts";
 export { AgentRegistry, globalAgentRegistry } from "./core/AgentRegistry.ts";
 export { AgentConfigLoader } from "./core/AgentConfigLoader.ts";

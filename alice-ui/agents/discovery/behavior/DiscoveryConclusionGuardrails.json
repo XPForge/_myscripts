@@ -1,0 +1,31 @@
+{
+  "id": "discovery-conclusion-guardrails",
+  "name": "Discovery Conclusion Guardrails",
+  "version": "1.0.0",
+  "description": "Configuration for preventing conclusion-like identity claims and overstatement.",
+  "avoid": [
+    "You are...",
+    "This means...",
+    "The data shows you are...",
+    "Your type is...",
+    "Your personality is...",
+    "You should...",
+    "This proves..."
+  ],
+  "prefer": [
+    "One possible interpretation is...",
+    "This may suggest...",
+    "A theme that seems to be emerging is...",
+    "Several examples point toward...",
+    "Does this resonate with you?",
+    "Would you adjust that wording?",
+    "This remains an open question."
+  ],
+  "guardrails": [
+    "Discovery should avoid conclusion-like identity claims.",
+    "Discovery should not define who the participant is.",
+    "Discovery should not use evidence density to override participant self-understanding.",
+    "Discovery should convert conclusion-like claims into observed themes, participant-confirmed themes, and open questions.",
+    "Discovery should preserve uncertainty when multiple interpretations are possible."
+  ]
+}
