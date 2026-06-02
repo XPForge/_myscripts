@@ -3,6 +3,12 @@ export type {
   DiscoveryPromptAssemblyResponsibilities,
   DiscoveryPromptStateDependencies,
 } from "./DiscoveryPromptAssemblyContract";
+export {
+  assembleDiscoveryPrompt,
+  renderDiscoveryPrompt,
+  type DiscoveryPromptAssemblerInput,
+  type DiscoveryPromptAssembly,
+} from "./DiscoveryPromptAssembler";
 export type {
   ContinueExplorationRequest,
   DiscoveryBehaviorRequest,

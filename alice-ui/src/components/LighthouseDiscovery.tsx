@@ -24,10 +24,12 @@ import {
 import {
   appendAssistantTranscriptEvent,
   appendParticipantTranscriptEvent,
+  type DiscoverySessionState,
   loadOrCreateDiscoverySessionState,
   processDiscoveryPerception,
   updateDiscoverySessionState,
 } from "../engine/agent/discovery";
+import DiscoveryInspector from "./discovery/DiscoveryInspector";
 
 type LighthouseDiscoveryProps = {
   onComplete: () => void;
@@ -52,6 +54,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [transcriptCount, setTranscriptCount] = useState(0);
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [resumeAvailable, setResumeAvailable] = useState(false);
+  const [discoveryState, setDiscoveryState] = useState<DiscoverySessionState | null>(null);
 
   useEffect(() => {
     const storedSession = loadLighthouseSession();
@@ -67,7 +70,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setSession(storedSession);
     setName(storedSession.name);
     setEmail(storedSession.email);
-    loadOrCreateDiscoverySessionState(storedSession);
+    setDiscoveryState(loadOrCreateDiscoverySessionState(storedSession));
     const restoredStep = storedSession.step === "discovering" ? "discovering" : "capture";
     setStep(restoredStep);
 
@@ -136,10 +139,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    updateDiscoverySessionState(session.sessionId, (state) => {
+    const updatedDiscoveryState = updateDiscoverySessionState(session.sessionId, (state) => {
       const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
       return processDiscoveryPerception(withTranscriptEvent);
     });
+    if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
     const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -160,9 +164,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    updateDiscoverySessionState(session.sessionId, (state) =>
+    const updatedDiscoveryState = updateDiscoverySessionState(session.sessionId, (state) =>
       appendAssistantTranscriptEvent(state, normalized)
     );
+    if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
     const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -215,15 +220,16 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     };
 
     setSession(newSession);
-    loadOrCreateDiscoverySessionState(newSession);
+    const createdDiscoveryState = loadOrCreateDiscoverySessionState(newSession);
+    setDiscoveryState(createdDiscoveryState);
     setStep("launching");
     setStatusMessage("Preparing your realtime voice discovery session...");
 
     try {
-      const realtime = await requestRealtimeDiscoverySession(createdProfile);
+      const realtime = await requestRealtimeDiscoverySession(createdProfile, createdDiscoveryState);
       setTokenStatus("success");
       addDiagnosticLog("Token request succeeded.");
-      updateDiscoverySessionState(newSession.sessionId, (state) => ({
+      const activatedState = updateDiscoverySessionState(newSession.sessionId, (state) => ({
         ...state,
         instance: {
           ...state.instance,
@@ -231,6 +237,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
           updatedAt: new Date().toISOString(),
         },
       }));
+      if (activatedState) setDiscoveryState(activatedState);
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -291,12 +298,13 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     addDiagnosticLog("Attempting realtime resume.");
 
     try {
-      const realtime = await requestRealtimeDiscoverySession(profile);
+      const resumedDiscoveryState = session ? loadOrCreateDiscoverySessionState(session) : undefined;
+      if (resumedDiscoveryState) setDiscoveryState(resumedDiscoveryState);
+      const realtime = await requestRealtimeDiscoverySession(profile, resumedDiscoveryState);
       setTokenStatus("success");
       addDiagnosticLog("Token request succeeded for resume.");
       if (session) {
-        loadOrCreateDiscoverySessionState(session);
-        updateDiscoverySessionState(session.sessionId, (state) => ({
+        const activatedState = updateDiscoverySessionState(session.sessionId, (state) => ({
           ...state,
           instance: {
             ...state.instance,
@@ -304,6 +312,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
             updatedAt: new Date().toISOString(),
           },
         }));
+        if (activatedState) setDiscoveryState(activatedState);
       }
       saveSession({
         realtimeSessionId: realtime.sessionId,
@@ -362,7 +371,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     if (session) {
       saveSession({ status: "paused", step: "capture" });
-      updateDiscoverySessionState(session.sessionId, (state) => ({
+      const pausedState = updateDiscoverySessionState(session.sessionId, (state) => ({
         ...state,
         instance: {
           ...state.instance,
@@ -370,6 +379,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
           updatedAt: new Date().toISOString(),
         },
       }));
+      if (pausedState) setDiscoveryState(pausedState);
     }
 
     setResumeAvailable(false);
@@ -654,6 +664,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   <strong>Realtime connection:</strong> {connectionState || "pending"}
                 </div>
                 {renderDiagnosticsPanel()}
+                {import.meta.env.DEV && (
+                  <DiscoveryInspector profile={profile} state={discoveryState} />
+                )}
                 <div
                   style={{
                     marginTop: "18px",

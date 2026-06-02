@@ -1,6 +1,10 @@
 import type { LighthouseProfile } from "../services/lighthouseProfile";
 import type { RealtimeSessionConfig } from "../engine/runtime";
-import { buildDiscoverySystemPrompt, lighthousePromptAsset } from "./lighthousePrompt";
+import type { DiscoverySessionState } from "../engine/agent/discovery";
+import {
+  buildDiscoveryPromptAssembly,
+  lighthousePromptAsset,
+} from "./lighthousePrompt";
 
 const OPENAI_REALTIME_TOKEN_ENDPOINT =
   import.meta.env.VITE_OPENAI_REALTIME_TOKEN_ENDPOINT || "";
@@ -13,10 +17,16 @@ export function isRealtimeDiscoveryConfigured(): boolean {
   return Boolean(OPENAI_REALTIME_TOKEN_ENDPOINT);
 }
 
-export function buildRealtimeSessionPayload(profile: LighthouseProfile) {
+export function buildRealtimeSessionPayload(
+  profile: LighthouseProfile,
+  state?: Partial<DiscoverySessionState>
+) {
+  const promptAssembly = buildDiscoveryPromptAssembly(profile, state);
+
   return {
     model: OPENAI_REALTIME_MODEL,
-    systemPrompt: buildDiscoverySystemPrompt(profile),
+    systemPrompt: promptAssembly.systemPrompt,
+    promptMetadata: promptAssembly.outputs.runtimeMetadata,
     profileMetadata: {
       id: profile.id,
       lpId: profile.lpId,
@@ -32,7 +42,8 @@ export function buildRealtimeSessionPayload(profile: LighthouseProfile) {
 }
 
 export async function requestRealtimeDiscoverySession(
-  profile: LighthouseProfile
+  profile: LighthouseProfile,
+  state?: Partial<DiscoverySessionState>
 ): Promise<RealtimeSessionConfig> {
   if (!OPENAI_REALTIME_TOKEN_ENDPOINT) {
     throw new Error(
@@ -45,7 +56,7 @@ export async function requestRealtimeDiscoverySession(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildRealtimeSessionPayload(profile)),
+    body: JSON.stringify(buildRealtimeSessionPayload(profile, state)),
   });
 
   if (!response.ok) {

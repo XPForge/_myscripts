@@ -16,6 +16,10 @@ export type {
   SchemaPromptComponent,
   UnderstandingPromptComponent,
 } from "./AgentPrompt";
+export {
+  assembleDiscoveryPrompt,
+  renderDiscoveryPrompt,
+} from "./discovery";
 export type {
   ContinueExplorationRequest,
   DiscoveryArchitectureConfig,
@@ -27,6 +31,8 @@ export type {
   DiscoveryConversationArchitectureInputs,
   DiscoveryPromptAssemblyContract,
   DiscoveryPromptAssemblyResponsibilities,
+  DiscoveryPromptAssemblerInput,
+  DiscoveryPromptAssembly,
   DiscoveryPromptBoundaries,
   DiscoveryPromptBoundaryRule,
   DiscoveryPromptComponentGroup,

@@ -41,3 +41,21 @@ export {
   type DiscoveryDecisionAlternative,
   type DiscoveryDecisionConfidenceLevel,
 } from "./DiscoveryBehaviorDecisionEngine";
+export {
+  createDiscoverySessionExport,
+  stringifyDiscoverySessionExport,
+  type DiscoverySessionExportSnapshot,
+} from "./DiscoverySessionExport";
+export {
+  createDiscoveryTimeline,
+  type DiscoveryTimelineItem,
+  type DiscoveryTimelineItemType,
+} from "./DiscoveryTimeline";
+export {
+  DiscoveryValidationScenarios,
+  runAllDiscoveryValidationScenarios,
+  runDiscoveryValidationScenario,
+  type DiscoveryValidationScenario,
+  type DiscoveryValidationScenarioId,
+  type DiscoveryValidationScenarioResult,
+} from "./DiscoveryValidationScenarios";
