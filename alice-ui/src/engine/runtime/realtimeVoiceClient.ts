@@ -181,6 +181,20 @@ function createSpeechRecognition(
   return recognition;
 }
 
+function sendRealtimeEvent(
+  dataChannel: RTCDataChannel,
+  event: Record<string, unknown>,
+  diagnostic: (message: string) => void
+) {
+  if (dataChannel.readyState !== "open") {
+    diagnostic(`Skipped realtime event ${String(event.type)} because data channel is ${dataChannel.readyState}.`);
+    return;
+  }
+
+  dataChannel.send(JSON.stringify(event));
+  diagnostic(`Sent realtime event: ${String(event.type)}.`);
+}
+
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") {
     return;
@@ -287,6 +301,18 @@ export async function startRealtimeVoiceSession(
     handlers.onDataChannelStatus?.("open");
     status("Realtime data channel is open.");
     diagnostic("Realtime data channel opened.");
+    sendRealtimeEvent(
+      dataChannel,
+      {
+        type: "response.create",
+        response: {
+          instructions:
+            "Begin the Lighthouse Discovery conversation now. Speak in English only. Start with a brief, warm greeting and ask one open-ended question that invites the participant to tell you about themselves. Do not wait for the participant to speak first.",
+          modalities: ["audio", "text"],
+        },
+      },
+      diagnostic
+    );
   };
 
   dataChannel.onclose = () => {

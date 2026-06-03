@@ -96,6 +96,15 @@ const server = createServer(async (req, res) => {
     const systemPrompt = body.systemPrompt;
     const profileMetadata = body.profileMetadata || {};
     const discoveryPrinciplesVersion = body.discoveryPrinciplesVersion;
+    const voiceInstructions = [
+      "Realtime voice behavior:",
+      "Use English only for all spoken and text responses.",
+      "When the realtime session starts, be ready to begin the conversation proactively.",
+      "The first assistant turn should be brief, warm, and should ask one open-ended discovery question.",
+      "Do not switch languages unless the participant explicitly asks to continue in another language.",
+      "",
+      systemPrompt,
+    ].join("\n");
 
     const openAiPayload = {
       expires_after: {
@@ -105,7 +114,7 @@ const server = createServer(async (req, res) => {
       session: {
         type: "realtime",
         model,
-        instructions: systemPrompt,
+        instructions: voiceInstructions,
         audio: {
           output: {
             voice: "alloy",
