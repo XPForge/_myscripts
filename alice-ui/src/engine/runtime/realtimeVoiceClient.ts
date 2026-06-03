@@ -7,6 +7,25 @@ export type RealtimeSessionConfig = {
   createdAt: string;
 };
 
+export type RealtimeStartupTraceStage =
+  | "microphone.permission"
+  | "microphone.getUserMedia"
+  | "rtc.peerConnection.created"
+  | "rtc.dataChannel.created"
+  | "rtc.dataChannel.open"
+  | "rtc.sdp.offer.sent"
+  | "rtc.sdp.answer.received"
+  | "rtc.remoteDescription.set"
+  | "realtime.responseCreate.sent"
+  | "realtime.event.received";
+
+export type RealtimeStartupTraceEvent = {
+  stage: RealtimeStartupTraceStage;
+  reached: boolean;
+  timestamp: string;
+  error?: string;
+};
+
 export type RealtimeVoiceHandlers = {
   onStatus?: (status: string) => void;
   onTranscript?: (text: string, isFinal: boolean) => void;
@@ -17,6 +36,7 @@ export type RealtimeVoiceHandlers = {
   onMicrophoneStatus?: (status: string) => void;
   onAudioPlaybackStatus?: (status: string) => void;
   onDataChannelStatus?: (status: string) => void;
+  onStartupTrace?: (event: RealtimeStartupTraceEvent) => void;
 };
 
 export type RealtimeVoiceClient = {
@@ -204,11 +224,12 @@ function sendRealtimeEvent(
 ) {
   if (dataChannel.readyState !== "open") {
     diagnostic(`Skipped realtime event ${String(event.type)} because data channel is ${dataChannel.readyState}.`);
-    return;
+    return false;
   }
 
   dataChannel.send(JSON.stringify(event));
   diagnostic(`Sent realtime event: ${String(event.type)}.`);
+  return true;
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -257,14 +278,53 @@ export async function startRealtimeVoiceSession(
   const diagnostic = (message: string) => {
     handlers.onDiagnosticLog?.(`DEBUG: ${message}`);
   };
+  const trace = (
+    stage: RealtimeStartupTraceStage,
+    reached: boolean,
+    error?: unknown
+  ) => {
+    const message = error instanceof Error ? error.message : error ? String(error) : undefined;
+    handlers.onStartupTrace?.({
+      stage,
+      reached,
+      timestamp: new Date().toISOString(),
+      error: message,
+    });
+    handlers.onDiagnosticLog?.(
+      `TRACE ${stage}: reached=${String(reached)}${message ? ` error=${message}` : ""}`
+    );
+  };
+  const initializeTrace = () => {
+    const timestamp = new Date().toISOString();
+    const stages: RealtimeStartupTraceStage[] = [
+      "microphone.permission",
+      "microphone.getUserMedia",
+      "rtc.peerConnection.created",
+      "rtc.dataChannel.created",
+      "rtc.dataChannel.open",
+      "rtc.sdp.offer.sent",
+      "rtc.sdp.answer.received",
+      "rtc.remoteDescription.set",
+      "realtime.responseCreate.sent",
+      "realtime.event.received",
+    ];
+    stages.forEach((stage) => {
+      handlers.onStartupTrace?.({ stage, reached: false, timestamp });
+    });
+  };
 
+  initializeTrace();
   status("Requesting microphone access...");
   handlers.onMicrophoneStatus?.("pending");
   let localStream: MediaStream;
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    trace("microphone.permission", true);
+    trace("microphone.getUserMedia", true);
   } catch (error) {
     handlers.onMicrophoneStatus?.("denied");
+    trace("microphone.permission", false, describeMicrophoneError(error));
+    trace("microphone.getUserMedia", false, describeMicrophoneError(error));
     throw new Error(describeMicrophoneError(error));
   }
 
@@ -285,8 +345,16 @@ export async function startRealtimeVoiceSession(
     diagnostic("Assistant audio playback error detected.");
   };
 
-  const pc = new RTCPeerConnection();
+  let pc: RTCPeerConnection;
+  try {
+    pc = new RTCPeerConnection();
+    trace("rtc.peerConnection.created", true);
+  } catch (error) {
+    trace("rtc.peerConnection.created", false, error);
+    throw error;
+  }
   let dataChannel: RTCDataChannel | null = null;
+  let dataChannelOpened = false;
 
   pc.ontrack = (event) => {
     diagnostic("Received remote audio track from realtime peer connection.");
@@ -317,13 +385,21 @@ export async function startRealtimeVoiceSession(
     diagnostic(`ICE candidate event: ${event.candidate?.candidate ?? "<null>"}`);
   };
 
-  dataChannel = pc.createDataChannel("oai-events");
+  try {
+    dataChannel = pc.createDataChannel("oai-events");
+    trace("rtc.dataChannel.created", true);
+  } catch (error) {
+    trace("rtc.dataChannel.created", false, error);
+    throw error;
+  }
 
   dataChannel.onopen = () => {
+    dataChannelOpened = true;
     handlers.onDataChannelStatus?.("open");
     status("Realtime data channel is open.");
     diagnostic("Realtime data channel opened.");
-    sendRealtimeEvent(
+    trace("rtc.dataChannel.open", true);
+    const sent = sendRealtimeEvent(
       dataChannel,
       {
         type: "response.create",
@@ -333,21 +409,31 @@ export async function startRealtimeVoiceSession(
       },
       diagnostic
     );
+    trace(
+      "realtime.responseCreate.sent",
+      sent,
+      sent ? undefined : `Data channel state was ${dataChannel.readyState}.`
+    );
   };
 
   dataChannel.onclose = () => {
     handlers.onDataChannelStatus?.("closed");
+    if (!dataChannelOpened) {
+      trace("rtc.dataChannel.open", false, "Realtime data channel closed before opening.");
+    }
     status("Realtime data channel closed.");
     diagnostic("Realtime data channel closed.");
   };
 
   dataChannel.onerror = (event) => {
     handlers.onDataChannelStatus?.("error");
+    trace("rtc.dataChannel.open", false, "Realtime data channel error.");
     errorHandler(new Error("Realtime data channel error."));
     diagnostic(`Realtime data channel error event: ${event?.toString?.() ?? "unknown"}`);
   };
 
   dataChannel.onmessage = (event) => {
+    trace("realtime.event.received", true);
     diagnostic("Realtime data channel message received.");
     const raw = event.data;
     let parsed: Record<string, unknown> | null = null;
@@ -400,25 +486,40 @@ export async function startRealtimeVoiceSession(
   }
 
   const endpoint = realtimeSession.endpoint?.trim() || `https://api.openai.com/v1/realtime?model=${encodeURIComponent(realtimeSession.model)}`;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${realtimeSession.token}`,
-      "Content-Type": "application/sdp",
-      Accept: "application/sdp",
-    },
-    body: localSdp,
-  });
+  trace("rtc.sdp.offer.sent", true);
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${realtimeSession.token}`,
+        "Content-Type": "application/sdp",
+        Accept: "application/sdp",
+      },
+      body: localSdp,
+    });
+  } catch (error) {
+    trace("rtc.sdp.answer.received", false, error);
+    throw error;
+  }
 
   if (!response.ok) {
     const responseText = await response.text();
     diagnostic(`Realtime offer request failed with status ${response.status}.`);
+    trace("rtc.sdp.answer.received", false, `${response.status} ${response.statusText} ${responseText}`);
     throw new Error(`Realtime endpoint request failed: ${response.status} ${response.statusText} ${responseText}`);
   }
 
   const answerSdp = await response.text();
+  trace("rtc.sdp.answer.received", true);
   diagnostic("Received SDP answer from realtime endpoint.");
-  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  try {
+    await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    trace("rtc.remoteDescription.set", true);
+  } catch (error) {
+    trace("rtc.remoteDescription.set", false, error);
+    throw error;
+  }
   status("Realtime peer connection established.");
   handlers.onConnectionState?.(pc.connectionState);
 

@@ -5,7 +5,12 @@ import {
 } from "../engine/runtime";
 
 export type { RealtimeSessionConfig as RealtimeDiscoverySession } from "../engine/runtime";
-export type { RealtimeVoiceClient, RealtimeVoiceHandlers } from "../engine/runtime";
+export type {
+  RealtimeStartupTraceEvent,
+  RealtimeStartupTraceStage,
+  RealtimeVoiceClient,
+  RealtimeVoiceHandlers,
+} from "../engine/runtime";
 
 function isMockRealtimeSession(
   realtimeSession: import("../engine/runtime").RealtimeSessionConfig

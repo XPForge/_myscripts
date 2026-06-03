@@ -19,6 +19,8 @@ import {
 } from "../ai/lighthouseDiscoveryService";
 import {
   startRealtimeVoiceDiscovery,
+  type RealtimeStartupTraceEvent,
+  type RealtimeStartupTraceStage,
   type RealtimeVoiceClient,
 } from "../ai/realtimeVoiceDiscoveryClient";
 
@@ -29,6 +31,32 @@ type LighthouseDiscoveryProps = {
 type Step = "capture" | "launching" | "discovering";
 const USE_MOCK_REALTIME_DISCOVERY =
   import.meta.env.VITE_MOCK_REALTIME_DISCOVERY === "true";
+
+const STARTUP_TRACE_STAGES: { stage: RealtimeStartupTraceStage; label: string }[] = [
+  { stage: "microphone.permission", label: "1. Microphone permission" },
+  { stage: "microphone.getUserMedia", label: "2. getUserMedia" },
+  { stage: "rtc.peerConnection.created", label: "3. RTCPeerConnection created" },
+  { stage: "rtc.dataChannel.created", label: "4. Data channel created" },
+  { stage: "rtc.dataChannel.open", label: "5. Data channel open" },
+  { stage: "rtc.sdp.offer.sent", label: "6. SDP offer sent" },
+  { stage: "rtc.sdp.answer.received", label: "7. SDP answer received" },
+  { stage: "rtc.remoteDescription.set", label: "8. setRemoteDescription" },
+  { stage: "realtime.responseCreate.sent", label: "9. response.create sent" },
+  { stage: "realtime.event.received", label: "10. Realtime event received" },
+];
+
+function emptyStartupTrace() {
+  return Object.fromEntries(
+    STARTUP_TRACE_STAGES.map(({ stage }) => [
+      stage,
+      {
+        stage,
+        reached: false,
+        timestamp: "",
+      },
+    ])
+  ) as Record<RealtimeStartupTraceStage, RealtimeStartupTraceEvent>;
+}
 
 export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryProps) {
   const [step, setStep] = useState<Step>("capture");
@@ -46,6 +74,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [dataChannelStatus, setDataChannelStatus] = useState("pending");
   const [transcriptCount, setTranscriptCount] = useState(0);
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
+  const [startupTrace, setStartupTrace] = useState(emptyStartupTrace);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [mockParticipantText, setMockParticipantText] = useState("");
   const profileRef = useRef<LighthouseProfile | null>(null);
@@ -116,6 +145,17 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       `${new Date().toISOString()} - ${message}`,
       ...prev,
     ].slice(0, 60));
+  };
+
+  const recordStartupTrace = (event: RealtimeStartupTraceEvent) => {
+    setStartupTrace((prev) => ({
+      ...prev,
+      [event.stage]: event,
+    }));
+  };
+
+  const resetStartupTrace = () => {
+    setStartupTrace(emptyStartupTrace());
   };
 
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
@@ -194,6 +234,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setDataChannelStatus("pending");
     setTranscriptCount(0);
     setDiagnosticLogs([]);
+    resetStartupTrace();
     setConnectionState("");
     if (!name.trim() || !email.trim()) {
       setErrorMessage("Please enter your name and email to continue.");
@@ -266,6 +307,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         onMicrophoneStatus: setMicrophoneStatus,
         onAudioPlaybackStatus: setAudioStatus,
         onDataChannelStatus: setDataChannelStatus,
+        onStartupTrace: recordStartupTrace,
         onDiagnosticLog: addDiagnosticLog,
         onError: (error) => {
           setErrorMessage(error.message);
@@ -303,6 +345,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setMicrophoneStatus("pending");
     setAudioStatus("pending");
     setDataChannelStatus("pending");
+    resetStartupTrace();
     addDiagnosticLog("Attempting realtime resume.");
 
     try {
@@ -335,6 +378,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         onMicrophoneStatus: setMicrophoneStatus,
         onAudioPlaybackStatus: setAudioStatus,
         onDataChannelStatus: setDataChannelStatus,
+        onStartupTrace: recordStartupTrace,
         onDiagnosticLog: addDiagnosticLog,
         onError: (error) => {
           setErrorMessage(error.message);
@@ -399,6 +443,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setDataChannelStatus("pending");
     setTranscriptCount(0);
     setDiagnosticLogs([]);
+    resetStartupTrace();
     setStatusMessage("Previous discovery session cleared. Start a new session when ready.");
   };
 
@@ -473,6 +518,56 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         <div><strong>Audio Playback:</strong> {audioStatus}</div>
         <div><strong>Data Channel:</strong> {dataChannelStatus}</div>
         <div><strong>Transcript Count:</strong> {transcriptCount}</div>
+        <div>
+          <strong>Last Successful Startup Step:</strong>{" "}
+          {STARTUP_TRACE_STAGES
+            .filter(({ stage }) => startupTrace[stage].reached)
+            .at(-1)?.label ?? "none"}
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: "16px",
+          display: "grid",
+          gap: "8px",
+        }}
+      >
+        {STARTUP_TRACE_STAGES.map(({ stage, label }) => {
+          const event = startupTrace[stage];
+          return (
+            <div
+              key={stage}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(180px, 1.2fr) minmax(86px, 0.45fr) minmax(190px, 1fr)",
+                gap: "10px",
+                alignItems: "start",
+                padding: "10px 12px",
+                borderRadius: "12px",
+                background: event.reached ? "rgba(22,101,52,0.16)" : "rgba(51,65,85,0.28)",
+                border: event.error
+                  ? "1px solid rgba(248,113,113,0.35)"
+                  : event.reached
+                    ? "1px solid rgba(74,222,128,0.2)"
+                    : "1px solid rgba(148,163,184,0.08)",
+              }}
+            >
+              <div>
+                <strong>{label}</strong>
+                <div style={{ color: "rgba(203,213,225,0.62)", fontSize: "0.8rem" }}>
+                  {stage}
+                </div>
+              </div>
+              <div>
+                <strong>reached:</strong> {String(event.reached)}
+              </div>
+              <div>
+                <div><strong>timestamp:</strong> {event.timestamp || "not recorded"}</div>
+                <div><strong>error:</strong> {event.error || "none"}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div
         style={{
