@@ -232,6 +232,17 @@ function sendRealtimeEvent(
   return true;
 }
 
+function createStartupResponseEvent() {
+  return {
+    type: "response.create",
+    response: {
+      modalities: ["audio", "text"],
+      instructions:
+        "Begin the Lighthouse Discovery session now using the session instructions. Open with the configured opening behavior and one broad, human-centered question. Do not wait for participant input.",
+    },
+  };
+}
+
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") {
     return;
@@ -355,6 +366,32 @@ export async function startRealtimeVoiceSession(
   }
   let dataChannel: RTCDataChannel | null = null;
   let dataChannelOpened = false;
+  let remoteDescriptionSet = false;
+  let startupResponseSent = false;
+  const trySendStartupResponse = (source: string) => {
+    if (startupResponseSent) {
+      diagnostic(`Startup response.create already sent; skipped ${source}.`);
+      return;
+    }
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      diagnostic(`Startup response.create waiting for open data channel from ${source}.`);
+      return;
+    }
+    if (!remoteDescriptionSet) {
+      diagnostic(`Startup response.create waiting for remote description from ${source}.`);
+      return;
+    }
+
+    const event = createStartupResponseEvent();
+    diagnostic(`Startup response.create payload: ${JSON.stringify(event)}`);
+    const sent = sendRealtimeEvent(dataChannel, event, diagnostic);
+    startupResponseSent = sent;
+    trace(
+      "realtime.responseCreate.sent",
+      sent,
+      sent ? undefined : `Data channel state was ${dataChannel.readyState}.`
+    );
+  };
 
   pc.ontrack = (event) => {
     diagnostic("Received remote audio track from realtime peer connection.");
@@ -399,21 +436,7 @@ export async function startRealtimeVoiceSession(
     status("Realtime data channel is open.");
     diagnostic("Realtime data channel opened.");
     trace("rtc.dataChannel.open", true);
-    const sent = sendRealtimeEvent(
-      dataChannel,
-      {
-        type: "response.create",
-        response: {
-          modalities: ["audio", "text"],
-        },
-      },
-      diagnostic
-    );
-    trace(
-      "realtime.responseCreate.sent",
-      sent,
-      sent ? undefined : `Data channel state was ${dataChannel.readyState}.`
-    );
+    trySendStartupResponse("dataChannel.onopen");
   };
 
   dataChannel.onclose = () => {
@@ -515,7 +538,9 @@ export async function startRealtimeVoiceSession(
   diagnostic("Received SDP answer from realtime endpoint.");
   try {
     await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    remoteDescriptionSet = true;
     trace("rtc.remoteDescription.set", true);
+    trySendStartupResponse("setRemoteDescription");
   } catch (error) {
     trace("rtc.remoteDescription.set", false, error);
     throw error;
