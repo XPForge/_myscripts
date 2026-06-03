@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { APP_VERSION } from "../appVersion";
 import FeedCommandPanel from "./FeedCommandPanel";
 
 export const COMMAND_BAR_HEIGHT = 52;
@@ -53,6 +54,9 @@ export default function TopCommandBar({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
             fontSize: "15px",
             fontWeight: 700,
             letterSpacing: "0.12em",
@@ -60,7 +64,22 @@ export default function TopCommandBar({
             lineHeight: 1,
           }}
         >
-          ALICE
+          <span>ALICE</span>
+          <span
+            style={{
+              padding: "3px 7px",
+              borderRadius: "999px",
+              border: "1px solid rgba(96,165,250,0.32)",
+              background: "rgba(59,130,246,0.16)",
+              color: "#bfdbfe",
+              fontSize: "10px",
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+            }}
+          >
+            v{APP_VERSION}
+          </span>
         </div>
         <div
           style={{
