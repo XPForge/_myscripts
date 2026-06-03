@@ -330,10 +330,7 @@ function createResponseEvent(outputModality: RealtimeOutputModality, instruction
 }
 
 function createStartupResponseEvent(outputModality: RealtimeOutputModality) {
-  return createResponseEvent(
-    outputModality,
-    "Begin the Lighthouse Discovery session now using the session instructions. Open with a brief welcome and one broad, human-centered question. Do not wait for participant input. Do not reuse a fixed opening question; vary the wording naturally."
-  );
+  return createResponseEvent(outputModality);
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {

@@ -931,18 +931,84 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     );
                   })}
                 </div>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  {resumeAvailable && !voiceClient ? (
+                    <button
+                      type="button"
+                      onClick={resumeDiscovery}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(59,130,246,0.45)",
+                        background: "rgba(59,130,246,0.22)",
+                        color: "#eef2ff",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Resume discovery
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={stopDiscovery}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(59,130,246,0.45)",
+                          background: "rgba(59,130,246,0.22)",
+                          color: "#eef2ff",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Stop discovery
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await stopDiscovery();
+                          onComplete();
+                        }}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(148,163,184,0.18)",
+                          background: "rgba(255,255,255,0.04)",
+                          color: "#e2e8f0",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Finish discovery
+                      </button>
+                    </>
+                  )}
+                </div>
                 <div
                   style={{
-                    marginTop: "18px",
-                    padding: "18px",
-                    borderRadius: "20px",
+                    display: "grid",
+                    gridTemplateColumns: "minmax(150px, 0.34fr) minmax(0, 1fr)",
+                    gap: "14px",
+                    alignItems: "start",
+                  }}
+                >
+                <div
+                  style={{
+                    padding: "14px",
+                    borderRadius: "18px",
                     background: "rgba(15,23,42,0.9)",
                     border: "1px solid rgba(59,130,246,0.18)",
                     color: "#cbd5e1",
-                    fontSize: "0.95rem",
-                    lineHeight: 1.7,
+                    fontSize: "0.86rem",
+                    lineHeight: 1.55,
                   }}
                 >
+                  <strong>Name:</strong> {profile.name}
+                  <br />
+                  <strong>Email:</strong> {profile.email}
+                  <br />
                   <strong>LP ID:</strong> {profile.lpId}
                   <br />
                   <strong>Session:</strong> {session.status}
@@ -953,26 +1019,27 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   <br />
                   <strong>Realtime connection:</strong> {connectionState || "pending"}
                 </div>
-                {renderDiagnosticsPanel()}
                 <div
                   style={{
-                    marginTop: "18px",
-                    padding: "18px",
-                    borderRadius: "20px",
+                    padding: "16px",
+                    borderRadius: "18px",
                     background: "rgba(255,255,255,0.02)",
                     border: "1px solid rgba(148,163,184,0.14)",
                     color: "#e2e8f0",
-                    minHeight: "260px",
+                    minHeight: "320px",
+                    maxHeight: "42vh",
+                    overflowY: "auto",
                     whiteSpace: "pre-wrap",
                     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                     fontSize: "0.95rem",
+                    lineHeight: 1.65,
                   }}
                 >
                   {session.transcript || "Realtime transcript will appear here as the conversation progresses."}
                 </div>
+                </div>
                 <div
                   style={{
-                    marginTop: "14px",
                     display: "grid",
                     gap: "10px",
                   }}
@@ -1015,62 +1082,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "12px", marginTop: "18px", flexWrap: "wrap" }}>
-                  {resumeAvailable && !voiceClient ? (
-                    <button
-                      type="button"
-                      onClick={resumeDiscovery}
-                      style={{
-                        padding: "14px 18px",
-                        borderRadius: "16px",
-                        border: "1px solid rgba(59,130,246,0.45)",
-                        background: "rgba(59,130,246,0.22)",
-                        color: "#eef2ff",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Resume discovery
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={stopDiscovery}
-                        style={{
-                          padding: "14px 18px",
-                          borderRadius: "16px",
-                          border: "1px solid rgba(59,130,246,0.45)",
-                          background: "rgba(59,130,246,0.22)",
-                          color: "#eef2ff",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Stop discovery
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await stopDiscovery();
-                          onComplete();
-                        }}
-                        style={{
-                          padding: "14px 18px",
-                          borderRadius: "16px",
-                          border: "1px solid rgba(148,163,184,0.18)",
-                          background: "rgba(255,255,255,0.04)",
-                          color: "#e2e8f0",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Finish discovery
-                      </button>
-                    </>
-                  )}
-                </div>
                 {renderMessage()}
+                {renderDiagnosticsPanel()}
               </div>
             </>
           )}

@@ -25,12 +25,30 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   });
 }
 
+function createCountdown(timeoutMs: number, setCountdown: (seconds: number) => void) {
+  let remaining = Math.ceil(timeoutMs / 1000);
+  setCountdown(remaining);
+  const intervalId = window.setInterval(() => {
+    remaining -= 1;
+    setCountdown(Math.max(0, remaining));
+    if (remaining <= 0) {
+      window.clearInterval(intervalId);
+    }
+  }, 1000);
+
+  return () => {
+    window.clearInterval(intervalId);
+    setCountdown(0);
+  };
+}
+
 export default function MicrophoneTestPage() {
   const [status, setStatus] = useState<MicStatus>("idle");
   const [message, setMessage] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [level, setLevel] = useState(0);
+  const [timeoutCountdown, setTimeoutCountdown] = useState(0);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -39,7 +57,7 @@ export default function MicrophoneTestPage() {
     setLogs((prev) => [`${new Date().toISOString()} - ${entry}`, ...prev].slice(0, 80));
   };
 
-  const stop = () => {
+  const stop = (writeLog = true) => {
     if (animationRef.current !== null) {
       window.cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -49,22 +67,30 @@ export default function MicrophoneTestPage() {
     void audioContextRef.current?.close();
     audioContextRef.current = null;
     setLevel(0);
-    log("Stopped microphone test.");
+    if (writeLog) {
+      log("Stopped microphone test.");
+    }
   };
 
   useEffect(() => stop, []);
 
   const refreshDevices = async () => {
-    const nextDevices = await navigator.mediaDevices.enumerateDevices();
-    setDevices(nextDevices.filter((device) => device.kind === "audioinput"));
-    log(`Audio input devices found: ${nextDevices.filter((device) => device.kind === "audioinput").length}.`);
+    const nextDevices = await withTimeout(
+      navigator.mediaDevices.enumerateDevices(),
+      5000,
+      "Timed out while listing media devices."
+    );
+    const audioInputs = nextDevices.filter((device) => device.kind === "audioinput");
+    setDevices(audioInputs);
+    log(`Audio input devices found: ${audioInputs.length}.`);
   };
 
   const start = async () => {
     setStatus("checking");
     setMessage("Checking microphone...");
     setLogs([]);
-    stop();
+    setTimeoutCountdown(0);
+    stop(false);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus("failed");
@@ -81,16 +107,39 @@ export default function MicrophoneTestPage() {
       } catch (error) {
         log(`Permission query unavailable: ${describeError(error)}.`);
       }
-      await refreshDevices();
-
-      const stream = await withTimeout(
-        navigator.mediaDevices.getUserMedia({ audio: true }),
-        15000,
-        "Timed out waiting for microphone permission/device access."
-      );
+      log("Requesting getUserMedia({ audio: true }) now.");
+      const clearCountdown = createCountdown(15000, setTimeoutCountdown);
+      let stream: MediaStream;
+      try {
+        stream = await withTimeout(
+          navigator.mediaDevices.getUserMedia({ audio: true }),
+          15000,
+          "Timed out waiting for microphone permission/device access."
+        );
+      } catch (error) {
+        log(`Default getUserMedia failed: ${describeError(error)}.`);
+        log("Trying fallback getUserMedia with audio processing disabled.");
+        stream = await withTimeout(
+          navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
+          }),
+          15000,
+          "Fallback microphone request also timed out."
+        );
+      } finally {
+        clearCountdown();
+      }
       streamRef.current = stream;
       log(`getUserMedia resolved. Tracks: ${stream.getAudioTracks().length}.`);
-      await refreshDevices();
+      try {
+        await refreshDevices();
+      } catch (error) {
+        log(`Device listing after permission failed: ${describeError(error)}.`);
+      }
 
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) {
@@ -119,6 +168,7 @@ export default function MicrophoneTestPage() {
       setMessage("Microphone access works. Speak and watch the level meter move.");
     } catch (error) {
       setStatus("failed");
+      setTimeoutCountdown(0);
       setMessage(`Microphone test failed: ${describeError(error)}`);
       log(`Failure: ${describeError(error)}.`);
     }
@@ -135,7 +185,7 @@ export default function MicrophoneTestPage() {
           <button onClick={() => void start()} style={{ padding: "12px 16px", borderRadius: "12px", cursor: "pointer" }}>
             Start microphone test
           </button>
-          <button onClick={stop} style={{ padding: "12px 16px", borderRadius: "12px", cursor: "pointer" }}>
+          <button onClick={() => stop()} style={{ padding: "12px 16px", borderRadius: "12px", cursor: "pointer" }}>
             Stop
           </button>
           <a href="/" style={{ padding: "12px 16px", color: "#93c5fd" }}>
@@ -143,6 +193,7 @@ export default function MicrophoneTestPage() {
           </a>
         </div>
         <div>Status: {status}</div>
+        {timeoutCountdown > 0 && <div>Microphone request timeout in: {timeoutCountdown}s</div>}
         <div style={{ padding: "14px", borderRadius: "12px", background: "rgba(15,23,42,0.95)" }}>{message || "Not started."}</div>
         <div style={{ height: "22px", borderRadius: "999px", background: "rgba(148,163,184,0.18)", overflow: "hidden" }}>
           <div style={{ width: `${level}%`, height: "100%", background: "#38bdf8" }} />

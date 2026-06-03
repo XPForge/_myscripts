@@ -102,12 +102,30 @@ export async function generateFinalProfileOutput(profile: LighthouseProfile): Pr
     return buildExportProfileText(profile);
   }
 
-  const prompt = `Create a polished Lighthouse profile summary and list emerging employment-relevant discoveries based on the following profile fields. Do not score or judge.
+  const prompt = `Create a Lighthouse Discovery Profile based on the information below.
+
+Use clean Markdown and these sections:
+
+## Executive Summary
+## Core Themes
+## Natural Strengths
+## Thinking Style
+## Learning Style
+## Creative Profile
+## Collaboration Profile
+## Environmental Fit
+## Unique Contributions
+## Opportunity Alignment
+## Potential Blind Spots
+## Open Questions
+## Lighthouse Summary
+
+Use synthesis rather than summary. Focus on understanding rather than evaluation. Preserve participant authority, distinguish evidence from interpretation, and do not invent facts, scores, diagnoses, or hidden traits.
 
 ${buildExportProfileText(profile)}`;
 
   const messages: AIMessage[] = [
-    { role: "system", content: "You are a professional discovery summarization assistant.", createdAt: new Date().toISOString() },
+    { role: "system", content: "You create Lighthouse Discovery Profiles from transcript evidence.", createdAt: new Date().toISOString() },
     { role: "user", content: prompt, createdAt: new Date().toISOString() },
   ];
 

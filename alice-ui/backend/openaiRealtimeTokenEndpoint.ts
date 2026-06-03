@@ -102,15 +102,7 @@ const server = createServer(async (req, res) => {
     const model = body.model || "gpt-realtime";
     const profileMetadata = body.profileMetadata || {};
     const outputModality = resolveOutputModality(body.outputModality);
-    const voiceInstructions = [
-      "Realtime voice behavior:",
-      "Use English only for all spoken and text responses.",
-      "When the realtime session starts, be ready to begin the conversation proactively.",
-      "The first assistant turn should be brief, warm, and should ask one open-ended discovery question.",
-      "Do not switch languages unless the participant explicitly asks to continue in another language.",
-      "",
-      buildLighthouseDiscoverySessionInstructions(profileMetadata),
-    ].filter(Boolean).join("\n");
+    const voiceInstructions = buildLighthouseDiscoverySessionInstructions(profileMetadata);
 
     const sessionConfig: Record<string, unknown> = {
       type: "realtime",

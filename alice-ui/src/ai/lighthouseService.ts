@@ -31,7 +31,7 @@ export async function createOpenAICompletion(messages: AIMessage[]): Promise<str
         content: message.content,
       })),
       temperature: 0.9,
-      max_tokens: 700,
+      max_tokens: 2500,
     }),
   });
 
