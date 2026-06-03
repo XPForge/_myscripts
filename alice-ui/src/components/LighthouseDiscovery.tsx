@@ -161,6 +161,50 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setStartupTrace(emptyStartupTrace());
   };
 
+  const checkMicrophoneAccess = async () => {
+    setErrorMessage("");
+    setMicrophoneStatus("pending");
+    addDiagnosticLog("Checking microphone access without starting Realtime.");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = "Microphone capture is not supported by this browser.";
+      setMicrophoneStatus("unsupported");
+      setErrorMessage(message);
+      addDiagnosticLog(message);
+      return;
+    }
+
+    try {
+      try {
+        const permission = await navigator.permissions?.query?.({ name: "microphone" as PermissionName });
+        addDiagnosticLog(`Browser microphone permission state: ${permission?.state ?? "unknown"}.`);
+      } catch (error) {
+        addDiagnosticLog(`Browser microphone permission query unavailable: ${error instanceof Error ? error.message : String(error)}.`);
+      }
+
+      const devicesBefore = await navigator.mediaDevices.enumerateDevices();
+      addDiagnosticLog(`Audio input devices before permission: ${devicesBefore.filter((device) => device.kind === "audioinput").length}.`);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const tracks = stream.getAudioTracks();
+      setMicrophoneStatus("granted");
+      addDiagnosticLog(`Microphone preflight succeeded. Audio tracks: ${tracks.length}.`);
+      const devicesAfter = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devicesAfter.filter((device) => device.kind === "audioinput");
+      addDiagnosticLog(
+        `Audio input devices after permission: ${audioInputs.length}. ${audioInputs.map((device) => device.label || "label hidden").join(" | ")}`
+      );
+      tracks.forEach((track) => track.stop());
+      setStatusMessage("Microphone access works. You can start Discovery.");
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : error instanceof Error ? error.name : "UnknownError";
+      const message = error instanceof Error ? error.message : String(error);
+      const detail = `Microphone preflight failed: ${name}${message ? ` - ${message}` : ""}`;
+      setMicrophoneStatus("failed");
+      setErrorMessage(detail);
+      addDiagnosticLog(detail);
+    }
+  };
+
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
     const currentProfile = profileRef.current;
     const currentSession = sessionRef.current;
@@ -754,7 +798,22 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   }}
                 />
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "18px" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap", marginTop: "18px" }}>
+                <button
+                  type="button"
+                  onClick={() => void checkMicrophoneAccess()}
+                  style={{
+                    padding: "14px 20px",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "#e2e8f0",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Check microphone
+                </button>
                 <button
                   type="button"
                   onClick={startDiscovery}

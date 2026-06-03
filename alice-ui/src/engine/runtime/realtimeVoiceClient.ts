@@ -235,18 +235,53 @@ function createSpeechRecognition(
 
 function describeMicrophoneError(error: unknown) {
   if (error instanceof DOMException) {
+    const detail = error.message ? ` (${error.name}: ${error.message})` : ` (${error.name})`;
     if (error.name === "NotAllowedError" || error.name === "SecurityError") {
-      return "Microphone permission was denied. Allow microphone access for this site in your browser, then restart the discovery session.";
+      return `Microphone permission was denied${detail}. Allow microphone access for this site in your browser, then restart the discovery session.`;
     }
     if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-      return "No microphone was found. Connect or enable a microphone, then restart the discovery session.";
+      return `No microphone was found${detail}. Connect or enable a microphone, then restart the discovery session.`;
     }
     if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-      return "The microphone is already in use or cannot be read. Close other apps using the microphone, then restart the discovery session.";
+      return `The microphone is already in use or cannot be read${detail}. Close other apps using the microphone, then restart the discovery session.`;
     }
+    return `Unable to access the microphone${detail}.`;
   }
 
   return error instanceof Error ? error.message : "Unable to access the microphone.";
+}
+
+async function describeMicrophoneEnvironment() {
+  const parts: string[] = [];
+  parts.push(`origin=${window.location.origin}`);
+  parts.push(`secureContext=${String(window.isSecureContext)}`);
+
+  try {
+    const permission = await navigator.permissions?.query?.({ name: "microphone" as PermissionName });
+    if (permission?.state) {
+      parts.push(`permission=${permission.state}`);
+    }
+  } catch (error) {
+    parts.push(`permissionQuery=unavailable:${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    const devices = await navigator.mediaDevices?.enumerateDevices?.();
+    if (devices) {
+      const audioInputs = devices.filter((device) => device.kind === "audioinput");
+      parts.push(`audioInputs=${audioInputs.length}`);
+      const namedInputs = audioInputs
+        .map((device, index) => device.label || `audio input ${index + 1} label hidden`)
+        .slice(0, 4);
+      if (namedInputs.length > 0) {
+        parts.push(`audioInputNames=${namedInputs.join(" | ")}`);
+      }
+    }
+  } catch (error) {
+    parts.push(`enumerateDevices=failed:${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return parts.join("; ");
 }
 
 function sendRealtimeEvent(
@@ -372,8 +407,10 @@ export async function startRealtimeVoiceSession(
   if (isAudioMode) {
     status("Requesting microphone access...");
     handlers.onMicrophoneStatus?.("pending");
+    diagnostic(`Microphone environment before getUserMedia: ${await describeMicrophoneEnvironment()}`);
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      diagnostic(`Microphone environment after getUserMedia: ${await describeMicrophoneEnvironment()}`);
       trace("microphone.permission", true);
       trace("microphone.getUserMedia", true);
     } catch (error) {
