@@ -188,6 +188,18 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     }
   };
 
+  const getRealtimeFailureMessage = (error: unknown, fallback: string) => {
+    if (!(error instanceof Error)) return fallback;
+    if (
+      error.message.includes("Microphone permission was denied") ||
+      error.message.includes("No microphone was found") ||
+      error.message.includes("The microphone is already in use")
+    ) {
+      return error.message;
+    }
+    return `Realtime session failed: ${error.message}`;
+  };
+
   const startDiscovery = async () => {
     setResumeAvailable(false);
     setErrorMessage("");
@@ -286,14 +298,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
       setVoiceClient(client);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? `Realtime session failed: ${error.message}`
-          : "Unable to connect to realtime discovery."
-      );
+      setErrorMessage(getRealtimeFailureMessage(error, "Unable to connect to realtime discovery."));
       setTokenStatus("failed");
       addDiagnosticLog(
-        error instanceof Error ? `Realtime session failed: ${error.message}` : "Unable to connect to realtime discovery."
+        getRealtimeFailureMessage(error, "Unable to connect to realtime discovery.")
       );
       saveSession({ status: "paused", step: "capture" });
       setStep("capture");

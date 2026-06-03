@@ -181,6 +181,22 @@ function createSpeechRecognition(
   return recognition;
 }
 
+function describeMicrophoneError(error: unknown) {
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+      return "Microphone permission was denied. Allow microphone access for this site in your browser, then restart the discovery session.";
+    }
+    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      return "No microphone was found. Connect or enable a microphone, then restart the discovery session.";
+    }
+    if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+      return "The microphone is already in use or cannot be read. Close other apps using the microphone, then restart the discovery session.";
+    }
+  }
+
+  return error instanceof Error ? error.message : "Unable to access the microphone.";
+}
+
 function sendRealtimeEvent(
   dataChannel: RTCDataChannel,
   event: Record<string, unknown>,
@@ -244,7 +260,13 @@ export async function startRealtimeVoiceSession(
 
   status("Requesting microphone access...");
   handlers.onMicrophoneStatus?.("pending");
-  const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  let localStream: MediaStream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    handlers.onMicrophoneStatus?.("denied");
+    throw new Error(describeMicrophoneError(error));
+  }
 
   const audioElement = new Audio();
   audioElement.autoplay = true;
