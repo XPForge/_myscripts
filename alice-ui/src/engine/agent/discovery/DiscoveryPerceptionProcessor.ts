@@ -11,6 +11,7 @@ import type {
 } from "../intelligence";
 import type { DiscoverySessionState } from "./DiscoverySessionState";
 import { processDiscoveryBehaviorDecision } from "./DiscoveryBehaviorDecisionEngine";
+import { executeDiscoveryDecision } from "./DiscoveryDecisionExecutor";
 import { processDiscoveryUnderstanding } from "./DiscoveryUnderstandingProcessor";
 
 type DiscoveryObservationVisibility =
@@ -244,5 +245,7 @@ export function processDiscoveryPerception(
     };
   });
 
-  return processDiscoveryBehaviorDecision(processDiscoveryUnderstanding(nextState));
+  return executeDiscoveryDecision(
+    processDiscoveryBehaviorDecision(processDiscoveryUnderstanding(nextState))
+  );
 }

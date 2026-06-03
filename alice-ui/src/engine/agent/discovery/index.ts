@@ -17,6 +17,9 @@ export {
   persistDiscoverySessionState,
   updateDiscoverySessionState,
   type DiscoveryBehaviorDecision,
+  type DiscoveryConversationAction,
+  type DiscoveryConversationActionType,
+  type DiscoveryPromptContext,
   type DiscoverySessionState,
   type OpenQuestion,
   type ParticipantConfirmation,
@@ -31,6 +34,9 @@ export {
 export {
   processDiscoveryPerception,
 } from "./DiscoveryPerceptionProcessor";
+export {
+  executeDiscoveryDecision,
+} from "./DiscoveryDecisionExecutor";
 export {
   processDiscoveryUnderstanding,
 } from "./DiscoveryUnderstandingProcessor";

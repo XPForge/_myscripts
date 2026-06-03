@@ -68,6 +68,7 @@ function CountGrid({ state }: { state: DiscoverySessionState }) {
     ["Open questions", state.openQuestions.length],
     ["Reflections queued", state.reflectionOpportunities.length],
     ["Decisions", state.behaviorDecisionHistory.length],
+    ["Actions", state.conversationActionHistory?.length ?? 0],
   ];
 
   return (
@@ -344,12 +345,14 @@ export default function DiscoveryInspector({ profile, state }: DiscoveryInspecto
                     patterns: state.intelligenceSnapshot.patterns,
                     coverage: state.intelligenceSnapshot.coverage,
                     understanding: state.intelligenceSnapshot.understanding,
-                    openQuestions: state.openQuestions,
-                    reflectionOpportunities: state.reflectionOpportunities,
-                    participantConfirmations: state.participantConfirmations,
-                  }}
-                />
-              </InspectorSection>
+            openQuestions: state.openQuestions,
+            reflectionOpportunities: state.reflectionOpportunities,
+            participantConfirmations: state.participantConfirmations,
+            latestConversationAction: state.latestConversationAction,
+            conversationActionHistory: state.conversationActionHistory ?? [],
+          }}
+        />
+      </InspectorSection>
 
               <DiscoveryDecisionInspector state={state} />
               <DiscoveryPromptInspector profile={profile} state={state} />

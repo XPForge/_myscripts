@@ -17,6 +17,7 @@ import {
   requestRealtimeDiscoverySession,
   isRealtimeDiscoveryConfigured,
 } from "../ai/lighthouseDiscoveryService";
+import { buildDiscoveryPromptAssembly } from "../ai/lighthousePrompt";
 import {
   startRealtimeVoiceDiscovery,
   type RealtimeVoiceClient,
@@ -26,6 +27,7 @@ import {
   appendParticipantTranscriptEvent,
   clearDiscoverySessionState,
   type DiscoverySessionState,
+  type DiscoveryConversationAction,
   loadOrCreateDiscoverySessionState,
   processDiscoveryPerception,
   updateDiscoverySessionState,
@@ -37,6 +39,8 @@ type LighthouseDiscoveryProps = {
 };
 
 type Step = "capture" | "launching" | "discovering";
+const USE_MOCK_REALTIME_DISCOVERY =
+  import.meta.env.VITE_MOCK_REALTIME_DISCOVERY === "true";
 
 export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryProps) {
   const [step, setStep] = useState<Step>("capture");
@@ -56,6 +60,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [discoveryState, setDiscoveryState] = useState<DiscoverySessionState | null>(null);
+  const [mockParticipantText, setMockParticipantText] = useState("");
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
 
@@ -127,6 +132,36 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ].slice(0, 60));
   };
 
+  const renderMockActionResponse = (
+    action: DiscoveryConversationAction,
+    promptAssembly: ReturnType<typeof buildDiscoveryPromptAssembly>
+  ) => {
+    const openQuestion = action.promptContext.selectedOpenQuestion?.question;
+    const areaId = action.promptContext.selectedCoverageGap?.areaId;
+    const activeRequest = promptAssembly.outputs.supportedBehaviorRequests[0]?.type;
+
+    switch (action.type) {
+      case "seekClarification":
+        return openQuestion
+          ? `I want to stay close to what you mean. ${openQuestion}`
+          : "I want to understand that in your own terms. Could you tell me a little more about what that looks like in real life?";
+      case "reflectObservation":
+        return "I may be hearing an early pattern, but I want to keep it provisional: does that feel accurate, or would you say it differently?";
+      case "investigateTension":
+        return "There may be a useful tension in what you shared. What feels unresolved or pulled in two directions there?";
+      case "validateUnderstanding":
+        return "Before I carry that forward, does this emerging understanding fit your experience, or should I adjust it?";
+      case "prepareCompletion":
+        return "We are not generating a profile yet, but I can start preserving what is emerging. What feels most important not to lose?";
+      case "exploreDomain":
+        return areaId
+          ? `Let's keep building evidence before summarizing. What is one example from your experience that would help me understand ${areaId.replace(/-/g, " ")} better?`
+          : activeRequest
+            ? `Let's keep this participant-led. What is another example or story that would help me understand the ${activeRequest} direction better?`
+            : "Let's keep this participant-led. What is another example or story that would help me understand you better?";
+    }
+  };
+
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
     const currentProfile = profileRef.current;
     const currentSession = sessionRef.current;
@@ -153,7 +188,19 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
       return processDiscoveryPerception(withTranscriptEvent);
     });
-    if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
+    if (updatedDiscoveryState) {
+      setDiscoveryState(updatedDiscoveryState);
+      if (USE_MOCK_REALTIME_DISCOVERY && updatedDiscoveryState.latestConversationAction) {
+        const assembly = buildDiscoveryPromptAssembly(currentProfile, updatedDiscoveryState);
+        addDiagnosticLog(
+          `Decision execution selected action: ${updatedDiscoveryState.latestConversationAction.type}.`
+        );
+        addDiagnosticLog(
+          `Prompt assembly active request: ${assembly.outputs.supportedBehaviorRequests[0]?.type ?? "none"}.`
+        );
+        appendAssistantText(renderMockActionResponse(updatedDiscoveryState.latestConversationAction, assembly));
+      }
+    }
     const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       profileRef.current = updatedProfile;
@@ -751,6 +798,56 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 >
                   {session.transcript || "Realtime transcript will appear here as the conversation progresses."}
                 </div>
+                {USE_MOCK_REALTIME_DISCOVERY && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      display: "grid",
+                      gap: "10px",
+                    }}
+                  >
+                    <textarea
+                      value={mockParticipantText}
+                      onChange={(event) => setMockParticipantText(event.target.value)}
+                      placeholder="Type a mock participant answer to test the Discovery loop"
+                      rows={4}
+                      style={{
+                        width: "100%",
+                        resize: "vertical",
+                        borderRadius: "16px",
+                        border: "1px solid rgba(148,163,184,0.18)",
+                        background: "rgba(255,255,255,0.03)",
+                        color: "#eef2ff",
+                        padding: "14px 16px",
+                        fontSize: "0.95rem",
+                        outline: "none",
+                      }}
+                    />
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          appendUserTranscript(mockParticipantText, true);
+                          setMockParticipantText("");
+                        }}
+                        disabled={!mockParticipantText.trim()}
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(59,130,246,0.42)",
+                          background: mockParticipantText.trim()
+                            ? "rgba(59,130,246,0.24)"
+                            : "rgba(71,85,105,0.22)",
+                          color: "#e0f2fe",
+                          fontWeight: 800,
+                          cursor: mockParticipantText.trim() ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        Send Mock Answer
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: "12px", marginTop: "18px", flexWrap: "wrap" }}>
                   {resumeAvailable && !voiceClient ? (
                     <button

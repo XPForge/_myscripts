@@ -38,6 +38,7 @@ export type AgentEventType =
   | "decision.selected"
   | "decision.rejected"
   | "decision.reprioritized"
+  | "decision.executed"
   | "completion.readiness.updated"
   | "session.completed"
   | "error";
@@ -223,6 +224,21 @@ export interface BehaviorDecisionReprioritizedEvent extends AgentEventBase {
   };
 }
 
+export interface BehaviorDecisionExecutedEvent extends AgentEventBase {
+  type: "decision.executed";
+  action: {
+    id: string;
+    type: string;
+    decisionId: string;
+    instruction: string;
+    participantFacingGoal: string;
+    sourceIds: string[];
+    createdAt: string;
+    promptContext: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+}
+
 export interface CompletionReadinessUpdatedEvent extends AgentEventBase {
   type: "completion.readiness.updated";
   readiness: {
@@ -268,6 +284,7 @@ export type AgentEvent =
   | BehaviorDecisionSelectedEvent
   | BehaviorDecisionRejectedEvent
   | BehaviorDecisionReprioritizedEvent
+  | BehaviorDecisionExecutedEvent
   | CompletionReadinessUpdatedEvent
   | SessionCompletedEvent
   | AgentErrorEvent;

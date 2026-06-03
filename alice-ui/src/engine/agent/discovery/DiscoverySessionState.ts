@@ -63,6 +63,48 @@ export type DiscoveryBehaviorDecision = {
   metadata?: Record<string, unknown>;
 };
 
+export type DiscoveryConversationActionType =
+  | "exploreDomain"
+  | "seekClarification"
+  | "reflectObservation"
+  | "investigateTension"
+  | "validateUnderstanding"
+  | "prepareCompletion";
+
+export type DiscoveryPromptContext = {
+  contextId: string;
+  decisionId: string;
+  primaryObjective: string;
+  participantAuthorityReminder: string;
+  provisionalityReminder: string;
+  evidenceGatheringPriority: string;
+  selectedOpenQuestion?: OpenQuestion;
+  selectedCoverageGap?: {
+    areaId: string;
+    status: string;
+    needsExploration: string[];
+    unknown: string[];
+  };
+  selectedObservationIds: string[];
+  selectedPatternIds: string[];
+  selectedUnderstandingAreaIds: string[];
+  reflectionOpportunity?: ReflectionOpportunity;
+  completionGuardrail: string;
+  createdAt: string;
+};
+
+export type DiscoveryConversationAction = {
+  id: string;
+  type: DiscoveryConversationActionType;
+  decisionId: string;
+  promptContext: DiscoveryPromptContext;
+  instruction: string;
+  participantFacingGoal: string;
+  sourceIds: string[];
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type DiscoverySessionState = {
   stateId: string;
   agentId: string;
@@ -78,6 +120,8 @@ export type DiscoverySessionState = {
   reflectionOpportunities: ReflectionOpportunity[];
   latestBehaviorDecision?: DiscoveryBehaviorDecision;
   behaviorDecisionHistory: DiscoveryBehaviorDecision[];
+  latestConversationAction?: DiscoveryConversationAction;
+  conversationActionHistory: DiscoveryConversationAction[];
   eventLog: AgentEvent[];
   createdAt: string;
   updatedAt: string;
@@ -171,6 +215,7 @@ export function createDiscoverySessionState(
     openQuestions: [],
     reflectionOpportunities: [],
     behaviorDecisionHistory: [],
+    conversationActionHistory: [],
     eventLog: [],
     createdAt: now,
     updatedAt: now,
