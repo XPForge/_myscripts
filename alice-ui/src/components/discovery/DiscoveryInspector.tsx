@@ -1,5 +1,7 @@
 import type { LighthouseProfile } from "../../services/lighthouseProfile";
 import type { ReactNode } from "react";
+import { useState, type PointerEvent } from "react";
+import { Menu, X } from "lucide-react";
 import {
   createDiscoverySessionExport,
   createDiscoveryTimeline,
@@ -9,7 +11,7 @@ import {
 import { buildDiscoveryPromptAssembly } from "../../ai/lighthousePrompt";
 
 type DiscoveryInspectorProps = {
-  profile: LighthouseProfile;
+  profile: LighthouseProfile | null;
   state: DiscoverySessionState | null;
 };
 
@@ -138,9 +140,17 @@ function DiscoveryPromptInspector({
   profile,
   state,
 }: {
-  profile: LighthouseProfile;
+  profile: LighthouseProfile | null;
   state: DiscoverySessionState;
 }) {
+  if (!profile) {
+    return (
+      <InspectorSection title="Discovery Prompt Inspector">
+        <div>Prompt inspection is waiting for participant profile metadata.</div>
+      </InspectorSection>
+    );
+  }
+
   const assembly = buildDiscoveryPromptAssembly(profile, state);
   const activeRequest = assembly.outputs.supportedBehaviorRequests[0];
 
@@ -165,8 +175,10 @@ function DiscoveryPromptInspector({
 
 function DiscoveryTimeline({ profile, state }: DiscoveryInspectorProps) {
   if (!state) return null;
-  const assembly = buildDiscoveryPromptAssembly(profile, state);
-  const timeline = createDiscoveryTimeline(state, assembly.outputs);
+  const promptOutputs = profile
+    ? buildDiscoveryPromptAssembly(profile, state).outputs
+    : undefined;
+  const timeline = createDiscoveryTimeline(state, promptOutputs);
 
   return (
     <InspectorSection title="Discovery Timeline">
@@ -195,9 +207,9 @@ function DiscoveryTimeline({ profile, state }: DiscoveryInspectorProps) {
   );
 }
 
-function exportSession(profile: LighthouseProfile, state: DiscoverySessionState) {
-  const assembly = buildDiscoveryPromptAssembly(profile, state);
-  const snapshot = createDiscoverySessionExport(state, assembly.outputs);
+function exportSession(profile: LighthouseProfile | null, state: DiscoverySessionState) {
+  const assembly = profile ? buildDiscoveryPromptAssembly(profile, state) : undefined;
+  const snapshot = createDiscoverySessionExport(state, assembly?.outputs);
   const blob = new Blob([stringifyDiscoverySessionExport(snapshot)], {
     type: "application/json",
   });
@@ -210,76 +222,167 @@ function exportSession(profile: LighthouseProfile, state: DiscoverySessionState)
 }
 
 export default function DiscoveryInspector({ profile, state }: DiscoveryInspectorProps) {
-  if (!state) {
-    return (
-      <div style={{ color: "#cbd5e1" }}>
-        Discovery inspector is waiting for session state.
-      </div>
-    );
-  }
+  const [open, setOpen] = useState(false);
+  const [panelSize, setPanelSize] = useState({ width: 760, height: 720 });
+
+  const startResize = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = panelSize.width;
+    const startHeight = panelSize.height;
+
+    const resize = (moveEvent: globalThis.PointerEvent) => {
+      setPanelSize({
+        width: Math.max(360, Math.min(window.innerWidth - 32, startWidth + moveEvent.clientX - startX)),
+        height: Math.max(320, Math.min(window.innerHeight - 84, startHeight + moveEvent.clientY - startY)),
+      });
+    };
+
+    const stopResize = () => {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stopResize);
+    };
+
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stopResize);
+  };
 
   return (
-    <div
-      style={{
-        marginTop: "18px",
-        padding: "16px",
-        borderRadius: "8px",
-        background: "rgba(15,23,42,0.95)",
-        border: "1px solid rgba(14,165,233,0.22)",
-        color: "#cbd5e1",
-        display: "grid",
-        gap: "12px",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
-        <div>
-          <div style={{ color: "#f8fafc", fontWeight: 900 }}>Discovery Inspector</div>
-          <div style={{ color: "#94a3b8", fontSize: "0.82rem" }}>
-            Developer-only view of Discovery reasoning state.
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => exportSession(profile, state)}
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label="Open Discovery inspector"
+        title="Discovery inspector"
+        style={{
+          position: "fixed",
+          top: "calc(env(safe-area-inset-top, 0px) + 7px)",
+          right: "236px",
+          zIndex: 60,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "38px",
+          height: "38px",
+          borderRadius: "14px",
+          border: "1px solid rgba(148,163,184,0.22)",
+          background: open ? "rgba(14,165,233,0.26)" : "rgba(30,41,59,0.78)",
+          color: "#dbeafe",
+          cursor: "pointer",
+          boxShadow: open ? "0 0 20px rgba(14,165,233,0.26)" : "0 0 12px rgba(15,23,42,0.35)",
+        }}
+      >
+        {open ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
+      </button>
+
+      {open ? (
+        <div
           style={{
-            alignSelf: "start",
+            position: "fixed",
+            right: "16px",
+            top: "calc(52px + env(safe-area-inset-top, 0px) + 10px)",
+            width: `${panelSize.width}px`,
+            height: `${panelSize.height}px`,
+            minWidth: "360px",
+            minHeight: "320px",
+            maxWidth: "calc(100vw - 32px)",
+            maxHeight: "calc(100vh - 84px)",
+            overflow: "auto",
+            zIndex: 59,
+            padding: "16px",
             borderRadius: "8px",
-            border: "1px solid rgba(96,165,250,0.45)",
-            background: "rgba(59,130,246,0.18)",
-            color: "#e0f2fe",
-            padding: "8px 10px",
-            cursor: "pointer",
-            fontWeight: 800,
+            background: "rgba(15,23,42,0.97)",
+            border: "1px solid rgba(14,165,233,0.24)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+            color: "#cbd5e1",
+            display: "grid",
+            gap: "12px",
           }}
         >
-          Export JSON
-        </button>
-      </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+            <div>
+              <div style={{ color: "#f8fafc", fontWeight: 900 }}>Discovery Inspector</div>
+              <div style={{ color: "#94a3b8", fontSize: "0.82rem" }}>
+                Developer-only view of Discovery reasoning state.
+              </div>
+            </div>
+            {state ? (
+              <button
+                type="button"
+                onClick={() => exportSession(profile, state)}
+                style={{
+                  alignSelf: "start",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(96,165,250,0.45)",
+                  background: "rgba(59,130,246,0.18)",
+                  color: "#e0f2fe",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                  fontWeight: 800,
+                }}
+              >
+                Export JSON
+              </button>
+            ) : null}
+          </div>
 
-      <CountGrid state={state} />
+          {state ? (
+            <>
+              <CountGrid state={state} />
 
-      <InspectorSection title="Discovery Inspector">
-        <JsonBlock
-          value={{
-            observations: state.intelligenceSnapshot.observations,
-            evidence: state.evidence,
-            confidence: state.intelligenceSnapshot.observations.map((observation) => ({
-              targetId: observation.id,
-              confidence: observation.confidence,
-            })),
-            patterns: state.intelligenceSnapshot.patterns,
-            coverage: state.intelligenceSnapshot.coverage,
-            understanding: state.intelligenceSnapshot.understanding,
-            openQuestions: state.openQuestions,
-            reflectionOpportunities: state.reflectionOpportunities,
-            participantConfirmations: state.participantConfirmations,
-          }}
-        />
-      </InspectorSection>
+              <InspectorSection title="Discovery Inspector">
+                <JsonBlock
+                  value={{
+                    observations: state.intelligenceSnapshot.observations,
+                    evidence: state.evidence,
+                    confidence: state.intelligenceSnapshot.observations.map((observation) => ({
+                      targetId: observation.id,
+                      confidence: observation.confidence,
+                    })),
+                    patterns: state.intelligenceSnapshot.patterns,
+                    coverage: state.intelligenceSnapshot.coverage,
+                    understanding: state.intelligenceSnapshot.understanding,
+                    openQuestions: state.openQuestions,
+                    reflectionOpportunities: state.reflectionOpportunities,
+                    participantConfirmations: state.participantConfirmations,
+                  }}
+                />
+              </InspectorSection>
 
-      <DiscoveryDecisionInspector state={state} />
-      <DiscoveryPromptInspector profile={profile} state={state} />
-      <DiscoveryTimeline profile={profile} state={state} />
-    </div>
+              <DiscoveryDecisionInspector state={state} />
+              <DiscoveryPromptInspector profile={profile} state={state} />
+              <DiscoveryTimeline profile={profile} state={state} />
+            </>
+          ) : (
+            <div>Waiting for persisted Discovery session state.</div>
+          )}
+          <div
+            onPointerDown={startResize}
+            title="Resize Discovery inspector"
+            aria-label="Resize Discovery inspector"
+            role="separator"
+            style={{
+              position: "sticky",
+              left: "100%",
+              bottom: 0,
+              width: "22px",
+              height: "22px",
+              justifySelf: "end",
+              marginTop: "-4px",
+              marginRight: "-8px",
+              marginBottom: "-8px",
+              cursor: "nwse-resize",
+              borderRadius: "6px",
+              border: "1px solid rgba(125,211,252,0.55)",
+              background:
+                "linear-gradient(135deg, transparent 0 35%, rgba(125,211,252,0.35) 35% 45%, transparent 45% 58%, rgba(125,211,252,0.55) 58% 68%, transparent 68%)",
+              boxShadow: "0 0 14px rgba(14,165,233,0.28)",
+            }}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }

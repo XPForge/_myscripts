@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from "react";
+﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createLighthouseProfile,
   loadLighthouseProfile,
@@ -55,6 +55,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [discoveryState, setDiscoveryState] = useState<DiscoverySessionState | null>(null);
+  const profileRef = useRef<LighthouseProfile | null>(null);
+  const sessionRef = useRef<LighthouseSession | null>(null);
 
   useEffect(() => {
     const storedSession = loadLighthouseSession();
@@ -85,11 +87,13 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   }, []);
 
   useEffect(() => {
+    profileRef.current = profile;
     if (!profile) return;
     persistLighthouseProfile(profile);
   }, [profile]);
 
   useEffect(() => {
+    sessionRef.current = session;
     if (!session) return;
     persistLighthouseSession(session);
   }, [session]);
@@ -103,13 +107,16 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   }, [voiceClient]);
 
   const saveSession = (updates: Partial<LighthouseSession>) => {
-    if (!session) return;
+    const currentSession = sessionRef.current;
+    if (!currentSession) return null;
     const next: LighthouseSession = {
-      ...session,
+      ...currentSession,
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+    sessionRef.current = next;
     setSession(next);
+    return next;
   };
 
   const addDiagnosticLog = (message: string) => {
@@ -120,7 +127,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   };
 
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
-    if (!profile || !session || !segment.trim()) return;
+    const currentProfile = profileRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProfile || !currentSession || !segment.trim()) return;
     if (!isFinal) {
       setStatusMessage(`Listening: ${segment}`);
       return;
@@ -128,9 +137,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setTranscriptCount((count) => count + 1);
 
     const normalized = segment.trim();
-    const nextTranscript = `${session.transcript}${session.transcript ? " " : ""}${normalized}`.trim();
+    const nextTranscript = `${currentSession.transcript}${currentSession.transcript ? " " : ""}${normalized}`.trim();
     const nextHistory: AIMessage[] = [
-      ...session.conversationHistory,
+      ...currentSession.conversationHistory,
       {
         role: "user",
         content: normalized,
@@ -139,23 +148,26 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    const updatedDiscoveryState = updateDiscoverySessionState(session.sessionId, (state) => {
+    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) => {
       const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
       return processDiscoveryPerception(withTranscriptEvent);
     });
     if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
-    const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
+    const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
+      profileRef.current = updatedProfile;
       setProfile(updatedProfile);
     }
   };
 
   const appendAssistantText = (segment: string) => {
-    if (!profile || !session || !segment.trim()) return;
+    const currentProfile = profileRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProfile || !currentSession || !segment.trim()) return;
     const normalized = segment.trim();
-    const nextTranscript = `${session.transcript}${session.transcript ? " " : ""}Assistant: ${normalized}`.trim();
+    const nextTranscript = `${currentSession.transcript}${currentSession.transcript ? " " : ""}Assistant: ${normalized}`.trim();
     const nextHistory: AIMessage[] = [
-      ...session.conversationHistory,
+      ...currentSession.conversationHistory,
       {
         role: "assistant",
         content: normalized,
@@ -164,12 +176,13 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    const updatedDiscoveryState = updateDiscoverySessionState(session.sessionId, (state) =>
+    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) =>
       appendAssistantTranscriptEvent(state, normalized)
     );
     if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
-    const updatedProfile = updateLighthouseProfile(profile.id, { transcript: nextTranscript });
+    const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
+      profileRef.current = updatedProfile;
       setProfile(updatedProfile);
     }
   };
@@ -198,6 +211,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     }
 
     const createdProfile = createLighthouseProfile(name, email);
+    profileRef.current = createdProfile;
     setProfile(createdProfile);
 
     const now = new Date().toISOString();
@@ -219,6 +233,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       updatedAt: now,
     };
 
+    sessionRef.current = newSession;
     setSession(newSession);
     const createdDiscoveryState = loadOrCreateDiscoverySessionState(newSession);
     setDiscoveryState(createdDiscoveryState);
@@ -286,8 +301,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   };
 
   const resumeDiscovery = async () => {
-    if (!profile) {
+    const currentProfile = profileRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProfile) {
       setErrorMessage("Unable to resume discovery: missing profile.");
+      return;
+    }
+    if (!currentSession) {
+      setErrorMessage("Unable to resume discovery: missing session.");
       return;
     }
     setErrorMessage("");
@@ -298,22 +319,20 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     addDiagnosticLog("Attempting realtime resume.");
 
     try {
-      const resumedDiscoveryState = session ? loadOrCreateDiscoverySessionState(session) : undefined;
-      if (resumedDiscoveryState) setDiscoveryState(resumedDiscoveryState);
-      const realtime = await requestRealtimeDiscoverySession(profile, resumedDiscoveryState);
+      const resumedDiscoveryState = loadOrCreateDiscoverySessionState(currentSession);
+      setDiscoveryState(resumedDiscoveryState);
+      const realtime = await requestRealtimeDiscoverySession(currentProfile, resumedDiscoveryState);
       setTokenStatus("success");
       addDiagnosticLog("Token request succeeded for resume.");
-      if (session) {
-        const activatedState = updateDiscoverySessionState(session.sessionId, (state) => ({
-          ...state,
-          instance: {
-            ...state.instance,
-            status: "active",
-            updatedAt: new Date().toISOString(),
-          },
-        }));
-        if (activatedState) setDiscoveryState(activatedState);
-      }
+      const activatedState = updateDiscoverySessionState(currentSession.sessionId, (state) => ({
+        ...state,
+        instance: {
+          ...state.instance,
+          status: "active",
+          updatedAt: new Date().toISOString(),
+        },
+      }));
+      if (activatedState) setDiscoveryState(activatedState);
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -369,9 +388,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setVoiceClient(null);
     }
 
-    if (session) {
+    const currentSession = sessionRef.current;
+    if (currentSession) {
       saveSession({ status: "paused", step: "capture" });
-      const pausedState = updateDiscoverySessionState(session.sessionId, (state) => ({
+      const pausedState = updateDiscoverySessionState(currentSession.sessionId, (state) => ({
         ...state,
         instance: {
           ...state.instance,
@@ -664,9 +684,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   <strong>Realtime connection:</strong> {connectionState || "pending"}
                 </div>
                 {renderDiagnosticsPanel()}
-                {import.meta.env.DEV && (
-                  <DiscoveryInspector profile={profile} state={discoveryState} />
-                )}
                 <div
                   style={{
                     marginTop: "18px",
@@ -742,6 +759,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
               </div>
             </>
           )}
+      {import.meta.env.DEV && (
+        <DiscoveryInspector profile={profile} state={discoveryState} />
+      )}
       </div>
     </div>
   );
