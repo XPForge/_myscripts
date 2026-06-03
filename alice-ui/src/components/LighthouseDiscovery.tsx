@@ -28,7 +28,9 @@ import {
   clearDiscoverySessionState,
   type DiscoverySessionState,
   type DiscoveryConversationAction,
+  initializeDiscoverySessionState,
   loadOrCreateDiscoverySessionState,
+  persistDiscoverySessionState,
   processDiscoveryPerception,
   updateDiscoverySessionState,
 } from "../engine/agent/discovery";
@@ -132,6 +134,25 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ].slice(0, 60));
   };
 
+  const summarizeDiscoveryState = (
+    label: string,
+    state: DiscoverySessionState | null | undefined
+  ) => {
+    if (!state) {
+      return `${label}: state=null`;
+    }
+
+    return [
+      `${label}:`,
+      `decision=${state.latestBehaviorDecision?.selectedRequest.type ?? "none"}`,
+      `action=${state.latestConversationAction?.type ?? "none"}`,
+      `actions=${state.conversationActionHistory?.length ?? 0}`,
+      `turns=${state.transcript.turns.length}`,
+      `events=${state.eventLog.length}`,
+      `updatedAt=${state.updatedAt}`,
+    ].join(" ");
+  };
+
   const renderMockActionResponse = (
     action: DiscoveryConversationAction,
     promptAssembly: ReturnType<typeof buildDiscoveryPromptAssembly>
@@ -160,6 +181,25 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
             ? `Let's keep this participant-led. What is another example or story that would help me understand the ${activeRequest} direction better?`
             : "Let's keep this participant-led. What is another example or story that would help me understand you better?";
     }
+
+    return "Let's keep this participant-led. What is another example or story that would help me understand you better?";
+  };
+
+  const renderOpeningDiscoveryResponse = (
+    action: DiscoveryConversationAction,
+    promptAssembly: ReturnType<typeof buildDiscoveryPromptAssembly>
+  ) => {
+    void promptAssembly;
+
+    if (action.type !== "openDiscoverySession") {
+      return renderMockActionResponse(action, promptAssembly);
+    }
+
+    return [
+      "Welcome to your Lighthouse Discovery session.",
+      "The goal is to understand you in your own terms. There are no right or wrong answers, and you can correct me or redirect the conversation at any point.",
+      `To begin, what would help me understand you as a person right now?`,
+    ].join(" ");
   };
 
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
@@ -186,7 +226,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
     const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) => {
       const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
-      return processDiscoveryPerception(withTranscriptEvent);
+      const processedState = processDiscoveryPerception(withTranscriptEvent);
+      addDiagnosticLog(summarizeDiscoveryState("A after executeDiscoveryDecision", processedState));
+      return processedState;
     });
     if (updatedDiscoveryState) {
       setDiscoveryState(updatedDiscoveryState);
@@ -198,6 +240,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         addDiagnosticLog(
           `Prompt assembly active request: ${assembly.outputs.supportedBehaviorRequests[0]?.type ?? "none"}.`
         );
+        addDiagnosticLog(summarizeDiscoveryState("B before appendAssistantText", updatedDiscoveryState));
         appendAssistantText(renderMockActionResponse(updatedDiscoveryState.latestConversationAction, assembly));
       }
     }
@@ -224,9 +267,12 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) =>
-      appendAssistantTranscriptEvent(state, normalized)
-    );
+    addDiagnosticLog(summarizeDiscoveryState("C before assistant update React state", discoveryState));
+    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) => {
+      addDiagnosticLog(summarizeDiscoveryState("C before assistant update storage state", state));
+      return appendAssistantTranscriptEvent(state, normalized);
+    });
+    addDiagnosticLog(summarizeDiscoveryState("D after assistant update", updatedDiscoveryState));
     if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
     const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
@@ -298,8 +344,16 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     sessionRef.current = newSession;
     setSession(newSession);
-    const createdDiscoveryState = loadOrCreateDiscoverySessionState(newSession);
+    const createdDiscoveryState = initializeDiscoverySessionState(
+      loadOrCreateDiscoverySessionState(newSession)
+    );
+    persistDiscoverySessionState(createdDiscoveryState);
     setDiscoveryState(createdDiscoveryState);
+    const startupAssembly = buildDiscoveryPromptAssembly(createdProfile, createdDiscoveryState);
+    addDiagnosticLog(summarizeDiscoveryState("Startup initialized Discovery", createdDiscoveryState));
+    addDiagnosticLog(
+      `Startup prompt assembly active request: ${startupAssembly.outputs.supportedBehaviorRequests[0]?.type ?? "none"}.`
+    );
     setStep("launching");
     setStatusMessage("Preparing your realtime voice discovery session...");
 
@@ -319,6 +373,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
           updatedAt: new Date().toISOString(),
         },
       }));
+      const activeDiscoveryState = activatedState ?? createdDiscoveryState;
       if (activatedState) setDiscoveryState(activatedState);
       saveSession({
         realtimeSessionId: realtime.sessionId,
@@ -351,6 +406,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       });
 
       setVoiceClient(client);
+      if (USE_MOCK_REALTIME_DISCOVERY && activeDiscoveryState.latestConversationAction) {
+        appendAssistantText(
+          renderOpeningDiscoveryResponse(
+            activeDiscoveryState.latestConversationAction,
+            buildDiscoveryPromptAssembly(createdProfile, activeDiscoveryState)
+          )
+        );
+      }
     } catch (error) {
       setErrorMessage(getRealtimeFailureMessage(error, "Unable to connect to realtime discovery."));
       setTokenStatus("failed");

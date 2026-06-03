@@ -37,14 +37,6 @@ function startMockRealtimeVoiceDiscovery(
     handlers.onDiagnosticLog?.("DEBUG: Mock realtime data channel opened.");
   });
 
-  schedule(700, () => {
-    const greeting =
-      "Hi, I'm ready to start your Lighthouse Discovery session. To begin, tell me a little about what has been taking most of your attention lately.";
-    handlers.onAssistantText?.(greeting);
-    handlers.onStatus?.("Mock assistant delivered the opening prompt.");
-    handlers.onDiagnosticLog?.(`DEBUG: Mock assistant event: ${greeting}`);
-  });
-
   return {
     stop: async () => {
       stopped = true;

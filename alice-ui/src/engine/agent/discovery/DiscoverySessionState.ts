@@ -64,6 +64,7 @@ export type DiscoveryBehaviorDecision = {
 };
 
 export type DiscoveryConversationActionType =
+  | "openDiscoverySession"
   | "exploreDomain"
   | "seekClarification"
   | "reflectObservation"

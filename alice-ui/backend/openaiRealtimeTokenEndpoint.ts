@@ -94,6 +94,7 @@ const server = createServer(async (req, res) => {
 
     const model = body.model || "gpt-realtime";
     const systemPrompt = body.systemPrompt;
+    const initialResponseInstructions = body.initialResponseInstructions;
     const profileMetadata = body.profileMetadata || {};
     const discoveryPrinciplesVersion = body.discoveryPrinciplesVersion;
     const voiceInstructions = [
@@ -102,9 +103,10 @@ const server = createServer(async (req, res) => {
       "When the realtime session starts, be ready to begin the conversation proactively.",
       "The first assistant turn should be brief, warm, and should ask one open-ended discovery question.",
       "Do not switch languages unless the participant explicitly asks to continue in another language.",
+      initialResponseInstructions ? `Initial response objective:\n${initialResponseInstructions}` : "",
       "",
       systemPrompt,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
 
     const openAiPayload = {
       expires_after: {
@@ -155,6 +157,7 @@ const server = createServer(async (req, res) => {
       token,
       model: returnedModel,
       endpoint: `${OPENAI_API_BASE}/v1/realtime/calls`,
+      initialResponseInstructions,
     });
   } catch (error) {
     sendJson(res, 500, {

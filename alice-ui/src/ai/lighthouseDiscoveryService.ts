@@ -24,11 +24,23 @@ export function buildRealtimeSessionPayload(
   state?: Partial<DiscoverySessionState>
 ) {
   const promptAssembly = buildDiscoveryPromptAssembly(profile, state);
+  const initialAction = state?.latestConversationAction;
+  const initialResponseInstructions = initialAction
+    ? [
+        initialAction.instruction,
+        initialAction.promptContext.participantAuthorityReminder,
+        initialAction.promptContext.provisionalityReminder,
+        initialAction.promptContext.completionGuardrail,
+        "Speak in English only.",
+        "Use one concise opening turn and then wait for the participant.",
+      ].join("\n")
+    : undefined;
 
   return {
     model: OPENAI_REALTIME_MODEL,
     systemPrompt: promptAssembly.systemPrompt,
     promptMetadata: promptAssembly.outputs.runtimeMetadata,
+    initialResponseInstructions,
     profileMetadata: {
       id: profile.id,
       lpId: profile.lpId,
@@ -54,6 +66,7 @@ export async function requestRealtimeDiscoverySession(
       model: "mock-realtime",
       status: "active",
       endpoint: "mock://realtime-discovery",
+      initialResponseInstructions: buildRealtimeSessionPayload(profile, state).initialResponseInstructions,
       createdAt: new Date().toISOString(),
     };
   }
@@ -85,6 +98,7 @@ export async function requestRealtimeDiscoverySession(
     model?: string;
     status?: "initializing" | "active" | "complete";
     endpoint?: string;
+    initialResponseInstructions?: string;
   };
 
   return {
@@ -93,6 +107,7 @@ export async function requestRealtimeDiscoverySession(
     model: payload.model ?? OPENAI_REALTIME_MODEL,
     status: payload.status ?? "active",
     endpoint: payload.endpoint,
+    initialResponseInstructions: payload.initialResponseInstructions,
     createdAt: new Date().toISOString(),
   };
 }

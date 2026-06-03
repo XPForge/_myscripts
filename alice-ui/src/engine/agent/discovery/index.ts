@@ -38,6 +38,9 @@ export {
   executeDiscoveryDecision,
 } from "./DiscoveryDecisionExecutor";
 export {
+  initializeDiscoverySessionState,
+} from "./DiscoverySessionInitializer";
+export {
   processDiscoveryUnderstanding,
 } from "./DiscoveryUnderstandingProcessor";
 export {

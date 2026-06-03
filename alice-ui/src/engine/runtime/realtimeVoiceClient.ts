@@ -4,6 +4,7 @@ export type RealtimeSessionConfig = {
   token: string;
   status: "initializing" | "active" | "complete";
   endpoint?: string;
+  initialResponseInstructions?: string;
   createdAt: string;
 };
 
@@ -329,6 +330,7 @@ export async function startRealtimeVoiceSession(
         type: "response.create",
         response: {
           instructions:
+            realtimeSession.initialResponseInstructions ??
             "Begin the Lighthouse Discovery conversation now. Speak in English only. Start with a brief, warm greeting and ask one open-ended question that invites the participant to tell you about themselves. Do not wait for the participant to speak first.",
           modalities: ["audio", "text"],
         },

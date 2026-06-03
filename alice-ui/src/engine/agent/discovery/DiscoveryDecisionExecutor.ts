@@ -87,6 +87,13 @@ function toActionType(
   const request = decision.selectedRequest;
 
   if (
+    decision.metadata?.startupObjective === "openDiscoverySession" ||
+    request.metadata?.startupObjective === "openDiscoverySession"
+  ) {
+    return "openDiscoverySession";
+  }
+
+  if (
     (request.type === "prepareCompletion" || request.type === "summarizeProgress") &&
     hasEvidenceGatheringNeed(state)
   ) {
@@ -168,6 +175,8 @@ function createInstruction(
   const areaId = context.selectedCoverageGap?.areaId;
 
   switch (actionType) {
+    case "openDiscoverySession":
+      return "Open the Lighthouse Discovery session. Explain that the goal is to understand the participant, that there are no right or wrong answers, that the participant may correct or redirect, and ask one broad human-centered opening question.";
     case "seekClarification":
       return openQuestion
         ? `Ask one gentle clarification question guided by this open question: ${openQuestion}`
@@ -189,6 +198,8 @@ function createInstruction(
 
 function participantFacingGoal(actionType: DiscoveryConversationActionType) {
   switch (actionType) {
+    case "openDiscoverySession":
+      return "Begin Discovery with participant authority, safety, and one broad opening question.";
     case "seekClarification":
       return "Clarify one emerging point with the participant's own words.";
     case "reflectObservation":
