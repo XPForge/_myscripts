@@ -30,8 +30,6 @@ type LighthouseDiscoveryProps = {
 };
 
 type Step = "capture" | "launching" | "discovering";
-const USE_MOCK_REALTIME_DISCOVERY =
-  import.meta.env.VITE_MOCK_REALTIME_DISCOVERY === "true";
 
 const STARTUP_TRACE_STAGES: { stage: RealtimeStartupTraceStage; label: string }[] = [
   { stage: "microphone.permission", label: "1. Microphone permission" },
@@ -80,6 +78,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState<RealtimeOutputModality>("audio");
   const [typedParticipantText, setTypedParticipantText] = useState("");
+  const [modeSwitching, setModeSwitching] = useState(false);
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
 
@@ -237,6 +236,75 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const isMockRealtimeSession = (realtime: { endpoint?: string }) =>
     realtime.endpoint === "mock://realtime-discovery";
 
+  const createRealtimeHandlers = () => ({
+    onStatus: (message: string) => {
+      setStatusMessage(message);
+      addDiagnosticLog(message);
+    },
+    onTranscript: appendUserTranscript,
+    onAssistantText: appendAssistantText,
+    onConnectionState: (state: string) => {
+      setConnectionState(state);
+      addDiagnosticLog(`Connection state: ${state}`);
+    },
+    onMicrophoneStatus: setMicrophoneStatus,
+    onAudioPlaybackStatus: setAudioStatus,
+    onDataChannelStatus: setDataChannelStatus,
+    onStartupTrace: recordStartupTrace,
+    onDiagnosticLog: addDiagnosticLog,
+    onError: (error: Error) => {
+      setErrorMessage(error.message);
+      addDiagnosticLog(`Error: ${error.message}`);
+      setStatusMessage("");
+    },
+  });
+
+  const switchDiscoveryMode = async (mode: RealtimeOutputModality) => {
+    const currentProfile = profileRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProfile || !currentSession || modeSwitching) return;
+    if (mode === discoveryMode && voiceClient) return;
+
+    setModeSwitching(true);
+    setErrorMessage("");
+    setStatusMessage(mode === "audio" ? "Switching to voice..." : "Switching to text...");
+    setMicrophoneStatus(mode === "audio" ? "pending" : "not required");
+    setAudioStatus(mode === "audio" ? "pending" : "text mode");
+    setDataChannelStatus("pending");
+    setConnectionState("");
+    resetStartupTrace();
+
+    try {
+      if (voiceClient) {
+        await voiceClient.stop();
+        setVoiceClient(null);
+      }
+
+      setDiscoveryMode(mode);
+      const nextSession = saveSession({
+        metadata: {
+          ...currentSession.metadata,
+          outputModality: mode,
+        },
+      }) ?? currentSession;
+      const realtime = await requestRealtimeDiscoverySession(
+        currentProfile,
+        nextSession.sessionId,
+        mode
+      );
+      addDiagnosticLog(`Token request succeeded for ${mode} mode.`);
+      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
+      setVoiceClient(client);
+      setStatusMessage(mode === "audio" ? "Voice mode is active." : "Text mode is active.");
+    } catch (error) {
+      const message = getRealtimeFailureMessage(error, `Unable to switch to ${mode} mode.`);
+      setErrorMessage(message);
+      addDiagnosticLog(message);
+    } finally {
+      setModeSwitching(false);
+    }
+  };
+
   const startDiscovery = async () => {
     setResumeAvailable(false);
     setErrorMessage("");
@@ -261,6 +329,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       return;
     }
 
+    const initialMode: RealtimeOutputModality = "audio";
+    setDiscoveryMode(initialMode);
     const createdProfile = createLighthouseProfile(name, email);
     profileRef.current = createdProfile;
     setProfile(createdProfile);
@@ -280,7 +350,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       transcript: "",
       step: "launching",
       metadata: {
-        outputModality: discoveryMode,
+        outputModality: initialMode,
       },
       createdAt: now,
       updatedAt: now,
@@ -295,7 +365,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const realtime = await requestRealtimeDiscoverySession(
         createdProfile,
         newSession.sessionId,
-        discoveryMode
+        initialMode
       );
       setTokenStatus("success");
       addDiagnosticLog(
@@ -310,33 +380,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       });
       setStep("discovering");
       setStatusMessage(
-        discoveryMode === "audio"
-          ? "Connecting your microphone and starting the conversation..."
-          : "Connecting your text discovery session..."
+        "Connecting your microphone and starting the conversation..."
       );
 
-      const client = await startRealtimeVoiceDiscovery(realtime, {
-        onStatus: (message) => {
-          setStatusMessage(message);
-          addDiagnosticLog(message);
-        },
-        onTranscript: appendUserTranscript,
-        onAssistantText: appendAssistantText,
-        onConnectionState: (state) => {
-          setConnectionState(state);
-          addDiagnosticLog(`Connection state: ${state}`);
-        },
-        onMicrophoneStatus: setMicrophoneStatus,
-        onAudioPlaybackStatus: setAudioStatus,
-        onDataChannelStatus: setDataChannelStatus,
-        onStartupTrace: recordStartupTrace,
-        onDiagnosticLog: addDiagnosticLog,
-        onError: (error) => {
-          setErrorMessage(error.message);
-          addDiagnosticLog(`Error: ${error.message}`);
-          setStatusMessage("");
-        },
-      });
+      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
 
       setVoiceClient(client);
     } catch (error) {
@@ -392,28 +439,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setStep("discovering");
       setResumeAvailable(false);
 
-      const client = await startRealtimeVoiceDiscovery(realtime, {
-        onStatus: (message) => {
-          setStatusMessage(message);
-          addDiagnosticLog(message);
-        },
-        onTranscript: appendUserTranscript,
-        onAssistantText: appendAssistantText,
-        onConnectionState: (state) => {
-          setConnectionState(state);
-          addDiagnosticLog(`Connection state: ${state}`);
-        },
-        onMicrophoneStatus: setMicrophoneStatus,
-        onAudioPlaybackStatus: setAudioStatus,
-        onDataChannelStatus: setDataChannelStatus,
-        onStartupTrace: recordStartupTrace,
-        onDiagnosticLog: addDiagnosticLog,
-        onError: (error) => {
-          setErrorMessage(error.message);
-          addDiagnosticLog(`Error: ${error.message}`);
-          setStatusMessage("");
-        },
-      });
+      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
 
       setVoiceClient(client);
       setStatusMessage("Realtime discovery resumed. Speak naturally now.");
@@ -473,6 +499,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setDiagnosticLogs([]);
     resetStartupTrace();
     setTypedParticipantText("");
+    setModeSwitching(false);
+    setDiscoveryMode("audio");
     setStatusMessage("Previous discovery session cleared. Start a new session when ready.");
   };
 
@@ -725,47 +753,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     outline: "none",
                   }}
                 />
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "10px",
-                    padding: "14px",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(148,163,184,0.14)",
-                    background: "rgba(255,255,255,0.02)",
-                  }}
-                >
-                  <div style={{ color: "#e2e8f0", fontWeight: 800 }}>
-                    Session mode
-                  </div>
-                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                    {(["audio", "text"] as RealtimeOutputModality[]).map((mode) => {
-                      const active = discoveryMode === mode;
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setDiscoveryMode(mode)}
-                          aria-pressed={active}
-                          style={{
-                            padding: "10px 14px",
-                            borderRadius: "12px",
-                            border: active
-                              ? "1px solid rgba(96,165,250,0.58)"
-                              : "1px solid rgba(148,163,184,0.14)",
-                            background: active ? "rgba(59,130,246,0.24)" : "rgba(255,255,255,0.02)",
-                            color: active ? "#e0f2fe" : "#cbd5e1",
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {mode}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "18px" }}>
                 <button
@@ -824,8 +811,41 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 </div>
                 <div style={{ color: "rgba(226,232,240,0.9)", lineHeight: 1.8 }}>
                   {discoveryMode === "audio"
-                    ? "Your Lighthouse discovery session is running. Speak naturally, and the AI will respond with voice in real time."
-                    : "Your Lighthouse discovery session is running. Type naturally, and the AI will respond in text in real time."}
+                    ? "Your Lighthouse discovery session is running. Speak or type naturally; the AI will respond with voice."
+                    : "Your Lighthouse discovery session is running. Type naturally; switch back to voice any time."}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {(["audio", "text"] as RealtimeOutputModality[]).map((mode) => {
+                    const active = discoveryMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => void switchDiscoveryMode(mode)}
+                        disabled={modeSwitching || active}
+                        aria-pressed={active}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: active
+                            ? "1px solid rgba(96,165,250,0.58)"
+                            : "1px solid rgba(148,163,184,0.14)",
+                          background: active ? "rgba(59,130,246,0.24)" : "rgba(255,255,255,0.02)",
+                          color: active ? "#e0f2fe" : "#cbd5e1",
+                          fontWeight: 800,
+                          cursor: modeSwitching || active ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {mode === "audio" ? "Voice response" : "Text response"}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div
                   style={{
@@ -866,53 +886,51 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 >
                   {session.transcript || "Realtime transcript will appear here as the conversation progresses."}
                 </div>
-                {(discoveryMode === "text" || USE_MOCK_REALTIME_DISCOVERY) && (
-                  <div
+                <div
+                  style={{
+                    marginTop: "14px",
+                    display: "grid",
+                    gap: "10px",
+                  }}
+                >
+                  <textarea
+                    value={typedParticipantText}
+                    onChange={(event) => setTypedParticipantText(event.target.value)}
+                    placeholder="Type your response"
+                    rows={4}
                     style={{
-                      marginTop: "14px",
-                      display: "grid",
-                      gap: "10px",
+                      width: "100%",
+                      resize: "vertical",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(148,163,184,0.18)",
+                      background: "rgba(255,255,255,0.03)",
+                      color: "#eef2ff",
+                      padding: "14px 16px",
+                      fontSize: "0.95rem",
+                      outline: "none",
                     }}
-                  >
-                    <textarea
-                      value={typedParticipantText}
-                      onChange={(event) => setTypedParticipantText(event.target.value)}
-                      placeholder="Type your response"
-                      rows={4}
+                  />
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={sendTypedParticipantText}
+                      disabled={!typedParticipantText.trim() || !voiceClient}
                       style={{
-                        width: "100%",
-                        resize: "vertical",
-                        borderRadius: "16px",
-                        border: "1px solid rgba(148,163,184,0.18)",
-                        background: "rgba(255,255,255,0.03)",
-                        color: "#eef2ff",
-                        padding: "14px 16px",
-                        fontSize: "0.95rem",
-                        outline: "none",
+                        padding: "12px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(59,130,246,0.42)",
+                        background: typedParticipantText.trim() && voiceClient
+                          ? "rgba(59,130,246,0.24)"
+                          : "rgba(71,85,105,0.22)",
+                        color: "#e0f2fe",
+                        fontWeight: 800,
+                        cursor: typedParticipantText.trim() && voiceClient ? "pointer" : "not-allowed",
                       }}
-                    />
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        onClick={sendTypedParticipantText}
-                        disabled={!typedParticipantText.trim() || !voiceClient}
-                        style={{
-                          padding: "12px 16px",
-                          borderRadius: "14px",
-                          border: "1px solid rgba(59,130,246,0.42)",
-                          background: typedParticipantText.trim() && voiceClient
-                            ? "rgba(59,130,246,0.24)"
-                            : "rgba(71,85,105,0.22)",
-                          color: "#e0f2fe",
-                          fontWeight: 800,
-                          cursor: typedParticipantText.trim() && voiceClient ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        Send
-                      </button>
-                    </div>
+                    >
+                      Send
+                    </button>
                   </div>
-                )}
+                </div>
                 <div style={{ display: "flex", gap: "12px", marginTop: "18px", flexWrap: "wrap" }}>
                   {resumeAvailable && !voiceClient ? (
                     <button
