@@ -24,6 +24,7 @@ import {
 import {
   appendAssistantTranscriptEvent,
   appendParticipantTranscriptEvent,
+  clearDiscoverySessionState,
   type DiscoverySessionState,
   loadOrCreateDiscoverySessionState,
   processDiscoveryPerception,
@@ -407,6 +408,36 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setStatusMessage("Realtime discovery stopped. You can restart when ready.");
   };
 
+  const resetDiscoverySession = async () => {
+    if (voiceClient) {
+      await voiceClient.stop();
+      setVoiceClient(null);
+    }
+
+    const currentSession = sessionRef.current;
+    if (currentSession) {
+      clearDiscoverySessionState(currentSession.sessionId);
+    }
+
+    clearLighthouseSession();
+    profileRef.current = null;
+    sessionRef.current = null;
+    setProfile(null);
+    setSession(null);
+    setDiscoveryState(null);
+    setStep("capture");
+    setResumeAvailable(false);
+    setErrorMessage("");
+    setConnectionState("");
+    setTokenStatus("idle");
+    setMicrophoneStatus("pending");
+    setAudioStatus("pending");
+    setDataChannelStatus("pending");
+    setTranscriptCount(0);
+    setDiagnosticLogs([]);
+    setStatusMessage("Previous discovery session cleared. Start a new session when ready.");
+  };
+
   const renderCard = (content: ReactNode) => (
     <div
       style={{
@@ -547,7 +578,24 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" }}>
+          {(session || discoveryState) && (
+            <button
+              type="button"
+              onClick={resetDiscoverySession}
+              style={{
+                padding: "16px 20px",
+                borderRadius: "18px",
+                border: "1px solid rgba(248,113,113,0.35)",
+                background: "rgba(127,29,29,0.18)",
+                color: "#fecaca",
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              Reset session
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setStep("capture")}

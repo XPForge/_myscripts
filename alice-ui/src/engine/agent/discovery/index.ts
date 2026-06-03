@@ -11,6 +11,7 @@ export {
   createDiscoveryParticipantMetadata,
   createDiscoverySessionState,
   createEmptyDiscoveryIntelligenceSnapshot,
+  clearDiscoverySessionState,
   loadDiscoverySessionState,
   loadOrCreateDiscoverySessionState,
   persistDiscoverySessionState,

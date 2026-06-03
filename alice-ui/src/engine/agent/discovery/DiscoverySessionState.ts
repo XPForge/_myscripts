@@ -195,6 +195,14 @@ export function persistDiscoverySessionState(state: DiscoverySessionState): void
   }
 }
 
+export function clearDiscoverySessionState(sessionId: string): void {
+  try {
+    localStorage.removeItem(storageKey(sessionId));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function loadOrCreateDiscoverySessionState(
   session: LighthouseSession
 ): DiscoverySessionState {
