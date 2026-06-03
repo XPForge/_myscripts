@@ -1,5 +1,4 @@
 import type { AIMessage } from "../services/lighthouseProfile";
-import { buildDiscoveryMessages, buildDiscoverySystemPrompt } from "./lighthousePrompt";
 import type { LighthouseProfile } from "../services/lighthouseProfile";
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -50,14 +49,14 @@ export async function sendDiscoveryMessage(
   history: AIMessage[],
   userMessage: string
 ): Promise<{ assistantText: string; nextHistory: AIMessage[] }> {
+  void profile;
   const now = new Date().toISOString();
   const nextHistory: AIMessage[] = [
     ...history,
     { role: "user", content: userMessage, createdAt: now },
   ];
 
-  const messages = buildDiscoveryMessages(profile, nextHistory);
-  const assistantText = await createOpenAICompletion(messages);
+  const assistantText = await createOpenAICompletion(nextHistory);
   const assistantMessage: AIMessage = {
     role: "assistant",
     content: assistantText,
@@ -71,9 +70,10 @@ export async function sendDiscoveryMessage(
 }
 
 export function createSystemMessageFromInput(profile: LighthouseProfile): AIMessage {
+  void profile;
   return {
     role: "system",
-    content: `${buildDiscoverySystemPrompt(profile)}`,
+    content: "Discovery instructions are provided by the backend Realtime session.",
     createdAt: new Date().toISOString(),
   };
 }

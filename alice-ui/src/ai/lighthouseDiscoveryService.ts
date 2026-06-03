@@ -1,10 +1,5 @@
 import type { LighthouseProfile } from "../services/lighthouseProfile";
 import type { RealtimeSessionConfig } from "../engine/runtime";
-import type { DiscoverySessionState } from "../engine/agent/discovery";
-import {
-  buildDiscoveryPromptAssembly,
-  lighthousePromptAsset,
-} from "./lighthousePrompt";
 
 const OPENAI_REALTIME_TOKEN_ENDPOINT =
   import.meta.env.VITE_OPENAI_REALTIME_TOKEN_ENDPOINT || "";
@@ -21,26 +16,10 @@ export function isRealtimeDiscoveryConfigured(): boolean {
 
 export function buildRealtimeSessionPayload(
   profile: LighthouseProfile,
-  state?: Partial<DiscoverySessionState>
+  sessionId?: string
 ) {
-  const promptAssembly = buildDiscoveryPromptAssembly(profile, state);
-  const initialAction = state?.latestConversationAction;
-  const initialResponseInstructions = initialAction
-    ? [
-        initialAction.instruction,
-        initialAction.promptContext.participantAuthorityReminder,
-        initialAction.promptContext.provisionalityReminder,
-        initialAction.promptContext.completionGuardrail,
-        "Speak in English only.",
-        "Use one concise opening turn and then wait for the participant.",
-      ].join("\n")
-    : undefined;
-
   return {
     model: OPENAI_REALTIME_MODEL,
-    systemPrompt: promptAssembly.systemPrompt,
-    promptMetadata: promptAssembly.outputs.runtimeMetadata,
-    initialResponseInstructions,
     profileMetadata: {
       id: profile.id,
       lpId: profile.lpId,
@@ -49,15 +28,16 @@ export function buildRealtimeSessionPayload(
       profileType: profile.profileType,
       profileVersion: profile.profileVersion,
       discoveryMethod: profile.discoveryMethod,
-      discoveryPrinciplesVersion: profile.discoveryPrinciplesVersion,
     },
-    discoveryPrinciplesVersion: lighthousePromptAsset.version,
+    sessionMetadata: {
+      sessionId,
+    },
   };
 }
 
 export async function requestRealtimeDiscoverySession(
   profile: LighthouseProfile,
-  state?: Partial<DiscoverySessionState>
+  sessionId?: string
 ): Promise<RealtimeSessionConfig> {
   if (USE_MOCK_REALTIME_DISCOVERY) {
     return {
@@ -66,7 +46,6 @@ export async function requestRealtimeDiscoverySession(
       model: "mock-realtime",
       status: "active",
       endpoint: "mock://realtime-discovery",
-      initialResponseInstructions: buildRealtimeSessionPayload(profile, state).initialResponseInstructions,
       createdAt: new Date().toISOString(),
     };
   }
@@ -82,7 +61,7 @@ export async function requestRealtimeDiscoverySession(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildRealtimeSessionPayload(profile, state)),
+    body: JSON.stringify(buildRealtimeSessionPayload(profile, sessionId)),
   });
 
   if (!response.ok) {
@@ -98,7 +77,6 @@ export async function requestRealtimeDiscoverySession(
     model?: string;
     status?: "initializing" | "active" | "complete";
     endpoint?: string;
-    initialResponseInstructions?: string;
   };
 
   return {
@@ -107,7 +85,6 @@ export async function requestRealtimeDiscoverySession(
     model: payload.model ?? OPENAI_REALTIME_MODEL,
     status: payload.status ?? "active",
     endpoint: payload.endpoint,
-    initialResponseInstructions: payload.initialResponseInstructions,
     createdAt: new Date().toISOString(),
   };
 }

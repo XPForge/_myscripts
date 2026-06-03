@@ -17,24 +17,10 @@ import {
   requestRealtimeDiscoverySession,
   isRealtimeDiscoveryConfigured,
 } from "../ai/lighthouseDiscoveryService";
-import { buildDiscoveryPromptAssembly } from "../ai/lighthousePrompt";
 import {
   startRealtimeVoiceDiscovery,
   type RealtimeVoiceClient,
 } from "../ai/realtimeVoiceDiscoveryClient";
-import {
-  appendAssistantTranscriptEvent,
-  appendParticipantTranscriptEvent,
-  clearDiscoverySessionState,
-  type DiscoverySessionState,
-  type DiscoveryConversationAction,
-  initializeDiscoverySessionState,
-  loadOrCreateDiscoverySessionState,
-  persistDiscoverySessionState,
-  processDiscoveryPerception,
-  updateDiscoverySessionState,
-} from "../engine/agent/discovery";
-import DiscoveryInspector from "./discovery/DiscoveryInspector";
 
 type LighthouseDiscoveryProps = {
   onComplete: () => void;
@@ -61,7 +47,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [transcriptCount, setTranscriptCount] = useState(0);
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [resumeAvailable, setResumeAvailable] = useState(false);
-  const [discoveryState, setDiscoveryState] = useState<DiscoverySessionState | null>(null);
   const [mockParticipantText, setMockParticipantText] = useState("");
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
@@ -80,7 +65,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setSession(storedSession);
     setName(storedSession.name);
     setEmail(storedSession.email);
-    setDiscoveryState(loadOrCreateDiscoverySessionState(storedSession));
     const restoredStep = storedSession.step === "discovering" ? "discovering" : "capture";
     setStep(restoredStep);
 
@@ -134,74 +118,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ].slice(0, 60));
   };
 
-  const summarizeDiscoveryState = (
-    label: string,
-    state: DiscoverySessionState | null | undefined
-  ) => {
-    if (!state) {
-      return `${label}: state=null`;
-    }
-
-    return [
-      `${label}:`,
-      `decision=${state.latestBehaviorDecision?.selectedRequest.type ?? "none"}`,
-      `action=${state.latestConversationAction?.type ?? "none"}`,
-      `actions=${state.conversationActionHistory?.length ?? 0}`,
-      `turns=${state.transcript.turns.length}`,
-      `events=${state.eventLog.length}`,
-      `updatedAt=${state.updatedAt}`,
-    ].join(" ");
-  };
-
-  const renderMockActionResponse = (
-    action: DiscoveryConversationAction,
-    promptAssembly: ReturnType<typeof buildDiscoveryPromptAssembly>
-  ) => {
-    const openQuestion = action.promptContext.selectedOpenQuestion?.question;
-    const areaId = action.promptContext.selectedCoverageGap?.areaId;
-    const activeRequest = promptAssembly.outputs.supportedBehaviorRequests[0]?.type;
-
-    switch (action.type) {
-      case "seekClarification":
-        return openQuestion
-          ? `I want to stay close to what you mean. ${openQuestion}`
-          : "I want to understand that in your own terms. Could you tell me a little more about what that looks like in real life?";
-      case "reflectObservation":
-        return "I may be hearing an early pattern, but I want to keep it provisional: does that feel accurate, or would you say it differently?";
-      case "investigateTension":
-        return "There may be a useful tension in what you shared. What feels unresolved or pulled in two directions there?";
-      case "validateUnderstanding":
-        return "Before I carry that forward, does this emerging understanding fit your experience, or should I adjust it?";
-      case "prepareCompletion":
-        return "We are not generating a profile yet, but I can start preserving what is emerging. What feels most important not to lose?";
-      case "exploreDomain":
-        return areaId
-          ? `Let's keep building evidence before summarizing. What is one example from your experience that would help me understand ${areaId.replace(/-/g, " ")} better?`
-          : activeRequest
-            ? `Let's keep this participant-led. What is another example or story that would help me understand the ${activeRequest} direction better?`
-            : "Let's keep this participant-led. What is another example or story that would help me understand you better?";
-    }
-
-    return "Let's keep this participant-led. What is another example or story that would help me understand you better?";
-  };
-
-  const renderOpeningDiscoveryResponse = (
-    action: DiscoveryConversationAction,
-    promptAssembly: ReturnType<typeof buildDiscoveryPromptAssembly>
-  ) => {
-    void promptAssembly;
-
-    if (action.type !== "openDiscoverySession") {
-      return renderMockActionResponse(action, promptAssembly);
-    }
-
-    return [
-      "Welcome to your Lighthouse Discovery session.",
-      "The goal is to understand you in your own terms. There are no right or wrong answers, and you can correct me or redirect the conversation at any point.",
-      `To begin, what would help me understand you as a person right now?`,
-    ].join(" ");
-  };
-
   const appendUserTranscript = (segment: string, isFinal: boolean) => {
     const currentProfile = profileRef.current;
     const currentSession = sessionRef.current;
@@ -224,26 +140,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) => {
-      const withTranscriptEvent = appendParticipantTranscriptEvent(state, normalized, true);
-      const processedState = processDiscoveryPerception(withTranscriptEvent);
-      addDiagnosticLog(summarizeDiscoveryState("A after executeDiscoveryDecision", processedState));
-      return processedState;
-    });
-    if (updatedDiscoveryState) {
-      setDiscoveryState(updatedDiscoveryState);
-      if (USE_MOCK_REALTIME_DISCOVERY && updatedDiscoveryState.latestConversationAction) {
-        const assembly = buildDiscoveryPromptAssembly(currentProfile, updatedDiscoveryState);
-        addDiagnosticLog(
-          `Decision execution selected action: ${updatedDiscoveryState.latestConversationAction.type}.`
-        );
-        addDiagnosticLog(
-          `Prompt assembly active request: ${assembly.outputs.supportedBehaviorRequests[0]?.type ?? "none"}.`
-        );
-        addDiagnosticLog(summarizeDiscoveryState("B before appendAssistantText", updatedDiscoveryState));
-        appendAssistantText(renderMockActionResponse(updatedDiscoveryState.latestConversationAction, assembly));
-      }
-    }
     const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       profileRef.current = updatedProfile;
@@ -267,13 +163,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ];
 
     saveSession({ transcript: nextTranscript, conversationHistory: nextHistory });
-    addDiagnosticLog(summarizeDiscoveryState("C before assistant update React state", discoveryState));
-    const updatedDiscoveryState = updateDiscoverySessionState(currentSession.sessionId, (state) => {
-      addDiagnosticLog(summarizeDiscoveryState("C before assistant update storage state", state));
-      return appendAssistantTranscriptEvent(state, normalized);
-    });
-    addDiagnosticLog(summarizeDiscoveryState("D after assistant update", updatedDiscoveryState));
-    if (updatedDiscoveryState) setDiscoveryState(updatedDiscoveryState);
     const updatedProfile = updateLighthouseProfile(currentProfile.id, { transcript: nextTranscript });
     if (updatedProfile) {
       profileRef.current = updatedProfile;
@@ -344,37 +233,17 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     sessionRef.current = newSession;
     setSession(newSession);
-    const createdDiscoveryState = initializeDiscoverySessionState(
-      loadOrCreateDiscoverySessionState(newSession)
-    );
-    persistDiscoverySessionState(createdDiscoveryState);
-    setDiscoveryState(createdDiscoveryState);
-    const startupAssembly = buildDiscoveryPromptAssembly(createdProfile, createdDiscoveryState);
-    addDiagnosticLog(summarizeDiscoveryState("Startup initialized Discovery", createdDiscoveryState));
-    addDiagnosticLog(
-      `Startup prompt assembly active request: ${startupAssembly.outputs.supportedBehaviorRequests[0]?.type ?? "none"}.`
-    );
     setStep("launching");
     setStatusMessage("Preparing your realtime voice discovery session...");
 
     try {
-      const realtime = await requestRealtimeDiscoverySession(createdProfile, createdDiscoveryState);
+      const realtime = await requestRealtimeDiscoverySession(createdProfile, newSession.sessionId);
       setTokenStatus("success");
       addDiagnosticLog(
         isMockRealtimeSession(realtime)
           ? "Mock realtime session created. No API token was requested."
           : "Token request succeeded."
       );
-      const activatedState = updateDiscoverySessionState(newSession.sessionId, (state) => ({
-        ...state,
-        instance: {
-          ...state.instance,
-          status: "active",
-          updatedAt: new Date().toISOString(),
-        },
-      }));
-      const activeDiscoveryState = activatedState ?? createdDiscoveryState;
-      if (activatedState) setDiscoveryState(activatedState);
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -406,14 +275,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       });
 
       setVoiceClient(client);
-      if (USE_MOCK_REALTIME_DISCOVERY && activeDiscoveryState.latestConversationAction) {
-        appendAssistantText(
-          renderOpeningDiscoveryResponse(
-            activeDiscoveryState.latestConversationAction,
-            buildDiscoveryPromptAssembly(createdProfile, activeDiscoveryState)
-          )
-        );
-      }
     } catch (error) {
       setErrorMessage(getRealtimeFailureMessage(error, "Unable to connect to realtime discovery."));
       setTokenStatus("failed");
@@ -445,24 +306,13 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     addDiagnosticLog("Attempting realtime resume.");
 
     try {
-      const resumedDiscoveryState = loadOrCreateDiscoverySessionState(currentSession);
-      setDiscoveryState(resumedDiscoveryState);
-      const realtime = await requestRealtimeDiscoverySession(currentProfile, resumedDiscoveryState);
+      const realtime = await requestRealtimeDiscoverySession(currentProfile, currentSession.sessionId);
       setTokenStatus("success");
       addDiagnosticLog(
         isMockRealtimeSession(realtime)
           ? "Mock realtime session resumed. No API token was requested."
           : "Token request succeeded for resume."
       );
-      const activatedState = updateDiscoverySessionState(currentSession.sessionId, (state) => ({
-        ...state,
-        instance: {
-          ...state.instance,
-          status: "active",
-          updatedAt: new Date().toISOString(),
-        },
-      }));
-      if (activatedState) setDiscoveryState(activatedState);
       saveSession({
         realtimeSessionId: realtime.sessionId,
         status: "active",
@@ -521,15 +371,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     const currentSession = sessionRef.current;
     if (currentSession) {
       saveSession({ status: "paused", step: "capture" });
-      const pausedState = updateDiscoverySessionState(currentSession.sessionId, (state) => ({
-        ...state,
-        instance: {
-          ...state.instance,
-          status: "paused",
-          updatedAt: new Date().toISOString(),
-        },
-      }));
-      if (pausedState) setDiscoveryState(pausedState);
     }
 
     setResumeAvailable(false);
@@ -543,17 +384,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setVoiceClient(null);
     }
 
-    const currentSession = sessionRef.current;
-    if (currentSession) {
-      clearDiscoverySessionState(currentSession.sessionId);
-    }
-
     clearLighthouseSession();
     profileRef.current = null;
     sessionRef.current = null;
     setProfile(null);
     setSession(null);
-    setDiscoveryState(null);
     setStep("capture");
     setResumeAvailable(false);
     setErrorMessage("");
@@ -708,7 +543,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" }}>
-          {(session || discoveryState) && (
+          {session && (
             <button
               type="button"
               onClick={resetDiscoverySession}
@@ -970,9 +805,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
               </div>
             </>
           )}
-      {import.meta.env.DEV && (
-        <DiscoveryInspector profile={profile} state={discoveryState} />
-      )}
       </div>
     </div>
   );
