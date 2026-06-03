@@ -9,12 +9,17 @@ import { hasKnownIdentity } from "./services/identityConfidence";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ProfilePage from "./pages/ProfilePage";
+import MicrophoneTestPage from "./pages/MicrophoneTestPage";
 
 function AppContent() {
   const auth = useAuth();
   const [showProfile, setShowProfile] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [discoveryComplete, setDiscoveryComplete] = useState(false);
+
+  if (window.location.pathname === "/mic-test") {
+    return <MicrophoneTestPage />;
+  }
 
   useEffect(() => {
     setHasOnboarded(auth.user ? hasKnownIdentity(auth.user.id) : false);

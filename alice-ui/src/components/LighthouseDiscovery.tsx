@@ -58,6 +58,25 @@ function emptyStartupTrace() {
   ) as Record<RealtimeStartupTraceStage, RealtimeStartupTraceEvent>;
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
 export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryProps) {
   const [step, setStep] = useState<Step>("capture");
   const [profile, setProfile] = useState<LighthouseProfile | null>(null);
@@ -163,6 +182,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
   const checkMicrophoneAccess = async () => {
     setErrorMessage("");
+    setStatusMessage("Checking microphone access...");
     setMicrophoneStatus("pending");
     addDiagnosticLog("Checking microphone access without starting Realtime.");
 
@@ -184,7 +204,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
       const devicesBefore = await navigator.mediaDevices.enumerateDevices();
       addDiagnosticLog(`Audio input devices before permission: ${devicesBefore.filter((device) => device.kind === "audioinput").length}.`);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        15000,
+        "Microphone request timed out. Check for a hidden browser permission prompt or blocked site permission."
+      );
       const tracks = stream.getAudioTracks();
       setMicrophoneStatus("granted");
       addDiagnosticLog(`Microphone preflight succeeded. Audio tracks: ${tracks.length}.`);
@@ -831,6 +855,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 </button>
               </div>
               {renderMessage()}
+              {renderDiagnosticsPanel()}
             </>
           )}
 

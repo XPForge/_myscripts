@@ -251,6 +251,25 @@ function describeMicrophoneError(error: unknown) {
   return error instanceof Error ? error.message : "Unable to access the microphone.";
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
 async function describeMicrophoneEnvironment() {
   const parts: string[] = [];
   parts.push(`origin=${window.location.origin}`);
@@ -409,7 +428,11 @@ export async function startRealtimeVoiceSession(
     handlers.onMicrophoneStatus?.("pending");
     diagnostic(`Microphone environment before getUserMedia: ${await describeMicrophoneEnvironment()}`);
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        15000,
+        "Microphone request timed out. Check whether the browser permission prompt is hidden, blocked, or waiting behind another window."
+      );
       diagnostic(`Microphone environment after getUserMedia: ${await describeMicrophoneEnvironment()}`);
       trace("microphone.permission", true);
       trace("microphone.getUserMedia", true);
