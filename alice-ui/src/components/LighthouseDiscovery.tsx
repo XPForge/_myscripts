@@ -200,6 +200,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     return `Realtime session failed: ${error.message}`;
   };
 
+  const isMockRealtimeSession = (realtime: { endpoint?: string }) =>
+    realtime.endpoint === "mock://realtime-discovery";
+
   const startDiscovery = async () => {
     setResumeAvailable(false);
     setErrorMessage("");
@@ -256,7 +259,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     try {
       const realtime = await requestRealtimeDiscoverySession(createdProfile, createdDiscoveryState);
       setTokenStatus("success");
-      addDiagnosticLog("Token request succeeded.");
+      addDiagnosticLog(
+        isMockRealtimeSession(realtime)
+          ? "Mock realtime session created. No API token was requested."
+          : "Token request succeeded."
+      );
       const activatedState = updateDiscoverySessionState(newSession.sessionId, (state) => ({
         ...state,
         instance: {
@@ -332,7 +339,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setDiscoveryState(resumedDiscoveryState);
       const realtime = await requestRealtimeDiscoverySession(currentProfile, resumedDiscoveryState);
       setTokenStatus("success");
-      addDiagnosticLog("Token request succeeded for resume.");
+      addDiagnosticLog(
+        isMockRealtimeSession(realtime)
+          ? "Mock realtime session resumed. No API token was requested."
+          : "Token request succeeded for resume."
+      );
       const activatedState = updateDiscoverySessionState(currentSession.sessionId, (state) => ({
         ...state,
         instance: {

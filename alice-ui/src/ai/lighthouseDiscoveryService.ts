@@ -10,11 +10,13 @@ const OPENAI_REALTIME_TOKEN_ENDPOINT =
   import.meta.env.VITE_OPENAI_REALTIME_TOKEN_ENDPOINT || "";
 const OPENAI_REALTIME_MODEL =
   import.meta.env.VITE_OPENAI_REALTIME_MODEL || "gpt-realtime";
+const USE_MOCK_REALTIME_DISCOVERY =
+  import.meta.env.VITE_MOCK_REALTIME_DISCOVERY === "true";
 
 export type RealtimeDiscoverySession = RealtimeSessionConfig;
 
 export function isRealtimeDiscoveryConfigured(): boolean {
-  return Boolean(OPENAI_REALTIME_TOKEN_ENDPOINT);
+  return USE_MOCK_REALTIME_DISCOVERY || Boolean(OPENAI_REALTIME_TOKEN_ENDPOINT);
 }
 
 export function buildRealtimeSessionPayload(
@@ -45,6 +47,17 @@ export async function requestRealtimeDiscoverySession(
   profile: LighthouseProfile,
   state?: Partial<DiscoverySessionState>
 ): Promise<RealtimeSessionConfig> {
+  if (USE_MOCK_REALTIME_DISCOVERY) {
+    return {
+      sessionId: `mock-realtime-${profile.id}`,
+      token: "mock-realtime-token",
+      model: "mock-realtime",
+      status: "active",
+      endpoint: "mock://realtime-discovery",
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   if (!OPENAI_REALTIME_TOKEN_ENDPOINT) {
     throw new Error(
       "Realtime discovery endpoint is not configured. Set VITE_OPENAI_REALTIME_TOKEN_ENDPOINT."
