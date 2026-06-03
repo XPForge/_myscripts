@@ -16,6 +16,7 @@ export type RealtimeStartupTraceStage =
   | "rtc.sdp.offer.sent"
   | "rtc.sdp.answer.received"
   | "rtc.remoteDescription.set"
+  | "realtime.session.created"
   | "realtime.responseCreate.sent"
   | "realtime.event.received";
 
@@ -113,7 +114,8 @@ function extractTextFromEvent(event: Record<string, unknown>) {
   if (
     event.type === "transcript.delta" ||
     event.type === "input_transcript.delta" ||
-    event.type === "response.output_audio_transcript.delta"
+    event.type === "response.output_audio_transcript.delta" ||
+    event.type === "response.audio_transcript.delta"
   ) {
     if (content) {
       return { type: "transcript", text: content, isFinal: false };
@@ -123,7 +125,9 @@ function extractTextFromEvent(event: Record<string, unknown>) {
   if (
     event.type === "transcript.final" ||
     event.type === "input_transcript" ||
-    event.type === "response.output_audio_transcript"
+    event.type === "response.output_audio_transcript" ||
+    event.type === "response.output_audio_transcript.done" ||
+    event.type === "response.audio_transcript.done"
   ) {
     if (transcript) {
       return { type: "transcript", text: transcript, isFinal: true };
@@ -234,11 +238,12 @@ function sendRealtimeEvent(
 
 function createStartupResponseEvent() {
   return {
+    event_id: `startup_response_${Date.now()}`,
     type: "response.create",
     response: {
-      modalities: ["audio", "text"],
+      output_modalities: ["audio", "text"],
       instructions:
-        "Begin the Lighthouse Discovery session now using the session instructions. Open with the configured opening behavior and one broad, human-centered question. Do not wait for participant input.",
+        "Begin the Lighthouse Discovery session now using the session instructions. Open with a brief welcome and one broad, human-centered question. Do not wait for participant input. Do not reuse a fixed opening question; vary the wording naturally.",
     },
   };
 }
@@ -316,6 +321,7 @@ export async function startRealtimeVoiceSession(
       "rtc.sdp.offer.sent",
       "rtc.sdp.answer.received",
       "rtc.remoteDescription.set",
+      "realtime.session.created",
       "realtime.responseCreate.sent",
       "realtime.event.received",
     ];
@@ -367,7 +373,9 @@ export async function startRealtimeVoiceSession(
   let dataChannel: RTCDataChannel | null = null;
   let dataChannelOpened = false;
   let remoteDescriptionSet = false;
+  let sessionCreated = false;
   let startupResponseSent = false;
+  let startupRetryTimer: number | null = null;
   const trySendStartupResponse = (source: string) => {
     if (startupResponseSent) {
       diagnostic(`Startup response.create already sent; skipped ${source}.`);
@@ -381,6 +389,10 @@ export async function startRealtimeVoiceSession(
       diagnostic(`Startup response.create waiting for remote description from ${source}.`);
       return;
     }
+    if (!sessionCreated) {
+      diagnostic(`Startup response.create waiting for session.created from ${source}.`);
+      return;
+    }
 
     const event = createStartupResponseEvent();
     diagnostic(`Startup response.create payload: ${JSON.stringify(event)}`);
@@ -391,6 +403,14 @@ export async function startRealtimeVoiceSession(
       sent,
       sent ? undefined : `Data channel state was ${dataChannel.readyState}.`
     );
+  };
+  const scheduleStartupRetry = (source: string) => {
+    if (startupRetryTimer !== null || startupResponseSent) return;
+    startupRetryTimer = window.setTimeout(() => {
+      startupRetryTimer = null;
+      diagnostic(`Retrying startup response.create after ${source}.`);
+      trySendStartupResponse(`retry:${source}`);
+    }, 600);
   };
 
   pc.ontrack = (event) => {
@@ -473,7 +493,32 @@ export async function startRealtimeVoiceSession(
     }
 
     if (!parsed) {
+      diagnostic("Realtime event could not be parsed into an object.");
       return;
+    }
+    const eventType = typeof parsed.type === "string" ? parsed.type : "unknown";
+    diagnostic(`Realtime event type: ${eventType}.`);
+    if (eventType === "session.created") {
+      sessionCreated = true;
+      trace("realtime.session.created", true);
+      trySendStartupResponse("session.created");
+      scheduleStartupRetry("session.created");
+    }
+    if (eventType === "session.updated") {
+      sessionCreated = true;
+      trace("realtime.session.created", true);
+      trySendStartupResponse("session.updated");
+      scheduleStartupRetry("session.updated");
+    }
+    if (eventType === "error" || eventType === "invalid_request_error") {
+      diagnostic(`Realtime error event: ${JSON.stringify(parsed)}`);
+      const message =
+        typeof parsed.message === "string"
+          ? parsed.message
+          : typeof parsed.error === "object" && parsed.error !== null && "message" in parsed.error
+            ? String((parsed.error as { message?: unknown }).message)
+            : "Realtime server emitted an error event.";
+      errorHandler(new Error(message));
     }
 
     const extracted = extractTextFromEvent(parsed);
@@ -541,6 +586,7 @@ export async function startRealtimeVoiceSession(
     remoteDescriptionSet = true;
     trace("rtc.remoteDescription.set", true);
     trySendStartupResponse("setRemoteDescription");
+    scheduleStartupRetry("setRemoteDescription");
   } catch (error) {
     trace("rtc.remoteDescription.set", false, error);
     throw error;

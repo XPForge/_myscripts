@@ -116,7 +116,13 @@ const server = createServer(async (req, res) => {
         type: "realtime",
         model,
         instructions: voiceInstructions,
+        output_modalities: ["audio", "text"],
         audio: {
+          input: {
+            turn_detection: {
+              type: "semantic_vad",
+            },
+          },
           output: {
             voice: "alloy",
             format: {

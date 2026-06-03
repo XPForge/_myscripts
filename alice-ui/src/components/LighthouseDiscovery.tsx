@@ -41,8 +41,9 @@ const STARTUP_TRACE_STAGES: { stage: RealtimeStartupTraceStage; label: string }[
   { stage: "rtc.sdp.offer.sent", label: "6. SDP offer sent" },
   { stage: "rtc.sdp.answer.received", label: "7. SDP answer received" },
   { stage: "rtc.remoteDescription.set", label: "8. setRemoteDescription" },
-  { stage: "realtime.responseCreate.sent", label: "9. response.create sent" },
-  { stage: "realtime.event.received", label: "10. Realtime event received" },
+  { stage: "realtime.session.created", label: "9. session.created received" },
+  { stage: "realtime.responseCreate.sent", label: "10. response.create sent" },
+  { stage: "realtime.event.received", label: "11. Realtime event received" },
 ];
 
 function emptyStartupTrace() {

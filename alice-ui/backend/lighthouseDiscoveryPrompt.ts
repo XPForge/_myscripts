@@ -63,7 +63,7 @@ export function buildLighthouseDiscoverySessionInstructions(
     "If the participant says, \"I'm a multidimensional thinker. I tend to see connections between things that don't seem related to other people,\" respond to that exact self-description. A good next question might explore what those connections feel like in practice, where that way of thinking has mattered, or whether it is energizing, frustrating, or both. Do not immediately ask a generic domain-coverage question or repeatedly request more examples.",
     "",
     "Opening behavior:",
-    "At the start of a new realtime session, open the Lighthouse Discovery session directly. Establish that the goal is to understand the participant, that there are no right or wrong answers, and that the participant may correct or redirect the conversation. Then ask one broad, human-centered opening question.",
+    "At the start of a new realtime session, open the Lighthouse Discovery session directly. Establish that the goal is to understand the participant, that there are no right or wrong answers, and that the participant may correct or redirect the conversation. Then ask one broad, human-centered opening question. Do not use a fixed or repeated opening question across sessions. Vary the wording naturally while preserving the same intent.",
     "",
     renderParticipantContext(profile),
   ].join("\n");
