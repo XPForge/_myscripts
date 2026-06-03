@@ -1,5 +1,5 @@
 import type { LighthouseProfile } from "../services/lighthouseProfile";
-import type { RealtimeSessionConfig } from "../engine/runtime";
+import type { RealtimeOutputModality, RealtimeSessionConfig } from "../engine/runtime";
 
 const OPENAI_REALTIME_TOKEN_ENDPOINT =
   import.meta.env.VITE_OPENAI_REALTIME_TOKEN_ENDPOINT || "";
@@ -16,10 +16,12 @@ export function isRealtimeDiscoveryConfigured(): boolean {
 
 export function buildRealtimeSessionPayload(
   profile: LighthouseProfile,
-  sessionId?: string
+  sessionId?: string,
+  outputModality: RealtimeOutputModality = "audio"
 ) {
   return {
     model: OPENAI_REALTIME_MODEL,
+    outputModality,
     profileMetadata: {
       id: profile.id,
       lpId: profile.lpId,
@@ -37,7 +39,8 @@ export function buildRealtimeSessionPayload(
 
 export async function requestRealtimeDiscoverySession(
   profile: LighthouseProfile,
-  sessionId?: string
+  sessionId?: string,
+  outputModality: RealtimeOutputModality = "audio"
 ): Promise<RealtimeSessionConfig> {
   if (USE_MOCK_REALTIME_DISCOVERY) {
     return {
@@ -46,6 +49,7 @@ export async function requestRealtimeDiscoverySession(
       model: "mock-realtime",
       status: "active",
       endpoint: "mock://realtime-discovery",
+      outputModality,
       createdAt: new Date().toISOString(),
     };
   }
@@ -61,7 +65,7 @@ export async function requestRealtimeDiscoverySession(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildRealtimeSessionPayload(profile, sessionId)),
+    body: JSON.stringify(buildRealtimeSessionPayload(profile, sessionId, outputModality)),
   });
 
   if (!response.ok) {
@@ -77,6 +81,7 @@ export async function requestRealtimeDiscoverySession(
     model?: string;
     status?: "initializing" | "active" | "complete";
     endpoint?: string;
+    outputModality?: RealtimeOutputModality;
   };
 
   return {
@@ -85,6 +90,7 @@ export async function requestRealtimeDiscoverySession(
     model: payload.model ?? OPENAI_REALTIME_MODEL,
     status: payload.status ?? "active",
     endpoint: payload.endpoint,
+    outputModality: payload.outputModality ?? outputModality,
     createdAt: new Date().toISOString(),
   };
 }

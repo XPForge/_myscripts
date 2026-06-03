@@ -6,6 +6,7 @@ import {
 
 export type { RealtimeSessionConfig as RealtimeDiscoverySession } from "../engine/runtime";
 export type {
+  RealtimeOutputModality,
   RealtimeStartupTraceEvent,
   RealtimeStartupTraceStage,
   RealtimeVoiceClient,
@@ -43,6 +44,12 @@ function startMockRealtimeVoiceDiscovery(
   });
 
   return {
+    sendText: (text: string) => {
+      const normalized = text.trim();
+      if (!normalized) return;
+      handlers.onTranscript?.(normalized, true);
+      handlers.onDiagnosticLog?.("DEBUG: Mock realtime text message accepted.");
+    },
     stop: async () => {
       stopped = true;
       timers.forEach((timerId) => window.clearTimeout(timerId));

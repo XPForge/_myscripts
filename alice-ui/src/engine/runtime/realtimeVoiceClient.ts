@@ -4,8 +4,11 @@ export type RealtimeSessionConfig = {
   token: string;
   status: "initializing" | "active" | "complete";
   endpoint?: string;
+  outputModality: RealtimeOutputModality;
   createdAt: string;
 };
+
+export type RealtimeOutputModality = "audio" | "text";
 
 export type RealtimeStartupTraceStage =
   | "microphone.permission"
@@ -42,6 +45,7 @@ export type RealtimeVoiceHandlers = {
 
 export type RealtimeVoiceClient = {
   stop: () => Promise<void>;
+  sendText: (text: string) => void;
 };
 
 type SpeechRecognitionLike = {
@@ -88,10 +92,26 @@ function extractTextFromEvent(event: Record<string, unknown>) {
     return null;
   }
 
-  const delta = typeof event.delta === "object" && event.delta ? (event.delta as Record<string, unknown>) : null;
+  const deltaObject = typeof event.delta === "object" && event.delta ? (event.delta as Record<string, unknown>) : null;
+  const deltaText = typeof event.delta === "string" ? event.delta : undefined;
   const transcript = typeof event.transcript === "string" ? event.transcript : undefined;
   const text = typeof event.text === "string" ? event.text : undefined;
-  const content = delta && typeof delta.content === "string" ? delta.content : undefined;
+  const content = deltaObject && typeof deltaObject.content === "string" ? deltaObject.content : deltaText;
+  const response = typeof event.response === "object" && event.response ? event.response as Record<string, unknown> : null;
+  const output = Array.isArray(response?.output) ? response.output : [];
+  const responseOutputText = output.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const contentItems = Array.isArray((item as Record<string, unknown>).content)
+      ? (item as Record<string, unknown>).content as unknown[]
+      : [];
+    return contentItems.flatMap((contentItem) => {
+      if (typeof contentItem !== "object" || contentItem === null) return [];
+      const record = contentItem as Record<string, unknown>;
+      if (typeof record.text === "string") return [record.text];
+      if (typeof record.transcript === "string") return [record.transcript];
+      return [];
+    });
+  }).join("");
 
   if (
     event.type === "response.delta" ||
@@ -102,12 +122,20 @@ function extractTextFromEvent(event: Record<string, unknown>) {
     }
   }
 
-  if (event.type === "response.completed" || event.type === "response.output_text.completed") {
+  if (
+    event.type === "response.completed" ||
+    event.type === "response.done" ||
+    event.type === "response.output_text.completed" ||
+    event.type === "response.output_text.done"
+  ) {
     if (content) {
       return { type: "assistant", text: content, isFinal: true };
     }
     if (text) {
       return { type: "assistant", text, isFinal: true };
+    }
+    if (responseOutputText) {
+      return { type: "assistant", text: responseOutputText, isFinal: true };
     }
   }
 
@@ -236,16 +264,22 @@ function sendRealtimeEvent(
   return true;
 }
 
-function createStartupResponseEvent() {
+function createResponseEvent(outputModality: RealtimeOutputModality, instructions?: string) {
   return {
-    event_id: `startup_response_${Date.now()}`,
+    event_id: `response_${Date.now()}`,
     type: "response.create",
     response: {
-      output_modalities: ["audio", "text"],
-      instructions:
-        "Begin the Lighthouse Discovery session now using the session instructions. Open with a brief welcome and one broad, human-centered question. Do not wait for participant input. Do not reuse a fixed opening question; vary the wording naturally.",
+      output_modalities: [outputModality],
+      ...(instructions ? { instructions } : {}),
     },
   };
+}
+
+function createStartupResponseEvent(outputModality: RealtimeOutputModality) {
+  return createResponseEvent(
+    outputModality,
+    "Begin the Lighthouse Discovery session now using the session instructions. Open with a brief welcome and one broad, human-centered question. Do not wait for participant input. Do not reuse a fixed opening question; vary the wording naturally."
+  );
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -275,7 +309,10 @@ export async function startRealtimeVoiceSession(
   realtimeSession: RealtimeSessionConfig,
   handlers: RealtimeVoiceHandlers
 ): Promise<RealtimeVoiceClient> {
-  if (!navigator.mediaDevices?.getUserMedia) {
+  const outputModality = realtimeSession.outputModality ?? "audio";
+  const isAudioMode = outputModality === "audio";
+
+  if (isAudioMode && !navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone capture is not supported by this browser.");
   }
 
@@ -331,36 +368,46 @@ export async function startRealtimeVoiceSession(
   };
 
   initializeTrace();
-  status("Requesting microphone access...");
-  handlers.onMicrophoneStatus?.("pending");
-  let localStream: MediaStream;
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  let localStream: MediaStream | null = null;
+  if (isAudioMode) {
+    status("Requesting microphone access...");
+    handlers.onMicrophoneStatus?.("pending");
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      trace("microphone.permission", true);
+      trace("microphone.getUserMedia", true);
+    } catch (error) {
+      handlers.onMicrophoneStatus?.("denied");
+      trace("microphone.permission", false, describeMicrophoneError(error));
+      trace("microphone.getUserMedia", false, describeMicrophoneError(error));
+      throw new Error(describeMicrophoneError(error));
+    }
+  } else {
+    handlers.onMicrophoneStatus?.("not required");
+    handlers.onAudioPlaybackStatus?.("text mode");
     trace("microphone.permission", true);
     trace("microphone.getUserMedia", true);
-  } catch (error) {
-    handlers.onMicrophoneStatus?.("denied");
-    trace("microphone.permission", false, describeMicrophoneError(error));
-    trace("microphone.getUserMedia", false, describeMicrophoneError(error));
-    throw new Error(describeMicrophoneError(error));
+    status("Starting text discovery session...");
   }
 
-  const audioElement = new Audio();
-  audioElement.autoplay = true;
-  audioElement.muted = false;
-  audioElement.onplaying = () => {
-    handlers.onAudioPlaybackStatus?.("playing");
-    diagnostic("Assistant audio playback started.");
-    status("Assistant audio is playing.");
-  };
-  audioElement.onpause = () => {
-    handlers.onAudioPlaybackStatus?.("paused");
-    diagnostic("Assistant audio playback paused.");
-  };
-  audioElement.onerror = () => {
-    handlers.onAudioPlaybackStatus?.("error");
-    diagnostic("Assistant audio playback error detected.");
-  };
+  const audioElement = isAudioMode ? new Audio() : null;
+  if (audioElement) {
+    audioElement.autoplay = true;
+    audioElement.muted = false;
+    audioElement.onplaying = () => {
+      handlers.onAudioPlaybackStatus?.("playing");
+      diagnostic("Assistant audio playback started.");
+      status("Assistant audio is playing.");
+    };
+    audioElement.onpause = () => {
+      handlers.onAudioPlaybackStatus?.("paused");
+      diagnostic("Assistant audio playback paused.");
+    };
+    audioElement.onerror = () => {
+      handlers.onAudioPlaybackStatus?.("error");
+      diagnostic("Assistant audio playback error detected.");
+    };
+  }
 
   let pc: RTCPeerConnection;
   try {
@@ -394,7 +441,7 @@ export async function startRealtimeVoiceSession(
       return;
     }
 
-    const event = createStartupResponseEvent();
+    const event = createStartupResponseEvent(outputModality);
     diagnostic(`Startup response.create payload: ${JSON.stringify(event)}`);
     const sent = sendRealtimeEvent(dataChannel, event, diagnostic);
     startupResponseSent = sent;
@@ -415,7 +462,7 @@ export async function startRealtimeVoiceSession(
 
   pc.ontrack = (event) => {
     diagnostic("Received remote audio track from realtime peer connection.");
-    if (event.streams && event.streams[0]) {
+    if (audioElement && event.streams && event.streams[0]) {
       audioElement.srcObject = event.streams[0];
       audioElement.play().catch((error) => {
         diagnostic(`Audio playback prevented: ${error instanceof Error ? error.message : String(error)}`);
@@ -535,10 +582,12 @@ export async function startRealtimeVoiceSession(
     }
   };
 
-  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-  handlers.onMicrophoneStatus?.("granted");
-  status("Microphone access granted.");
-  diagnostic("Added local audio tracks to RTCPeerConnection.");
+  if (localStream) {
+    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+    handlers.onMicrophoneStatus?.("granted");
+    status("Microphone access granted.");
+    diagnostic("Added local audio tracks to RTCPeerConnection.");
+  }
 
   status("Creating realtime peer connection offer...");
   diagnostic("Starting SDP offer creation.");
@@ -594,14 +643,49 @@ export async function startRealtimeVoiceSession(
   status("Realtime peer connection established.");
   handlers.onConnectionState?.(pc.connectionState);
 
-  const speechRecognition = createSpeechRecognition(
-    (text, isFinal) => {
-      handlers.onTranscript?.(text, isFinal);
-    },
-    errorHandler
+  const speechRecognition = isAudioMode
+    ? createSpeechRecognition(
+        (text, isFinal) => {
+          handlers.onTranscript?.(text, isFinal);
+        },
+        errorHandler
+      )
+    : null;
+
+  status(
+    isAudioMode
+      ? "Realtime voice session is active. Speak naturally now."
+      : "Realtime text discovery is active. Type naturally now."
   );
 
-  status("Realtime voice session is active. Speak naturally now.");
+  const sendText = (text: string) => {
+    const normalized = text.trim();
+    if (!normalized) return;
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      errorHandler(new Error("Realtime data channel is not open."));
+      return;
+    }
+
+    sendRealtimeEvent(
+      dataChannel,
+      {
+        event_id: `user_text_${Date.now()}`,
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: normalized,
+            },
+          ],
+        },
+      },
+      diagnostic
+    );
+    sendRealtimeEvent(dataChannel, createResponseEvent(outputModality), diagnostic);
+  };
 
   const stop = async () => {
     if (speechRecognition) {
@@ -612,7 +696,7 @@ export async function startRealtimeVoiceSession(
       }
     }
 
-    localStream.getTracks().forEach((track) => track.stop());
+    localStream?.getTracks().forEach((track) => track.stop());
     pc.getSenders().forEach((sender) => {
       try {
         sender.track?.stop();
@@ -627,10 +711,12 @@ export async function startRealtimeVoiceSession(
       // ignore
     }
 
-    audioElement.pause();
-    audioElement.srcObject = null;
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.srcObject = null;
+    }
     status("Realtime voice session stopped.");
   };
 
-  return { stop };
+  return { stop, sendText };
 }

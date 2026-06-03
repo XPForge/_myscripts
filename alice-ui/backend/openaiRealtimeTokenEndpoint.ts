@@ -69,6 +69,10 @@ async function readBody(req: any) {
   });
 }
 
+function resolveOutputModality(value: unknown) {
+  return value === "text" ? "text" : "audio";
+}
+
 const server = createServer(async (req, res) => {
   const host = req.headers.host || "localhost";
   const url = new URL(req.url || "/", `http://${host}`);
@@ -97,6 +101,7 @@ const server = createServer(async (req, res) => {
 
     const model = body.model || "gpt-realtime";
     const profileMetadata = body.profileMetadata || {};
+    const outputModality = resolveOutputModality(body.outputModality);
     const voiceInstructions = [
       "Realtime voice behavior:",
       "Use English only for all spoken and text responses.",
@@ -107,31 +112,36 @@ const server = createServer(async (req, res) => {
       buildLighthouseDiscoverySessionInstructions(profileMetadata),
     ].filter(Boolean).join("\n");
 
+    const sessionConfig: Record<string, unknown> = {
+      type: "realtime",
+      model,
+      instructions: voiceInstructions,
+      output_modalities: [outputModality],
+    };
+
+    if (outputModality === "audio") {
+      sessionConfig.audio = {
+        input: {
+          turn_detection: {
+            type: "semantic_vad",
+          },
+        },
+        output: {
+          voice: "alloy",
+          format: {
+            type: "audio/pcm",
+            rate: 24000,
+          },
+        },
+      };
+    }
+
     const openAiPayload = {
       expires_after: {
         anchor: "created_at",
         seconds: 600,
       },
-      session: {
-        type: "realtime",
-        model,
-        instructions: voiceInstructions,
-        output_modalities: ["audio", "text"],
-        audio: {
-          input: {
-            turn_detection: {
-              type: "semantic_vad",
-            },
-          },
-          output: {
-            voice: "alloy",
-            format: {
-              type: "audio/pcm",
-              rate: 24000,
-            },
-          },
-        },
-      },
+      session: sessionConfig,
     };
 
     const response = await fetch(`${OPENAI_API_BASE}/v1/realtime/client_secrets`, {
@@ -162,6 +172,7 @@ const server = createServer(async (req, res) => {
       token,
       model: returnedModel,
       endpoint: `${OPENAI_API_BASE}/v1/realtime/calls`,
+      outputModality,
     });
   } catch (error) {
     sendJson(res, 500, {
