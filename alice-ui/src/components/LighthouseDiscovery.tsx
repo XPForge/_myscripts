@@ -596,22 +596,6 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
               Reset session
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setStep("capture")}
-            style={{
-              padding: "16px 24px",
-              borderRadius: "18px",
-              border: "1px solid rgba(59,130,246,0.45)",
-              background: "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(14,165,233,0.18))",
-              color: "#eef2ff",
-              fontWeight: 800,
-              cursor: "pointer",
-              boxShadow: "0 18px 40px rgba(14,165,233,0.2)",
-            }}
-          >
-            Start Lighthouse Discovery
-          </button>
         </div>
 
         {step === "capture" &&
@@ -667,7 +651,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     cursor: "pointer",
                   }}
                 >
-                  Continue
+                  Start Your Discovery Session
                 </button>
               </div>
               {renderMessage()}
