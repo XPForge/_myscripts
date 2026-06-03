@@ -122,38 +122,31 @@ export async function generateFinalProfileOutput(profile: LighthouseProfile): Pr
     return buildExportProfileText(profile);
   }
 
-  const prompt = `Create a Lighthouse Discovery Profile based on the information below.
+  const prompt = `Create a Human Clarity Profile based on the information below.
 
 Use clean Markdown and this structure:
 
-# Executive Summary
-# Core Themes
+SECTION 1 — EXECUTIVE SUMMARY
+SECTION 2 — CORE THEMES
+SECTION 3 — NATURAL STRENGTHS
+SECTION 4 — THINKING STYLE
+SECTION 5 — LEARNING STYLE
+SECTION 6 — CREATIVE PROFILE
+SECTION 7 — COLLABORATION PROFILE
+SECTION 8 — ENVIRONMENTAL FIT
+SECTION 9 — UNIQUE CONTRIBUTIONS
+SECTION 10 — OPPORTUNITY ALIGNMENT
+SECTION 11 — POTENTIAL BLIND SPOTS
+SECTION 12 — LIGHTHOUSE SUMMARY
 
-Clearly distinguish:
-
-* Observed Themes
-* Confirmed Themes
-
-# Natural Strengths
-# Thinking Style
-# Learning Style
-# Creative Profile
-# Collaboration Profile
-# Environmental Fit
-# Unique Contributions
-# Opportunity Alignment
-# Potential Blind Spots
-# Open Questions
-# Lighthouse Summary
-
-Use synthesis rather than summary. Focus on understanding rather than evaluation. Preserve participant authority, distinguish observations from confirmations, and do not invent facts, scores, diagnoses, or hidden traits.
+Use concise but meaningful language. Focus on understanding rather than evaluation. Do not invent facts, scores, diagnoses, or hidden traits.
 
 ${buildExportProfileText(profile)}`;
 
   const messages: AIMessage[] = [
     {
       role: "system",
-      content: "You create Lighthouse Discovery Profiles from transcript evidence.",
+      content: "You create Human Clarity Profiles from transcript evidence.",
       createdAt: new Date().toISOString(),
     },
     {
