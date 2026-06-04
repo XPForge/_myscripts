@@ -43,6 +43,19 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_API_BASE = process.env.OPENAI_API_BASE || "https://api.openai.com";
 const PORT = Number(process.env.PORT || 3000);
 const ENDPOINT_SECRET = process.env.REALTIME_TOKEN_ENDPOINT_SECRET || "";
+const OPENAI_REALTIME_VOICE = process.env.OPENAI_REALTIME_VOICE || "cedar";
+const SUPPORTED_REALTIME_VOICES = new Set([
+  "alloy",
+  "ash",
+  "ballad",
+  "coral",
+  "echo",
+  "sage",
+  "shimmer",
+  "verse",
+  "marin",
+  "cedar",
+]);
 
 if (!OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is required.");
@@ -71,6 +84,15 @@ async function readBody(req: any) {
 
 function resolveOutputModality(value: unknown) {
   return value === "text" ? "text" : "audio";
+}
+
+function resolveRealtimeVoice(value: unknown) {
+  if (typeof value !== "string") return OPENAI_REALTIME_VOICE;
+  const normalized = value.trim();
+  if (SUPPORTED_REALTIME_VOICES.has(normalized) || normalized.startsWith("voice_")) {
+    return normalized;
+  }
+  return OPENAI_REALTIME_VOICE;
 }
 
 const server = createServer(async (req, res) => {
@@ -102,6 +124,7 @@ const server = createServer(async (req, res) => {
     const model = body.model || "gpt-realtime";
     const profileMetadata = body.profileMetadata || {};
     const outputModality = resolveOutputModality(body.outputModality);
+    const realtimeVoice = resolveRealtimeVoice(body.voice);
     const voiceInstructions = buildLighthouseDiscoverySessionInstructions(profileMetadata);
 
     const sessionConfig: Record<string, unknown> = {
@@ -119,7 +142,7 @@ const server = createServer(async (req, res) => {
           },
         },
         output: {
-          voice: "alloy",
+          voice: realtimeVoice,
           format: {
             type: "audio/pcm",
             rate: 24000,

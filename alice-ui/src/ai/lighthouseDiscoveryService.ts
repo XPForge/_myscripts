@@ -8,6 +8,21 @@ const OPENAI_REALTIME_MODEL =
 const USE_MOCK_REALTIME_DISCOVERY =
   import.meta.env.VITE_MOCK_REALTIME_DISCOVERY === "true";
 
+export const REALTIME_VOICE_OPTIONS = [
+  { id: "cedar", label: "Cedar" },
+  { id: "marin", label: "Marin" },
+  { id: "alloy", label: "Alloy" },
+  { id: "ash", label: "Ash" },
+  { id: "ballad", label: "Ballad" },
+  { id: "coral", label: "Coral" },
+  { id: "echo", label: "Echo" },
+  { id: "sage", label: "Sage" },
+  { id: "shimmer", label: "Shimmer" },
+  { id: "verse", label: "Verse" },
+] as const;
+
+export type RealtimeVoiceId = typeof REALTIME_VOICE_OPTIONS[number]["id"];
+
 export type RealtimeDiscoverySession = RealtimeSessionConfig;
 
 export function isRealtimeDiscoveryConfigured(): boolean {
@@ -17,11 +32,13 @@ export function isRealtimeDiscoveryConfigured(): boolean {
 export function buildRealtimeSessionPayload(
   profile: LighthouseProfile,
   sessionId?: string,
-  outputModality: RealtimeOutputModality = "audio"
+  outputModality: RealtimeOutputModality = "audio",
+  voice?: string
 ) {
   return {
     model: OPENAI_REALTIME_MODEL,
     outputModality,
+    voice,
     profileMetadata: {
       id: profile.id,
       lpId: profile.lpId,
@@ -40,7 +57,8 @@ export function buildRealtimeSessionPayload(
 export async function requestRealtimeDiscoverySession(
   profile: LighthouseProfile,
   sessionId?: string,
-  outputModality: RealtimeOutputModality = "audio"
+  outputModality: RealtimeOutputModality = "audio",
+  voice?: string
 ): Promise<RealtimeSessionConfig> {
   if (USE_MOCK_REALTIME_DISCOVERY) {
     return {
@@ -65,7 +83,7 @@ export async function requestRealtimeDiscoverySession(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildRealtimeSessionPayload(profile, sessionId, outputModality)),
+    body: JSON.stringify(buildRealtimeSessionPayload(profile, sessionId, outputModality, voice)),
   });
 
   if (!response.ok) {

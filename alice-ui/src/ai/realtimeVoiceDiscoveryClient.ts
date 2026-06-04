@@ -50,6 +50,11 @@ function startMockRealtimeVoiceDiscovery(
       handlers.onTranscript?.(normalized, true);
       handlers.onDiagnosticLog?.("DEBUG: Mock realtime text message accepted.");
     },
+    setMicrophoneMuted: (muted: boolean) => {
+      handlers.onMicrophoneStatus?.(muted ? "muted" : "mocked");
+      handlers.onStatus?.(muted ? "Mock microphone muted." : "Mock microphone unmuted.");
+      handlers.onDiagnosticLog?.(`DEBUG: Mock microphone muted=${String(muted)}.`);
+    },
     stop: async () => {
       stopped = true;
       timers.forEach((timerId) => window.clearTimeout(timerId));

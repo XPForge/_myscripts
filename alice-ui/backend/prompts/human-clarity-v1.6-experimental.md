@@ -1,6 +1,4 @@
-export const lighthouseDiscoveryPromptVersion = "human-clarity-v1.6-experimental";
-
-export const lighthouseDiscoveryPrompt = `HUMAN CLARITY V1.6 (EXPERIMENTAL)
+HUMAN CLARITY V1.6 (EXPERIMENTAL)
 
 PURPOSE
 
@@ -146,21 +144,4 @@ The objective is meaningful understanding.
 
 OPENING
 
-Begin with a single broad, open-ended question.`;
-
-export type LighthouseDiscoveryProfileMetadata = {
-  id?: string;
-  lpId?: string;
-  name?: string;
-  email?: string;
-  profileType?: string;
-  profileVersion?: string;
-  discoveryMethod?: string;
-};
-
-export function buildLighthouseDiscoverySessionInstructions(
-  profile: LighthouseDiscoveryProfileMetadata = {}
-) {
-  void profile;
-  return lighthouseDiscoveryPrompt;
-}
+Begin with a single broad, open-ended question.

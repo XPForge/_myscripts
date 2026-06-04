@@ -46,6 +46,7 @@ export type RealtimeVoiceHandlers = {
 export type RealtimeVoiceClient = {
   stop: () => Promise<void>;
   sendText: (text: string) => void;
+  setMicrophoneMuted: (muted: boolean) => void;
 };
 
 type SpeechRecognitionLike = {
@@ -330,7 +331,10 @@ function createResponseEvent(outputModality: RealtimeOutputModality, instruction
 }
 
 function createStartupResponseEvent(outputModality: RealtimeOutputModality) {
-  return createResponseEvent(outputModality);
+  return createResponseEvent(
+    outputModality,
+    `Begin the conversation by asking exactly this question and nothing else: "When you look back on your life so far across all the different things you've done, what's the one thread you'd say has always been there, even when everything else changed?"`
+  );
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -700,6 +704,7 @@ export async function startRealtimeVoiceSession(
   status("Realtime peer connection established.");
   handlers.onConnectionState?.(pc.connectionState);
 
+  let speechRecognitionMuted = false;
   const speechRecognition = isAudioMode
     ? createSpeechRecognition(
         (text, isFinal) => {
@@ -708,6 +713,17 @@ export async function startRealtimeVoiceSession(
         errorHandler
       )
     : null;
+
+  if (speechRecognition) {
+    speechRecognition.onend = () => {
+      if (speechRecognitionMuted) return;
+      try {
+        speechRecognition.start();
+      } catch {
+        // ignore restart failures
+      }
+    };
+  }
 
   status(
     isAudioMode
@@ -744,6 +760,34 @@ export async function startRealtimeVoiceSession(
     sendRealtimeEvent(dataChannel, createResponseEvent(outputModality), diagnostic);
   };
 
+  const setMicrophoneMuted = (muted: boolean) => {
+    speechRecognitionMuted = muted;
+    localStream?.getAudioTracks().forEach((track) => {
+      track.enabled = !muted;
+    });
+    pc.getSenders().forEach((sender) => {
+      if (sender.track?.kind === "audio") {
+        sender.track.enabled = !muted;
+      }
+    });
+
+    if (speechRecognition) {
+      try {
+        if (muted) {
+          speechRecognition.abort();
+        } else {
+          speechRecognition.start();
+        }
+      } catch {
+        // ignore recognition state errors
+      }
+    }
+
+    handlers.onMicrophoneStatus?.(muted ? "muted" : "granted");
+    status(muted ? "Microphone muted." : "Microphone unmuted.");
+    diagnostic(`Microphone muted=${String(muted)}.`);
+  };
+
   const stop = async () => {
     if (speechRecognition) {
       try {
@@ -775,5 +819,5 @@ export async function startRealtimeVoiceSession(
     status("Realtime voice session stopped.");
   };
 
-  return { stop, sendText };
+  return { stop, sendText, setMicrophoneMuted };
 }

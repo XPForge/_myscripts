@@ -14,8 +14,10 @@ import {
   type LighthouseSession,
 } from "../services/lighthouseSession";
 import {
+  REALTIME_VOICE_OPTIONS,
   requestRealtimeDiscoverySession,
   isRealtimeDiscoveryConfigured,
+  type RealtimeVoiceId,
 } from "../ai/lighthouseDiscoveryService";
 import {
   startRealtimeVoiceDiscovery,
@@ -30,6 +32,28 @@ type LighthouseDiscoveryProps = {
 };
 
 type Step = "capture" | "launching" | "discovering";
+
+const VOICE_STORAGE_KEY = "alice.lighthouse.realtimeVoice";
+const DEFAULT_REALTIME_VOICE: RealtimeVoiceId = "cedar";
+
+function loadSavedRealtimeVoice(): RealtimeVoiceId {
+  try {
+    const saved = localStorage.getItem(VOICE_STORAGE_KEY);
+    return REALTIME_VOICE_OPTIONS.some((voice) => voice.id === saved)
+      ? (saved as RealtimeVoiceId)
+      : DEFAULT_REALTIME_VOICE;
+  } catch {
+    return DEFAULT_REALTIME_VOICE;
+  }
+}
+
+function persistRealtimeVoice(voice: RealtimeVoiceId) {
+  try {
+    localStorage.setItem(VOICE_STORAGE_KEY, voice);
+  } catch {
+    // ignore storage failure
+  }
+}
 
 const STARTUP_TRACE_STAGES: { stage: RealtimeStartupTraceStage; label: string }[] = [
   { stage: "microphone.permission", label: "1. Microphone permission" },
@@ -96,8 +120,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [startupTrace, setStartupTrace] = useState(emptyStartupTrace);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState<RealtimeOutputModality>("audio");
+  const [realtimeVoice, setRealtimeVoice] = useState<RealtimeVoiceId>(() => loadSavedRealtimeVoice());
   const [typedParticipantText, setTypedParticipantText] = useState("");
   const [modeSwitching, setModeSwitching] = useState(false);
+  const [microphoneMuted, setMicrophoneMuted] = useState(false);
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
 
@@ -116,6 +142,13 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setName(storedSession.name);
     setEmail(storedSession.email);
     setDiscoveryMode(storedSession.metadata?.outputModality === "text" ? "text" : "audio");
+    if (typeof storedSession.metadata?.realtimeVoice === "string") {
+      const storedVoice = storedSession.metadata.realtimeVoice;
+      if (REALTIME_VOICE_OPTIONS.some((voice) => voice.id === storedVoice)) {
+        setRealtimeVoice(storedVoice as RealtimeVoiceId);
+        persistRealtimeVoice(storedVoice as RealtimeVoiceId);
+      }
+    }
     const restoredStep = storedSession.step === "discovering" ? "discovering" : "capture";
     setStep(restoredStep);
 
@@ -178,6 +211,24 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
   const resetStartupTrace = () => {
     setStartupTrace(emptyStartupTrace());
+  };
+
+  const handleRealtimeVoiceChange = (voice: RealtimeVoiceId) => {
+    setRealtimeVoice(voice);
+    persistRealtimeVoice(voice);
+    saveSession({
+      metadata: {
+        ...(sessionRef.current?.metadata ?? {}),
+        realtimeVoice: voice,
+      },
+    });
+    setStatusMessage("Voice selection saved. Restart or resume Discovery to use it.");
+  };
+
+  const toggleMicrophoneMuted = () => {
+    const nextMuted = !microphoneMuted;
+    voiceClient?.setMicrophoneMuted(nextMuted);
+    setMicrophoneMuted(nextMuted);
   };
 
   const checkMicrophoneAccess = async () => {
@@ -347,22 +398,26 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         await voiceClient.stop();
         setVoiceClient(null);
       }
+      setMicrophoneMuted(false);
 
       setDiscoveryMode(mode);
       const nextSession = saveSession({
         metadata: {
           ...currentSession.metadata,
           outputModality: mode,
+          realtimeVoice,
         },
       }) ?? currentSession;
       const realtime = await requestRealtimeDiscoverySession(
         currentProfile,
         nextSession.sessionId,
-        mode
+        mode,
+        realtimeVoice
       );
       addDiagnosticLog(`Token request succeeded for ${mode} mode.`);
       const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
       setVoiceClient(client);
+      setMicrophoneMuted(false);
       setStatusMessage(mode === "audio" ? "Voice mode is active." : "Text mode is active.");
     } catch (error) {
       const message = getRealtimeFailureMessage(error, `Unable to switch to ${mode} mode.`);
@@ -419,6 +474,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       step: "launching",
       metadata: {
         outputModality: initialMode,
+        realtimeVoice,
       },
       createdAt: now,
       updatedAt: now,
@@ -433,7 +489,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const realtime = await requestRealtimeDiscoverySession(
         createdProfile,
         newSession.sessionId,
-        initialMode
+        initialMode,
+        realtimeVoice
       );
       setTokenStatus("success");
       addDiagnosticLog(
@@ -454,6 +511,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
 
       setVoiceClient(client);
+      setMicrophoneMuted(false);
     } catch (error) {
       setErrorMessage(getRealtimeFailureMessage(error, "Unable to connect to realtime discovery."));
       setTokenStatus("failed");
@@ -491,7 +549,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const realtime = await requestRealtimeDiscoverySession(
         currentProfile,
         currentSession.sessionId,
-        mode
+        mode,
+        realtimeVoice
       );
       setTokenStatus("success");
       addDiagnosticLog(
@@ -510,6 +569,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
 
       setVoiceClient(client);
+      setMicrophoneMuted(false);
       setStatusMessage("Realtime discovery resumed. Speak naturally now.");
     } catch (error) {
       setErrorMessage(
@@ -533,6 +593,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       await voiceClient.stop();
       setVoiceClient(null);
     }
+    setMicrophoneMuted(false);
 
     const currentSession = sessionRef.current;
     if (currentSession) {
@@ -549,6 +610,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       await voiceClient.stop();
       setVoiceClient(null);
     }
+    setMicrophoneMuted(false);
 
     clearLighthouseSession();
     profileRef.current = null;
@@ -639,6 +701,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       <div style={{ display: "grid", gap: "10px" }}>
         <div><strong>Token Status:</strong> {tokenStatus}</div>
         <div><strong>Session Mode:</strong> {discoveryMode}</div>
+        <div><strong>Assistant Voice:</strong> {realtimeVoice}</div>
+        <div><strong>Microphone Muted:</strong> {String(microphoneMuted)}</div>
         <div><strong>Microphone State:</strong> {microphoneStatus}</div>
         <div><strong>Realtime Connection:</strong> {connectionState || "pending"}</div>
         <div><strong>Audio Playback:</strong> {audioStatus}</div>
@@ -821,6 +885,37 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     outline: "none",
                   }}
                 />
+                <label
+                  style={{
+                    display: "grid",
+                    gap: "8px",
+                    color: "#cbd5e1",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  Assistant voice
+                  <select
+                    value={realtimeVoice}
+                    onChange={(event) => handleRealtimeVoiceChange(event.target.value as RealtimeVoiceId)}
+                    style={{
+                      width: "100%",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(148,163,184,0.14)",
+                      background: "#0f172a",
+                      color: "#eef2ff",
+                      padding: "14px 16px",
+                      fontSize: "1rem",
+                      outline: "none",
+                    }}
+                  >
+                    {REALTIME_VOICE_OPTIONS.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap", marginTop: "18px" }}>
                 <button
@@ -930,8 +1025,52 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                       </button>
                     );
                   })}
+                  <select
+                    value={realtimeVoice}
+                    onChange={(event) => handleRealtimeVoiceChange(event.target.value as RealtimeVoiceId)}
+                    aria-label="Assistant voice"
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(148,163,184,0.14)",
+                      background: "#0f172a",
+                      color: "#cbd5e1",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {REALTIME_VOICE_OPTIONS.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        Voice: {voice.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={toggleMicrophoneMuted}
+                    disabled={!voiceClient || discoveryMode !== "audio"}
+                    aria-pressed={microphoneMuted}
+                    aria-label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+                    title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "14px",
+                      border: microphoneMuted
+                        ? "1px solid rgba(248,113,113,0.45)"
+                        : "1px solid rgba(148,163,184,0.24)",
+                      background: microphoneMuted
+                        ? "rgba(127,29,29,0.24)"
+                        : "rgba(30,41,59,0.55)",
+                      color: microphoneMuted ? "#fecaca" : "#dbeafe",
+                      fontWeight: 800,
+                      cursor: !voiceClient || discoveryMode !== "audio" ? "not-allowed" : "pointer",
+                      opacity: !voiceClient || discoveryMode !== "audio" ? 0.55 : 1,
+                    }}
+                  >
+                    {microphoneMuted ? "MUTED" : "MIC"}
+                  </button>
                   {resumeAvailable && !voiceClient ? (
                     <button
                       type="button"
@@ -1016,6 +1155,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   <strong>Method:</strong> {profile.discoveryMethod}
                   <br />
                   <strong>Mode:</strong> {discoveryMode}
+                  <br />
+                  <strong>Voice:</strong> {realtimeVoice}
+                  <br />
+                  <strong>Mic:</strong> {microphoneMuted ? "muted" : "live"}
                   <br />
                   <strong>Realtime connection:</strong> {connectionState || "pending"}
                 </div>
