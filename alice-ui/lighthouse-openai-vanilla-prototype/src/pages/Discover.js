@@ -107,10 +107,17 @@ export async function renderDiscover(app, navigate) {
     return /profile is ready|ready to generate|generate (your|the) profile|would you like.*profile|create your profile|move to your profile/i.test(text);
   }
 
-  async function transitionToProfileReady() {
+  function stopMicrophoneInput() {
+    stream?.getTracks().forEach((track) => track.stop());
+    stream = null;
+    stopMeter();
+  }
+
+  async function transitionToProfileReady(finalText = "") {
     if (!session || profileReady) return;
     profileReady = true;
     shutdownAfterFinalResponse = true;
+    stopMicrophoneInput();
     profileButton.disabled = false;
     profileButton.classList.remove("disabled");
     profileButton.classList.add("pulse-attention");
@@ -123,9 +130,10 @@ export async function renderDiscover(app, navigate) {
     }
     hint.textContent = "Your profile is available in the sidebar. The microphone will close after the agent finishes.";
     setState(app, "Profile ready", "speaking");
+    const estimatedSpeakingTime = Math.min(45000, Math.max(12000, finalText.length * 70));
     shutdownTimer = window.setTimeout(() => {
       if (profileReady && pc) stopRealtime();
-    }, 8000);
+    }, estimatedSpeakingTime);
   }
 
   function finishIfProfileReady() {
@@ -134,7 +142,7 @@ export async function renderDiscover(app, navigate) {
     if (shutdownTimer) clearTimeout(shutdownTimer);
     shutdownTimer = window.setTimeout(() => {
       if (profileReady && pc) stopRealtime();
-    }, 900);
+    }, 12000);
   }
 
   function stopMeter() {
@@ -194,10 +202,12 @@ export async function renderDiscover(app, navigate) {
       const text = event.transcript || assistantBuffer;
       assistantBuffer = "";
       void storeTurn("assistant", text).then(() => {
-        if (looksProfileReady(text)) void transitionToProfileReady();
+        if (looksProfileReady(text)) void transitionToProfileReady(text);
       });
-      setState(app, "Listening", "listening");
-      hint.textContent = "Listening. Speak naturally.";
+      if (!profileReady) {
+        setState(app, "Listening", "listening");
+        hint.textContent = "Listening. Speak naturally.";
+      }
     }
     if (event.type === "response.audio.done" || event.type === "response.output_audio.done" || event.type === "response.done") {
       finishIfProfileReady();
@@ -275,11 +285,9 @@ export async function renderDiscover(app, navigate) {
   function stopRealtime() {
     dc?.close();
     pc?.close();
-    stream?.getTracks().forEach((track) => track.stop());
-    stopMeter();
+    stopMicrophoneInput();
     pc = null;
     dc = null;
-    stream = null;
     mic.classList.remove("active");
     if (shutdownTimer) clearTimeout(shutdownTimer);
     shutdownTimer = 0;
