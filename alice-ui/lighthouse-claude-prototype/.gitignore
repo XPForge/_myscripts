@@ -1,0 +1,5 @@
+.env
+dist/
+server/data/
+server/prompts/protected/*
+!server/prompts/protected/.gitkeep
