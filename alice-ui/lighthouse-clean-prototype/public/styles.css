@@ -1,0 +1,171 @@
+:root {
+  color-scheme: light;
+  --ink: #1d2328;
+  --muted: #5f6b74;
+  --line: #d8dee4;
+  --surface: #f7f8f6;
+  --accent: #1f6f68;
+  --accent-strong: #164d49;
+  --participant: #fff;
+  --assistant: #edf4f1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 16px;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+select,
+input,
+button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+select,
+input {
+  background: #fff;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+button {
+  background: #fff;
+  color: var(--ink);
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button.primary,
+#record.recording {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.session-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+#status {
+  color: var(--muted);
+  min-height: 24px;
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.turn {
+  width: min(760px, 92%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  line-height: 1.55;
+  background: var(--participant);
+}
+
+.turn.assistant {
+  align-self: flex-start;
+  background: var(--assistant);
+}
+
+.turn.user {
+  align-self: flex-end;
+}
+
+.role {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.profile-output {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+@media (max-width: 700px) {
+  .app {
+    padding: 16px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .session-bar,
+  .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .session-bar > *,
+  .composer > * {
+    width: 100%;
+  }
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Lighthouse</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Project Lighthouse</p>
+          <h1>Discovery Session</h1>
+        </div>
+        <select id="context">
+          <option value="employment">Employment discovery</option>
+          <option value="team">Team alignment</option>
+          <option value="relationship">Relationship compatibility</option>
+          <option value="education">Educational fit</option>
+          <option value="general">General discovery</option>
+        </select>
+      </header>
+
+      <section class="session-bar">
+        <button id="start">Start Session</button>
+        <button id="record" disabled>Hold To Speak</button>
+        <button id="profile" disabled>Generate Profile</button>
+        <button id="download" disabled>Download</button>
+        <span id="status">Ready</span>
+      </section>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+
+      <form id="text-form" class="composer">
+        <input id="message" type="text" placeholder="Type a response" autocomplete="off" disabled />
+        <button id="send" type="submit" disabled>Send</button>
+      </form>
+
+      <section id="profile-output" class="profile-output" hidden></section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

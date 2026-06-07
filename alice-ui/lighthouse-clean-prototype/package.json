@@ -1,0 +1,18 @@
+{
+  "name": "lighthouse-clean-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server/index.js",
+    "security:bundle-check": "npm run build && node dist/server/security/bundleInspection.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.2"
+  }
+}
