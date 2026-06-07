@@ -21,8 +21,12 @@ function applyEnv(path: string) {
 }
 
 const configDir = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(configDir, "..", "..");
-applyEnv(join(projectRoot, ".env"));
+for (const candidate of [
+  join(configDir, "..", "..", ".env"),
+  join(configDir, "..", "..", "..", ".env"),
+]) {
+  applyEnv(candidate);
+}
 
 export const env = {
   port: Number(process.env.PORT || 3200),

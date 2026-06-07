@@ -1,6 +1,19 @@
 # Voice Layer Plan
 
-Voice is not active in the mock-first pass.
+Voice has two stages in this prototype.
+
+## Current Browser-Native Prototype Voice
+
+The current live prototype uses browser-native voice features:
+
+- `speechSynthesis` reads Lighthouse replies aloud.
+- Browser `SpeechRecognition` / `webkitSpeechRecognition`, when available, turns participant speech into text.
+- A Web Audio API meter shows microphone input level so the participant can see whether the browser is hearing sound.
+- The recognized text is sent to the same server-side Claude conversation endpoint as typed input.
+
+This enables quick evaluation without adding another live API dependency.
+
+Security note: browser-native speech recognition is browser-controlled. It does not expose the Lighthouse system prompt or Anthropic key, but it is not the final server-controlled STT architecture.
 
 The intended secure voice pipeline is:
 
@@ -16,4 +29,4 @@ Security rules:
 - Browser never calls OpenAI directly.
 - Transcript remains server-owned.
 
-The voice UI surface exists in `Discover`, but the current test path is text input. This lets the full Lighthouse session/profile flow be tested before any live provider keys are introduced.
+The final voice layer should replace browser-native recognition with server-side STT/TTS when that provider key and implementation path are ready.

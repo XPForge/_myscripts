@@ -9,7 +9,7 @@ export type TextToSpeechProvider = {
 export function createDeferredSpeechToTextProvider(): SpeechToTextProvider {
   return {
     async transcribe() {
-      throw new Error("Voice layer is deferred in the mock-first Claude prototype.");
+      throw new Error("Voice layer is deferred in the Anthropic Claude prototype.");
     },
   };
 }
@@ -17,7 +17,7 @@ export function createDeferredSpeechToTextProvider(): SpeechToTextProvider {
 export function createDeferredTextToSpeechProvider(): TextToSpeechProvider {
   return {
     async synthesize() {
-      throw new Error("Voice layer is deferred in the mock-first Claude prototype.");
+      throw new Error("Voice layer is deferred in the Anthropic Claude prototype.");
     },
   };
 }
