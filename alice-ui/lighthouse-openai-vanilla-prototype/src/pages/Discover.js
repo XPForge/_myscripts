@@ -1,5 +1,5 @@
 import { postJson } from "../services/APIService.js";
-import { saveSessionId } from "../services/SessionManager.js";
+import { saveSession } from "../services/SessionManager.js";
 
 function escapeHtml(value) {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -95,6 +95,7 @@ export async function renderDiscover(app, navigate) {
   let profileReady = false;
   let shutdownAfterFinalResponse = false;
   let shutdownTimer = 0;
+  let accessToken = "";
   const participant = JSON.parse(window.sessionStorage.getItem("lighthouse.vanilla.participant") || "{}");
   const mic = app.querySelector("#mic");
   const hint = app.querySelector("#hint");
@@ -173,7 +174,7 @@ export async function renderDiscover(app, navigate) {
 
   async function storeTurn(role, text) {
     if (!session || !text.trim()) return;
-    const payload = await postJson("/api/realtime/turn", { sessionId: session.id, role, text: text.trim() });
+    const payload = await postJson("/api/realtime/turn", { sessionId: session.id, accessToken, role, text: text.trim() });
     session = payload.session;
     updateTranscript(app, session);
   }
@@ -226,7 +227,8 @@ export async function renderDiscover(app, navigate) {
       email: participant.email || "",
     });
     session = payload.session;
-    saveSessionId(session.id);
+    accessToken = payload.accessToken || "";
+    saveSession(session.id, accessToken);
     updateTranscript(app, session);
 
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -252,9 +254,6 @@ export async function renderDiscover(app, navigate) {
         type: "response.create",
           response: {
             output_modalities: ["audio"],
-          instructions: participant.name
-            ? `Greet ${participant.name} by first name. Briefly explain that Lighthouse is a discovery conversation designed to understand how they think, work, create, and what conditions help them do their best work. Make clear there are no right answers and this is not a test. Then choose a fresh, curiosity-led opening question that gives you material for associative discovery. Do not use a stock first question. Keep the whole opening concise, grounded, and inquisitive.`
-            : "Briefly explain that Lighthouse is a discovery conversation designed to understand how the participant thinks, works, creates, and what conditions help them do their best work. Make clear there are no right answers and this is not a test. Then choose a fresh, curiosity-led opening question that gives you material for associative discovery. Do not use a stock first question. Keep the whole opening concise, grounded, and inquisitive.",
           },
       }));
     };
@@ -278,7 +277,7 @@ export async function renderDiscover(app, navigate) {
       },
       body: pc.localDescription.sdp,
     });
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) throw new Error("Realtime connection failed. Please try again.");
     await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
   }
 
@@ -339,7 +338,7 @@ export async function renderDiscover(app, navigate) {
     hint.textContent = "Creating your profile and preparing email delivery.";
     try {
       if (pc) stopRealtime();
-      await postJson("/api/profile/generate", { sessionId: session.id });
+      await postJson("/api/profile/generate", { sessionId: session.id, accessToken });
       navigate(`/profile/${session.id}`);
     } catch (error) {
       profileBusy.classList.add("hidden");

@@ -14,7 +14,16 @@ const mime: Record<string, string> = {
 };
 
 function serve(pathname: string, res: any) {
-  const path = pathname === "/" || !extname(pathname) ? join(root, "index.html") : join(root, pathname);
+  const normalized = pathname.replace(/\\/g, "/");
+  const allowed =
+    normalized === "/" ||
+    normalized === "/index.html" ||
+    (normalized.startsWith("/src/") && [".js", ".css"].includes(extname(normalized)));
+  if (!allowed) {
+    sendJson(res, 404, { error: "Not found" });
+    return;
+  }
+  const path = normalized === "/" || !extname(normalized) ? join(root, "index.html") : join(root, normalized);
   if (!path.startsWith(root) || !existsSync(path) || !statSync(path).isFile()) {
     sendJson(res, 404, { error: "Not found" });
     return;

@@ -11,6 +11,7 @@ export type Turn = {
 
 export type Session = {
   id: string;
+  accessToken: string;
   name?: string;
   email?: string;
   createdAt: string;
@@ -37,6 +38,7 @@ export function createSession(metadata: { name?: string; email?: string } = {}):
   const now = new Date().toISOString();
   const session = {
     id: crypto.randomUUID(),
+    accessToken: crypto.randomUUID(),
     name: metadata.name,
     email: metadata.email,
     createdAt: now,

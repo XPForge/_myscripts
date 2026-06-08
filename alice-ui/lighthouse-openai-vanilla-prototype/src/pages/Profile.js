@@ -1,5 +1,5 @@
 import { downloadMarkdown, postJson } from "../services/APIService.js";
-import { loadSessionId } from "../services/SessionManager.js";
+import { loadSessionAccessToken, loadSessionId } from "../services/SessionManager.js";
 
 function sectionText(profile, heading) {
   const match = profile.match(new RegExp(`${heading}[\\s\\S]*?(?=\\nSECTION \\d+|$)`, "i"));
@@ -32,6 +32,7 @@ function escapeHtml(value) {
 
 export async function renderProfile(app, navigate, routeSessionId) {
   const sessionId = routeSessionId || loadSessionId();
+  const accessToken = loadSessionAccessToken();
   app.innerHTML = `
     <main class="profile-shell">
       <aside class="sidebar profile-sidebar">
@@ -73,7 +74,7 @@ export async function renderProfile(app, navigate, routeSessionId) {
   let profile = "";
   let session = null;
   try {
-    const payload = await postJson("/api/sessions/get", { sessionId });
+    const payload = await postJson("/api/sessions/get", { sessionId, accessToken });
     session = payload.session;
     profile = session.profileMarkdown || "No generated profile found for this session.";
   } catch {
