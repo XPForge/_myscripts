@@ -1,8 +1,8 @@
 export const agentVersion = {
   name: "Lighthouse Agent",
-  version: "0.4.0",
-  label: "LA-v0.4-secure",
-  codename: "security",
+  version: "0.5.0",
+  label: "LA-v0.5-identity",
+  codename: "identity",
   prototype: "lighthouse-openai-vanilla-prototype",
-  status: "secured working OpenAI realtime prototype",
+  status: "secured OpenAI realtime prototype with minimal identity layer",
 } as const;

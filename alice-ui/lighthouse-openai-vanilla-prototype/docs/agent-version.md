@@ -1,8 +1,8 @@
 # Lighthouse Agent Version
 
-Current checkpoint: **Lighthouse Agent v0.4.0-security**
+Current checkpoint: **Lighthouse Agent v0.5.0-identity**
 
-Short label: **LA-v0.4-secure**
+Short label: **LA-v0.5-identity**
 
 Prototype directory:
 
@@ -14,7 +14,7 @@ Local URL:
 
 ## Version Meaning
 
-`v0.4.0-security` is the secured working OpenAI realtime prototype.
+`v0.5.0-identity` is the secured working OpenAI realtime prototype with a minimal identity-preservation layer.
 
 This checkpoint includes:
 
@@ -30,10 +30,10 @@ This checkpoint includes:
 - Session access token protection.
 - Static file serving allowlist.
 - Security scan script.
+- Minimal identity guardrail against evaluation, assessment drift, resume drift, and flattening.
 
 This checkpoint does not include:
 
-- Minimal identity layer.
 - Full Lighthouse canon.
 - Soul Kernel integration.
 - Production email delivery.
@@ -41,6 +41,7 @@ This checkpoint does not include:
 
 ## Version Roadmap
 
+- **v0.4.0-security**: secured working OpenAI realtime prototype.
 - **v0.5.0-identity**: minimal identity-preservation layer.
 - **v0.6.0-canon-lite**: thin Lighthouse canon/DNA layer, if v0.5 preserves behavior.
 - **v0.7.0-delivery**: profile delivery/email ownership flow.
