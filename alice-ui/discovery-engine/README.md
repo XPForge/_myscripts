@@ -1,6 +1,14 @@
-# Project Lighthouse Discovery Engine - Phase 1
+# Project Lighthouse Discovery Engine
 
 This folder is an isolated runtime skeleton. It does not connect to the current ALICE app, AppShell, container API, realtime runtime, backend token endpoint, or existing prototype folders.
+
+## Current Milestone
+
+Current milestone: `v0.1.0-alpha.1`
+
+This is the first isolated runnable Discovery Engine prototype. It includes the deterministic runtime slice and isolated web demo under `discovery-engine/web-demo/`.
+
+This milestone does not perform real AI interpretation or artifact generation. It does not implement scoring, matching, ranking, recommendation, percentage, qualification, or fit logic.
 
 ## Canon Notes
 
