@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lighthouse Discovery Web Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Local deterministic prototype</p>
+        <h1>Lighthouse Discovery</h1>
+        <p class="intro">
+          Run the isolated Discovery runtime slice with local text input and inspect the generated verification summary.
+        </p>
+      </header>
+
+      <section class="notice" aria-labelledby="boundary-title">
+        <h2 id="boundary-title">Demo Boundary</h2>
+        <ul>
+          <li>Not AI interpretation</li>
+          <li>Not profile generation</li>
+          <li>Not artifact generation</li>
+          <li>Not matching, scoring, or ranking</li>
+          <li>Not connected to the current ALICE app</li>
+        </ul>
+      </section>
+
+      <section class="input-panel" aria-labelledby="input-title">
+        <h2 id="input-title">Input</h2>
+        <label for="discovery-input">Text for the deterministic runtime slice</label>
+        <textarea id="discovery-input" rows="7">I like turning ambiguous early ideas into clear working systems, especially when the work needs careful structure and practical momentum.</textarea>
+        <div class="actions">
+          <button id="run-button" type="button">Run Discovery Slice</button>
+          <p id="validation-message" class="validation" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="results" aria-labelledby="results-title">
+        <h2 id="results-title">Runtime Result</h2>
+
+        <div class="grid">
+          <article class="panel">
+            <h3>Workspace / Session Summary</h3>
+            <dl id="summary-output" class="key-value"></dl>
+          </article>
+
+          <article class="panel">
+            <h3>Evidence Reference</h3>
+            <dl id="evidence-output" class="key-value"></dl>
+          </article>
+
+          <article class="panel">
+            <h3>Demo Observation</h3>
+            <dl id="observation-output" class="key-value"></dl>
+          </article>
+
+          <article class="panel">
+            <h3>Alignment Signals</h3>
+            <ul id="alignment-output" class="tag-list"></ul>
+          </article>
+
+          <article class="panel">
+            <h3>Export Bundle Summary</h3>
+            <dl id="export-output" class="key-value"></dl>
+          </article>
+
+          <article class="panel">
+            <h3>Verification Checks</h3>
+            <ul id="checks-output" class="checks"></ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
