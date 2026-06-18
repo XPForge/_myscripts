@@ -14,6 +14,7 @@ export * from "./alignment/proof/alignmentTypes";
 export * from "./alignment/proof/alignmentSignals";
 export * from "./alignment/proof/alignmentComparison";
 export * from "./alignment/proof/alignmentProof";
+export * from "./interpretation";
 export * from "./runtime/moduleRegistry";
 export * from "./runtime/discoveryRuntime";
 export * from "./runtime/reinstantiate";
