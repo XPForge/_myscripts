@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $ControlPath = Join-Path $PSScriptRoot "bridge-control.ps1"
 $DesktopPath = [Environment]::GetFolderPath("Desktop")
+$DesktopPaths = @($DesktopPath, (Join-Path $env:USERPROFILE "Desktop")) | Select-Object -Unique
 $PowerShellPath = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $RuntimePath = Join-Path $RepoRoot ".codex-bridge"
 $LogsPath = Join-Path $RuntimePath "logs"
@@ -84,26 +85,60 @@ function Remove-OldBridgeShortcuts {
         "Lighthouse Bridge Execute Toggle"
     )
 
-    foreach ($oldName in $oldNames) {
-        $oldPath = Join-Path $DesktopPath "$oldName.lnk"
-        if (-not (Test-Path -LiteralPath $oldPath)) {
-            Write-ShortcutLog "old shortcut not found name=$oldName"
+    foreach ($desktop in $DesktopPaths) {
+        if (-not (Test-Path -LiteralPath $desktop)) {
             continue
         }
 
-        if (Test-BridgeShortcut -ShortcutPath $oldPath) {
-            Remove-Item -LiteralPath $oldPath -Force
-            Write-ShortcutLog "removed old bridge shortcut name=$oldName path=$oldPath"
+        foreach ($oldName in $oldNames) {
+            $oldPath = Join-Path $desktop "$oldName.lnk"
+            if (-not (Test-Path -LiteralPath $oldPath)) {
+                Write-ShortcutLog "old shortcut not found name=$oldName desktop=$desktop"
+                continue
+            }
+
+            if (Test-BridgeShortcut -ShortcutPath $oldPath) {
+                Remove-Item -LiteralPath $oldPath -Force
+                Write-ShortcutLog "removed old bridge shortcut name=$oldName path=$oldPath"
+            }
+            else {
+                Write-ShortcutLog "left possible non-bridge shortcut alone name=$oldName path=$oldPath"
+                Write-Host "Left existing shortcut alone because it could not be verified as bridge-owned: $oldPath"
+            }
         }
-        else {
-            Write-ShortcutLog "left possible non-bridge shortcut alone name=$oldName path=$oldPath"
-            Write-Host "Left existing shortcut alone because it could not be verified as bridge-owned: $oldPath"
+    }
+}
+
+function Remove-BridgeDuplicateShortcuts {
+    $finalNames = @(
+        "START Lighthouse Bridge - Capture Only",
+        "START Lighthouse Bridge - Execute Codex",
+        "STOP Lighthouse Bridge",
+        "STATUS Lighthouse Bridge"
+    )
+
+    foreach ($desktop in $DesktopPaths) {
+        if (-not (Test-Path -LiteralPath $desktop)) {
+            continue
+        }
+
+        Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue | ForEach-Object {
+            $nameNoExtension = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+            if ($finalNames -contains $nameNoExtension) {
+                return
+            }
+
+            if ($nameNoExtension -like "*Lighthouse Bridge*" -and (Test-BridgeShortcut -ShortcutPath $_.FullName)) {
+                Remove-Item -LiteralPath $_.FullName -Force
+                Write-ShortcutLog "removed duplicate bridge shortcut name=$nameNoExtension path=$($_.FullName)"
+            }
         }
     }
 }
 
 Initialize-ShortcutPaths
 Remove-OldBridgeShortcuts
+Remove-BridgeDuplicateShortcuts
 
 $captureArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$ControlPath' start; Start-Sleep -Seconds 3`""
 $executeArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"if (-not (Test-Path -LiteralPath '$StableExecuteConfigPath')) { Write-Host 'Execution config missing. Create config.local.json from config.local.example.json first.'; Start-Sleep -Seconds 6; exit 1 }; & '$ControlPath' start -ConfigPath '$StableExecuteConfigPath'; Start-Sleep -Seconds 3`""
