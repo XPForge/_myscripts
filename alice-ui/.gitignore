@@ -26,3 +26,8 @@ dist-ssr
 Downloads/
 *.exe
 .env
+
+# Lighthouse clipboard bridge runtime files
+.codex-bridge/
+ALICE_TO_CODEX_TASK.md
+CODEX_REPORT.md
