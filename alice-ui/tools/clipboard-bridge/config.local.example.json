@@ -1,0 +1,15 @@
+{
+  "repoPath": ".",
+  "pollIntervalMs": 1000,
+  "taskOutputFile": "ALICE_TO_CODEX_TASK.md",
+  "runtimeFolder": ".codex-bridge",
+  "copyConfirmationToClipboard": true,
+  "executionEnabled": true,
+  "codexExecutable": "codex",
+  "codexSandbox": "workspace-write",
+  "codexAskForApproval": "never",
+  "copyReportToClipboard": true,
+  "reportTimeoutSeconds": 900,
+  "showNotifications": true,
+  "notificationDurationMs": 3000
+}

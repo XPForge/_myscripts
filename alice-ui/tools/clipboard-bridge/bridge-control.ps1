@@ -13,7 +13,9 @@ $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $RuntimePath = Join-Path $RepoRoot ".codex-bridge"
 $LogsPath = Join-Path $RuntimePath "logs"
 $PidPath = Join-Path $RuntimePath "bridge.pid"
+$StatusPath = Join-Path $RuntimePath "bridge-status.json"
 $WatcherPath = Join-Path $PSScriptRoot "watch-clipboard.ps1"
+$LaunchVerifyDelayMs = 1500
 
 function Initialize-ControlPaths {
     New-Item -ItemType Directory -Force -Path $RuntimePath, $LogsPath | Out-Null
@@ -80,6 +82,111 @@ function Get-BridgeStatus {
     }
 }
 
+function Clear-StaleBridgeState {
+    param([string]$Reason)
+
+    $hadPid = Test-Path -LiteralPath $PidPath
+    if ($hadPid) {
+        Remove-Item -LiteralPath $PidPath -Force
+    }
+
+    Update-BridgeStoppedStatus -Reason $Reason
+    Write-ControlLog "stale state cleaned reason=$Reason hadPidFile=$hadPid"
+}
+
+function Resolve-ConfigPath {
+    param([string]$Path)
+
+    if (-not $Path) {
+        return ""
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
+}
+
+function Get-ExecutionMode {
+    param([string]$ResolvedConfigPath)
+
+    if (-not $ResolvedConfigPath) {
+        return "capture-only"
+    }
+
+    if (-not (Test-Path -LiteralPath $ResolvedConfigPath)) {
+        return "unknown"
+    }
+
+    try {
+        $rawConfig = Get-Content -LiteralPath $ResolvedConfigPath -Raw | ConvertFrom-Json
+        if ($rawConfig.PSObject.Properties.Name -contains "executionEnabled") {
+            if ($rawConfig.executionEnabled) {
+                return "execution-enabled"
+            }
+            return "capture-only"
+        }
+        return "capture-only"
+    }
+    catch {
+        return "unknown"
+    }
+}
+
+function Read-BridgeStatusFile {
+    if (-not (Test-Path -LiteralPath $StatusPath)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -LiteralPath $StatusPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+}
+
+function Write-BridgeStatusFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessIdValue,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$ResolvedConfigPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutionMode
+    )
+
+    $status = [ordered]@{
+        pid = $ProcessIdValue
+        startedAt = (Get-Date).ToString("o")
+        configPath = $ResolvedConfigPath
+        executionEnabled = ($ExecutionMode -eq "execution-enabled")
+        executionMode = $ExecutionMode
+    }
+
+    $status | ConvertTo-Json | Set-Content -LiteralPath $StatusPath
+}
+
+function Update-BridgeStoppedStatus {
+    param([string]$Reason)
+
+    $existing = Read-BridgeStatusFile
+    $status = [ordered]@{
+        pid = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "pid") { $existing.pid } else { $null }
+        startedAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "startedAt") { $existing.startedAt } else { $null }
+        stoppedAt = (Get-Date).ToString("o")
+        configPath = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "configPath") { $existing.configPath } else { "" }
+        executionEnabled = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "executionEnabled") { $existing.executionEnabled } else { $null }
+        executionMode = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "executionMode") { $existing.executionMode } else { "unknown" }
+        state = "stopped"
+        reason = $Reason
+    }
+
+    $status | ConvertTo-Json | Set-Content -LiteralPath $StatusPath
+}
+
 function Quote-Argument {
     param([Parameter(Mandatory = $true)][string]$Value)
 
@@ -95,14 +202,15 @@ function Start-Bridge {
 
     $status = Get-BridgeStatus
     if ($status.IsRunning) {
-        Write-Host "Lighthouse Clipboard Bridge already running (PID $($status.Pid))"
-        Write-ControlLog "start skipped already-running pid=$($status.Pid)"
+        $statusFile = Read-BridgeStatusFile
+        $runningMode = if ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "executionMode") { [string]$statusFile.executionMode } else { "unknown" }
+        Write-Host "Lighthouse Clipboard Bridge already running in $runningMode mode (PID $($status.Pid))"
+        Write-ControlLog "start skipped already-running pid=$($status.Pid) mode=$runningMode"
         return
     }
 
     if ($status.PidFileExists) {
-        Remove-Item -LiteralPath $PidPath -Force
-        Write-ControlLog "removed stale pid file"
+        Clear-StaleBridgeState -Reason "stale-before-start"
     }
 
     $arguments = @(
@@ -111,22 +219,38 @@ function Start-Bridge {
         "-File", $WatcherPath
     )
 
-    if ($ConfigPath) {
-        if ([System.IO.Path]::IsPathRooted($ConfigPath)) {
-            $resolvedConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
-        }
-        else {
-            $resolvedConfigPath = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $ConfigPath))
+    $resolvedConfigPath = Resolve-ConfigPath -Path $ConfigPath
+    $executionMode = Get-ExecutionMode -ResolvedConfigPath $resolvedConfigPath
+
+    if ($resolvedConfigPath) {
+        if (-not (Test-Path -LiteralPath $resolvedConfigPath)) {
+            Write-Host "Lighthouse Clipboard Bridge failed to start: config file not found."
+            Write-Host "Config path: $resolvedConfigPath"
+            Write-Host "Create it from tools\\clipboard-bridge\\config.local.example.json for execution-enabled shortcuts."
+            Write-ControlLog "start failed missing-config configProvided=true"
+            exit 1
         }
         $arguments += @("-ConfigPath", $resolvedConfigPath)
     }
 
     $argumentLine = ($arguments | ForEach-Object { Quote-Argument -Value ([string]$_) }) -join " "
+    Write-ControlLog "start attempted mode=$executionMode configProvided=$([bool]$resolvedConfigPath)"
     $process = Start-Process -FilePath "powershell.exe" -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru
-    Set-Content -LiteralPath $PidPath -Value ([string]$process.Id)
+    Write-ControlLog "start launched pid=$($process.Id)"
 
-    Write-Host "Lighthouse Clipboard Bridge started (PID $($process.Id))"
-    Write-ControlLog "started pid=$($process.Id) configProvided=$([bool]$ConfigPath)"
+    Start-Sleep -Milliseconds $LaunchVerifyDelayMs
+    $verifiedProcess = Get-BridgeProcess -ProcessIdValue $process.Id
+    if ($null -eq $verifiedProcess) {
+        Write-Host "Lighthouse Clipboard Bridge failed to start: watcher process exited or was not verified."
+        Write-ControlLog "start failed pid=$($process.Id) aliveAfterLaunch=false"
+        Update-BridgeStoppedStatus -Reason "start-failed"
+        exit 1
+    }
+
+    Set-Content -LiteralPath $PidPath -Value ([string]$process.Id)
+    Write-BridgeStatusFile -ProcessIdValue $process.Id -ResolvedConfigPath $resolvedConfigPath -ExecutionMode $executionMode
+    Write-ControlLog "start verified pid=$($process.Id) aliveAfterLaunch=true mode=$executionMode"
+    Write-Host "Lighthouse Clipboard Bridge started in $executionMode mode (PID $($process.Id))"
 }
 
 function Stop-Bridge {
@@ -135,16 +259,25 @@ function Stop-Bridge {
     $status = Get-BridgeStatus
     if (-not $status.IsRunning) {
         if ($status.PidFileExists) {
-            Remove-Item -LiteralPath $PidPath -Force
-            Write-ControlLog "removed stale pid file during stop"
+            Clear-StaleBridgeState -Reason "stale-during-stop"
         }
         Write-Host "Lighthouse Clipboard Bridge is not running"
+        Update-BridgeStoppedStatus -Reason "already-stopped"
         Write-ControlLog "stop skipped not-running"
         return
     }
 
     Stop-Process -Id $status.Pid -Force
+    Start-Sleep -Milliseconds 750
+    $stillRunning = Get-BridgeProcess -ProcessIdValue $status.Pid
+    if ($null -ne $stillRunning) {
+        Write-Host "Lighthouse Clipboard Bridge stop failed: watcher still running (PID $($status.Pid))"
+        Write-ControlLog "stop failed pid=$($status.Pid) stillRunning=true"
+        exit 1
+    }
+
     Remove-Item -LiteralPath $PidPath -Force -ErrorAction SilentlyContinue
+    Update-BridgeStoppedStatus -Reason "stopped-by-control"
 
     Write-Host "Lighthouse Clipboard Bridge stopped"
     Write-ControlLog "stopped pid=$($status.Pid)"
@@ -154,11 +287,17 @@ function Show-BridgeStatus {
     Initialize-ControlPaths
 
     $status = Get-BridgeStatus
+    $statusFile = Read-BridgeStatusFile
+    $statusConfigPath = if ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "configPath") { [string]$statusFile.configPath } else { "" }
+    $statusMode = if ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "executionMode") { [string]$statusFile.executionMode } else { "unknown" }
+
     if ($status.IsRunning) {
         Write-Host "Lighthouse Clipboard Bridge running"
         Write-Host "PID: $($status.Pid)"
         Write-Host "PID file exists: $($status.PidFileExists)"
-        Write-ControlLog "status running pid=$($status.Pid) pidFileExists=$($status.PidFileExists)"
+        Write-Host "Config path: $(if ($statusConfigPath) { $statusConfigPath } else { '(default)' })"
+        Write-Host "Execution mode: $statusMode"
+        Write-ControlLog "status running pid=$($status.Pid) mode=$statusMode pidFileExists=$($status.PidFileExists)"
         return
     }
 
@@ -166,11 +305,14 @@ function Show-BridgeStatus {
     if ($null -ne $status.Pid) {
         Write-Host "PID file exists: $($status.PidFileExists)"
         Write-Host "Stale PID: $($status.Pid)"
+        Clear-StaleBridgeState -Reason "stale-during-status"
     }
     else {
         Write-Host "PID file exists: $($status.PidFileExists)"
     }
-    Write-ControlLog "status not-running pidFileExists=$($status.PidFileExists)"
+    Write-Host "Config path: $(if ($statusConfigPath) { $statusConfigPath } else { '(unknown)' })"
+    Write-Host "Execution mode: $statusMode"
+    Write-ControlLog "status not-running mode=$statusMode pidFileExists=$($status.PidFileExists)"
 }
 
 switch ($Command) {

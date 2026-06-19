@@ -31,3 +31,4 @@ Downloads/
 .codex-bridge/
 ALICE_TO_CODEX_TASK.md
 CODEX_REPORT.md
+tools/clipboard-bridge/config.local.json

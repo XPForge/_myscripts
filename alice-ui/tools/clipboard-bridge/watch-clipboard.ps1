@@ -228,6 +228,39 @@ function Add-SeenHash {
     Add-Content -LiteralPath $Path -Value $Hash
 }
 
+function Add-SuppressedClipboardHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$SuppressedHashes,
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [string]$Reason,
+        [Parameter(Mandatory = $true)]
+        [string]$LogDirectory
+    )
+
+    $hash = Get-Sha256 -Text $Text
+    $SuppressedHashes[$hash] = $Reason
+    Write-BridgeLog -LogDirectory $LogDirectory -Message "clipboard content suppressed hash=$hash reason=$Reason"
+}
+
+function Set-BridgeClipboard {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$SuppressedHashes,
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [string]$Reason,
+        [Parameter(Mandatory = $true)]
+        [string]$LogDirectory
+    )
+
+    Set-Clipboard -Value $Text
+    Add-SuppressedClipboardHash -SuppressedHashes $SuppressedHashes -Text $Text -Reason $Reason -LogDirectory $LogDirectory
+}
+
 function Get-TimestampedPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -415,10 +448,22 @@ else {
 Write-Host "Repo: $repoPath"
 Write-Host "Press Ctrl+C to stop."
 
+$suppressedClipboardHashes = @{}
+$executionInProgress = $false
+
 do {
     $clipboardText = Get-ClipboardTextSafe
+    $clipboardHash = if ($null -ne $clipboardText) { Get-Sha256 -Text $clipboardText } else { $null }
 
-    if ($null -ne $clipboardText) {
+    if ($null -ne $clipboardHash -and $suppressedClipboardHashes.ContainsKey($clipboardHash)) {
+        Write-BridgeLog -LogDirectory $logsPath -Message "ignored suppressed clipboard content hash=$clipboardHash reason=$($suppressedClipboardHashes[$clipboardHash])"
+        $codexBlock = $null
+    }
+    elseif ($executionInProgress) {
+        Write-BridgeLog -LogDirectory $logsPath -Message "ignored clipboard content while codex execution in progress hash=$clipboardHash"
+        $codexBlock = $null
+    }
+    elseif ($null -ne $clipboardText) {
         $codexBlock = Get-CodexBlock -Text $clipboardText
     }
     else {
@@ -442,7 +487,7 @@ do {
             Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: task captured"
 
             if ($config.copyConfirmationToClipboard) {
-                Set-Clipboard -Value "Lighthouse Clipboard Bridge: task captured and written to ALICE_TO_CODEX_TASK.md"
+                Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text "Lighthouse Clipboard Bridge: task captured and written to ALICE_TO_CODEX_TASK.md" -Reason "capture-confirmation" -LogDirectory $logsPath
             }
 
             Write-Host "Task captured: $archivePath"
@@ -450,18 +495,32 @@ do {
             if ($config.executionEnabled) {
                 $reportPath = Get-TimestampedPath -Directory $reportsPath -Suffix "report.md"
                 Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex executing..."
-                $codexResult = Invoke-CodexCli -Config $config -RepoPath $repoPath -TaskText $codexBlock -ReportPath $reportPath -LogDirectory $logsPath
+                $executionInProgress = $true
+                try {
+                    $codexResult = Invoke-CodexCli -Config $config -RepoPath $repoPath -TaskText $codexBlock -ReportPath $reportPath -LogDirectory $logsPath
+                }
+                finally {
+                    $executionInProgress = $false
+                }
+
+                $postExecutionClipboardText = Get-ClipboardTextSafe
+                if ($null -ne $postExecutionClipboardText) {
+                    $postExecutionBlock = Get-CodexBlock -Text $postExecutionClipboardText
+                    if ($null -ne $postExecutionBlock -and (Get-Sha256 -Text $postExecutionBlock) -ne $hash) {
+                        Add-SuppressedClipboardHash -SuppressedHashes $suppressedClipboardHashes -Text $postExecutionClipboardText -Reason "task-copied-during-execution" -LogDirectory $logsPath
+                    }
+                }
 
                 if ($codexResult.Success) {
                     Write-Host "Codex report written: $reportPath"
                     if ($config.copyReportToClipboard) {
-                        Set-Clipboard -Value $codexResult.ReportText
+                        Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.ReportText -Reason "codex-report" -LogDirectory $logsPath
                     }
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex finished. Report copied to clipboard."
                 }
                 else {
                     Write-Host $codexResult.FailureMessage
-                    Set-Clipboard -Value $codexResult.FailureMessage
+                    Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.FailureMessage -Reason "codex-failure" -LogDirectory $logsPath
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex failed. See log."
                 }
             }
