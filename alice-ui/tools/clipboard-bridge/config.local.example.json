@@ -5,7 +5,7 @@
   "runtimeFolder": ".codex-bridge",
   "copyConfirmationToClipboard": true,
   "executionEnabled": true,
-  "codexExecutable": "codex",
+  "codexExePath": "C:\\Users\\paulz\\.vscode\\extensions\\openai.chatgpt-26.616.32156-win32-x64\\bin\\windows-x86_64\\codex.exe",
   "codexSandbox": "workspace-write",
   "codexAskForApproval": "never",
   "copyReportToClipboard": true,

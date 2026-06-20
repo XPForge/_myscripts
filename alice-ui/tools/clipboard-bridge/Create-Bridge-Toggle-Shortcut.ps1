@@ -8,8 +8,11 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $ControlPath = Join-Path $PSScriptRoot "bridge-control.ps1"
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
-$DesktopPaths = @($DesktopPath, (Join-Path $env:USERPROFILE "Desktop")) | Select-Object -Unique
+$StatusLightPath = Join-Path $PSScriptRoot "bridge-status-light.ps1"
+$DesktopPaths = @([Environment]::GetFolderPath("Desktop"), (Join-Path $env:USERPROFILE "Desktop")) |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+    Select-Object -Unique
+$DesktopPath = $DesktopPaths | Select-Object -First 1
 $PowerShellPath = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $RuntimePath = Join-Path $RepoRoot ".codex-bridge"
 $LogsPath = Join-Path $RuntimePath "logs"
@@ -44,6 +47,11 @@ function New-Shortcut {
         [string]$Description
     )
 
+    if ([string]::IsNullOrWhiteSpace($DesktopPath)) {
+        throw "Desktop path could not be resolved."
+    }
+
+    New-Item -ItemType Directory -Force -Path $DesktopPath | Out-Null
     $shortcutPath = Join-Path $DesktopPath "$Name.lnk"
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
@@ -82,7 +90,9 @@ function Remove-OldBridgeShortcuts {
 
     $oldNames = @(
         "Lighthouse Bridge Toggle",
-        "Lighthouse Bridge Execute Toggle"
+        "Lighthouse Bridge Execute Toggle",
+        "START Lighthouse Bridge - Capture Only",
+        "START Lighthouse Bridge - Execute Codex"
     )
 
     foreach ($desktop in $DesktopPaths) {
@@ -111,10 +121,10 @@ function Remove-OldBridgeShortcuts {
 
 function Remove-BridgeDuplicateShortcuts {
     $finalNames = @(
-        "START Lighthouse Bridge - Capture Only",
-        "START Lighthouse Bridge - Execute Codex",
+        "START Lighthouse Bridge",
         "STOP Lighthouse Bridge",
-        "STATUS Lighthouse Bridge"
+        "STATUS Lighthouse Bridge",
+        "Lighthouse Bridge Status"
     )
 
     foreach ($desktop in $DesktopPaths) {
@@ -140,16 +150,16 @@ Initialize-ShortcutPaths
 Remove-OldBridgeShortcuts
 Remove-BridgeDuplicateShortcuts
 
-$captureArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$ControlPath' start; Start-Sleep -Seconds 3`""
 $executeArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"if (-not (Test-Path -LiteralPath '$StableExecuteConfigPath')) { Write-Host 'Execution config missing. Create config.local.json from config.local.example.json first.'; Start-Sleep -Seconds 6; exit 1 }; & '$ControlPath' start -ConfigPath '$StableExecuteConfigPath'; Start-Sleep -Seconds 3`""
 $stopArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$ControlPath' stop; Start-Sleep -Seconds 3`""
 $statusArguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -Command `"& '$ControlPath' status`""
+$statusLightArguments = "-NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File `"$StatusLightPath`""
 
 $created = @()
-$created += New-Shortcut -Name "START Lighthouse Bridge - Capture Only" -Arguments $captureArguments -Description "Start the Lighthouse Clipboard Bridge in capture-only mode."
-$created += New-Shortcut -Name "START Lighthouse Bridge - Execute Codex" -Arguments $executeArguments -Description "Start the Lighthouse Clipboard Bridge in execution-enabled mode using config.local.json."
+$created += New-Shortcut -Name "START Lighthouse Bridge" -Arguments $executeArguments -Description "Start the Lighthouse Clipboard Bridge in execution-enabled mode using config.local.json."
 $created += New-Shortcut -Name "STOP Lighthouse Bridge" -Arguments $stopArguments -Description "Stop the Lighthouse Clipboard Bridge."
 $created += New-Shortcut -Name "STATUS Lighthouse Bridge" -Arguments $statusArguments -Description "Show Lighthouse Clipboard Bridge status."
+$created += New-Shortcut -Name "Lighthouse Bridge Status" -Arguments $statusLightArguments -Description "Open the persistent Lighthouse Bridge status light."
 
 Write-Host "Lighthouse Bridge shortcuts created or updated:"
 foreach ($path in $created) {

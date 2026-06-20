@@ -1,6 +1,7 @@
 param(
     [string]$ConfigPath = "",
-    [switch]$Once
+    [switch]$Once,
+    [switch]$CaptureOnly
 )
 
 Set-StrictMode -Version Latest
@@ -12,8 +13,8 @@ $DefaultConfig = [ordered]@{
     taskOutputFile = "ALICE_TO_CODEX_TASK.md"
     runtimeFolder = ".codex-bridge"
     copyConfirmationToClipboard = $true
-    executionEnabled = $false
-    codexExecutable = "codex"
+    executionEnabled = $true
+    codexExePath = ""
     codexSandbox = "workspace-write"
     codexAskForApproval = "never"
     copyReportToClipboard = $true
@@ -82,6 +83,79 @@ function Write-Utf8File {
     [System.IO.File]::WriteAllText($Path, $Content, $encoding)
 }
 
+function ConvertTo-SafeStatusTimestamp {
+    param($Value)
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return $null }
+    try { return ([datetimeoffset]::Parse([string]$Value)).ToUniversalTime().ToString("o") } catch { return $null }
+}
+
+function ConvertTo-SafeStatusErrorKind {
+    param($Value)
+
+    $label = [string]$Value
+    if ($label -match '^[a-z0-9-]{1,48}$') { return $label }
+    return $null
+}
+
+function Write-BridgeDisplayStatus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatusPath,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("stopped", "capture-only-idle", "execution-idle", "task-captured", "codex-running", "codex-finished", "codex-failed", "unknown")]
+        [string]$State,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("capture-only", "execution-enabled", "unknown")]
+        [string]$Mode,
+        [string]$EventTimeField = "",
+        [string]$ErrorKind = ""
+    )
+
+    $existing = $null
+    if (Test-Path -LiteralPath $StatusPath) {
+        try {
+            $existing = Get-Content -LiteralPath $StatusPath -Raw | ConvertFrom-Json
+        }
+        catch {
+            $existing = $null
+        }
+    }
+
+    $now = (Get-Date).ToUniversalTime().ToString("o")
+    $status = [ordered]@{
+        schemaVersion = 1
+        state = $State
+        mode = $Mode
+        updatedAt = $now
+        lastTaskAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastTaskAt") { ConvertTo-SafeStatusTimestamp $existing.lastTaskAt } else { $null }
+        lastReportAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastReportAt") { ConvertTo-SafeStatusTimestamp $existing.lastReportAt } else { $null }
+        lastErrorAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastErrorAt") { ConvertTo-SafeStatusTimestamp $existing.lastErrorAt } else { $null }
+        lastErrorKind = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastErrorKind") { ConvertTo-SafeStatusErrorKind $existing.lastErrorKind } else { $null }
+    }
+
+    if ($EventTimeField -in @("lastTaskAt", "lastReportAt", "lastErrorAt")) {
+        $status[$EventTimeField] = $now
+    }
+    if ($State -eq "codex-failed") {
+        $safeErrorKind = if ($ErrorKind -match '^[a-z0-9-]{1,48}$') { $ErrorKind } else { "execution-failed" }
+        $status.lastErrorKind = $safeErrorKind
+    }
+
+    $temporaryPath = "$StatusPath.tmp"
+    Write-Utf8File -Path $temporaryPath -Content ($status | ConvertTo-Json)
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Move-Item -LiteralPath $temporaryPath -Destination $StatusPath -Force
+            return
+        }
+        catch {
+            if ($attempt -eq 5) { throw }
+            Start-Sleep -Milliseconds 50
+        }
+    }
+}
+
 function Get-Sha256 {
     param([Parameter(Mandatory = $true)][string]$Text)
 
@@ -142,21 +216,6 @@ function Write-BridgeLog {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logPath = Join-Path $LogDirectory "$date.log"
     Add-Content -LiteralPath $logPath -Value "[$timestamp] $Message"
-}
-
-function Get-LogExcerpt {
-    param(
-        [AllowEmptyString()]
-        [string]$Text,
-        [int]$MaxLength = 4000
-    )
-
-    $trimmed = $Text.Trim()
-    if ($trimmed.Length -le $MaxLength) {
-        return $trimmed
-    }
-
-    return $trimmed.Substring(0, $MaxLength) + "... [truncated]"
 }
 
 function Show-BridgeNotification {
@@ -289,6 +348,26 @@ function Quote-ProcessArgument {
     return '"' + ($Value -replace '"', '\"') + '"'
 }
 
+function Resolve-CodexExecutable {
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Config)
+
+    $configuredPath = [string]$Config.codexExePath
+    if (-not [string]::IsNullOrWhiteSpace($configuredPath)) {
+        if ([System.IO.Path]::IsPathRooted($configuredPath) -and (Test-Path -LiteralPath $configuredPath -PathType Leaf)) {
+            return [System.IO.Path]::GetFullPath($configuredPath)
+        }
+
+        throw "Codex executable not found. Set codexExePath in config.local.json."
+    }
+
+    $codexCommand = Get-Command codex -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $codexCommand -and $codexCommand.Path -and (Test-Path -LiteralPath $codexCommand.Path -PathType Leaf)) {
+        return [System.IO.Path]::GetFullPath([string]$codexCommand.Path)
+    }
+
+    throw "Codex executable not found. Set codexExePath in config.local.json."
+}
+
 function Invoke-CodexCli {
     param(
         [Parameter(Mandatory = $true)]
@@ -303,6 +382,20 @@ function Invoke-CodexCli {
         [string]$LogDirectory
     )
 
+    try {
+        $codexExePath = Resolve-CodexExecutable -Config $Config
+    }
+    catch {
+        $failureMessage = $_.Exception.Message
+        Write-BridgeLog -LogDirectory $LogDirectory -Message "codex executable resolution failed error=$failureMessage"
+        return [pscustomobject]@{
+            Success = $false
+            ExitCode = $null
+            ReportText = $null
+            FailureMessage = $failureMessage
+        }
+    }
+
     $arguments = @(
         "--ask-for-approval", ([string]$Config.codexAskForApproval),
         "exec",
@@ -315,10 +408,10 @@ function Invoke-CodexCli {
     $quotedArguments = ($arguments | ForEach-Object { Quote-ProcessArgument -Value ([string]$_) }) -join " "
     $timeoutMs = [int]$Config.reportTimeoutSeconds * 1000
 
-    Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation start executable=$($Config.codexExecutable) report=$ReportPath"
+    Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation start executable=$codexExePath report=$ReportPath"
 
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $processInfo.FileName = [string]$Config.codexExecutable
+    $processInfo.FileName = $codexExePath
     $processInfo.Arguments = $quotedArguments
     $processInfo.WorkingDirectory = $RepoPath
     $processInfo.UseShellExecute = $false
@@ -342,9 +435,10 @@ function Invoke-CodexCli {
         if (-not $completed) {
             $process.Kill()
             $process.WaitForExit()
+            [void]$stdoutTask.Result
+            [void]$stderrTask.Result
             $failureMessage = "Lighthouse Clipboard Bridge: Codex invocation timed out after $($Config.reportTimeoutSeconds) seconds."
-            $stderrText = Get-LogExcerpt -Text $stderrTask.Result
-            Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation timeout exitCode=timeout report=$ReportPath stderr=$stderrText"
+            Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation timeout exitCode=timeout report=$ReportPath"
             return [pscustomobject]@{
                 Success = $false
                 ExitCode = $null
@@ -355,8 +449,8 @@ function Invoke-CodexCli {
 
         $process.WaitForExit()
         $exitCode = $process.ExitCode
-        $stdoutText = Get-LogExcerpt -Text $stdoutTask.Result
-        $stderrText = Get-LogExcerpt -Text $stderrTask.Result
+        [void]$stdoutTask.Result
+        [void]$stderrTask.Result
         Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation end exitCode=$exitCode report=$ReportPath"
 
         if ($exitCode -eq 0 -and (Test-Path -LiteralPath $ReportPath)) {
@@ -376,11 +470,7 @@ function Invoke-CodexCli {
         $failureMessage = "$failureMessage. See .codex-bridge/logs/ for details."
 
         if (-not (Test-Path -LiteralPath $ReportPath)) {
-            Write-BridgeLog -LogDirectory $LogDirectory -Message "codex report missing report=$ReportPath stdout=$stdoutText"
-        }
-
-        if ($stderrText) {
-            Write-BridgeLog -LogDirectory $LogDirectory -Message "codex failure stderr=$stderrText"
+            Write-BridgeLog -LogDirectory $LogDirectory -Message "codex report missing report=$ReportPath"
         }
 
         return [pscustomobject]@{
@@ -392,7 +482,7 @@ function Invoke-CodexCli {
     }
     catch {
         $failureMessage = "Lighthouse Clipboard Bridge: Codex invocation failed before completion. See .codex-bridge/logs/ for details."
-        Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation exception report=$ReportPath error=$($_.Exception.Message)"
+        Write-BridgeLog -LogDirectory $LogDirectory -Message "codex invocation exception report=$ReportPath kind=process-exception"
         return [pscustomobject]@{
             Success = $false
             ExitCode = $null
@@ -420,6 +510,9 @@ function Get-ClipboardTextSafe {
 }
 
 $config = Get-BridgeConfig -Path $ConfigPath
+if ($CaptureOnly) {
+    $config.executionEnabled = $false
+}
 $baseForRepo = (Get-Location).Path
 $repoPath = Resolve-BridgePath -BasePath $baseForRepo -PathValue ([string]$config.repoPath)
 
@@ -433,8 +526,10 @@ $tasksPath = Join-Path $runtimePath "tasks"
 $logsPath = Join-Path $runtimePath "logs"
 $reportsPath = Join-Path $runtimePath "reports"
 $seenHashesPath = Join-Path $runtimePath "seen-hashes.txt"
+$displayStatusPath = Join-Path $repoPath ".codex-bridge\status.json"
 
 New-Item -ItemType Directory -Force -Path $tasksPath, $logsPath, $reportsPath | Out-Null
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $displayStatusPath) | Out-Null
 if (-not (Test-Path -LiteralPath $seenHashesPath)) {
     Write-Utf8File -Path $seenHashesPath -Content ""
 }
@@ -450,7 +545,11 @@ Write-Host "Press Ctrl+C to stop."
 
 $suppressedClipboardHashes = @{}
 $executionInProgress = $false
+$bridgeMode = if ($config.executionEnabled) { "execution-enabled" } else { "capture-only" }
+$idleState = if ($config.executionEnabled) { "execution-idle" } else { "capture-only-idle" }
+Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State $idleState -Mode $bridgeMode
 
+try {
 do {
     $clipboardText = Get-ClipboardTextSafe
     $clipboardHash = if ($null -ne $clipboardText) { Get-Sha256 -Text $clipboardText } else { $null }
@@ -484,6 +583,7 @@ do {
             Write-Utf8File -Path $archivePath -Content $codexBlock
             Add-SeenHash -Path $seenHashesPath -Hash $hash
             Write-BridgeLog -LogDirectory $logsPath -Message "task captured hash=$hash output=$taskOutputPath archive=$archivePath"
+            Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "task-captured" -Mode $bridgeMode -EventTimeField "lastTaskAt"
             Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: task captured"
 
             if ($config.copyConfirmationToClipboard) {
@@ -496,6 +596,7 @@ do {
                 $reportPath = Get-TimestampedPath -Directory $reportsPath -Suffix "report.md"
                 Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex executing..."
                 $executionInProgress = $true
+                Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-running" -Mode $bridgeMode
                 try {
                     $codexResult = Invoke-CodexCli -Config $config -RepoPath $repoPath -TaskText $codexBlock -ReportPath $reportPath -LogDirectory $logsPath
                 }
@@ -512,6 +613,7 @@ do {
                 }
 
                 if ($codexResult.Success) {
+                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-finished" -Mode $bridgeMode -EventTimeField "lastReportAt"
                     Write-Host "Codex report written: $reportPath"
                     if ($config.copyReportToClipboard) {
                         Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.ReportText -Reason "codex-report" -LogDirectory $logsPath
@@ -519,6 +621,7 @@ do {
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex finished. Report copied to clipboard."
                 }
                 else {
+                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-failed" -Mode $bridgeMode -EventTimeField "lastErrorAt" -ErrorKind "codex-execution-failed"
                     Write-Host $codexResult.FailureMessage
                     Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.FailureMessage -Reason "codex-failure" -LogDirectory $logsPath
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex failed. See log."
@@ -531,3 +634,7 @@ do {
         Start-Sleep -Milliseconds ([int]$config.pollIntervalMs)
     }
 } while (-not $Once)
+}
+finally {
+    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "stopped" -Mode $bridgeMode
+}

@@ -1,6 +1,6 @@
 # Lighthouse Clipboard Bridge
 
-The Lighthouse Clipboard Bridge is a local, capture-only handoff tool for Alice-to-Codex tasks.
+The Lighthouse Clipboard Bridge is a local handoff tool that watches for copied Alice-to-Codex tasks and runs Codex CLI for them.
 
 Copy is consent: the watcher only reacts when the current clipboard text contains an explicit task block that begins with a line starting with `@codex` and has a later line containing `@endcodex`.
 
@@ -14,10 +14,11 @@ Copy is consent: the watcher only reacts when the current clipboard text contain
 * logs accepted captures and duplicate skips under `.codex-bridge/logs/`;
 * hashes extracted blocks so the same task does not repeatedly trigger;
 * optionally copies a simple confirmation message to the clipboard after capture;
-* optionally invokes Codex CLI when execution mode is enabled in local config;
+* invokes Codex CLI for accepted tasks in the normal workflow;
 * writes Codex final reports under `.codex-bridge/reports/`;
 * optionally copies Codex's final report back to the clipboard;
 * shows brief local status notifications when tasks are captured and execution changes state;
+* writes safe display metadata to `.codex-bridge/status.json` for a persistent local status light;
 * ignores clipboard content written by the bridge itself, including confirmations, failure messages, and copied Codex reports.
 
 ## What It Does Not Do
@@ -27,14 +28,15 @@ Copy is consent: the watcher only reacts when the current clipboard text contain
 * no browser DOM scraping;
 * no logging of rejected clipboard content;
 * no re-triggering from bridge-written clipboard output;
-* no Codex CLI invocation unless execution mode is explicitly enabled;
+* no Codex app connection;
+* no OpenAI/model API calls from the status light;
 * no GitHub issue creation;
 * no auto-commit, auto-push, auto-merge, or auto-tag;
 * no delete, discard, stash, deploy, or secret handling;
 * no protected canon modification;
 * no task body or clipboard contents in notifications.
 
-Execution mode is off by default.
+Execution-enabled mode is the normal default.
 
 ## Task Format
 
@@ -112,7 +114,6 @@ Check whether it is running:
 
 Status shows whether the bridge is running, the PID, the config path if known, and the active execution mode:
 
-* `capture-only`
 * `execution-enabled`
 * `unknown`
 
@@ -136,13 +137,20 @@ Start with a local config file:
 
 The watcher runs in the background after `start`. `stop` turns it off. `status` checks whether the PID file points to a live watcher process and shows the PID when available. Stale PID/status files are cleaned up instead of being reported as a running bridge.
 
-No Codex execution occurs unless `executionEnabled` is set to `true` in the config used to start the bridge. The start and toggle commands print the mode they started, for example `Lighthouse Clipboard Bridge started in capture-only mode`.
+Normal starts require execution-enabled mode. If a config file sets `executionEnabled` to `false`, `bridge-control.ps1 start` refuses to start unless the explicit developer-only `-CaptureOnly` flag is supplied.
 
-## Bridge Modes
+## Bridge Workflow
 
-Capture-only mode is the default. In this mode, the bridge watches for copied `@codex ... @endcodex` blocks, writes `ALICE_TO_CODEX_TASK.md`, archives the task, logs the capture, and copies a confirmation message. It does not invoke Codex.
+For normal use:
 
-Execution-enabled mode is opt-in. In this mode, the bridge does the same capture work, then invokes Codex CLI for the copied task and saves the final report under `.codex-bridge/reports/`.
+1. Open `Lighthouse Bridge Status`.
+2. Click `Power On`.
+3. Copy a complete `@codex ... @endcodex` task.
+4. The bridge captures the task and runs Codex CLI.
+5. Watch the status light while it runs.
+6. Click `Power Off` when done.
+
+Execution-enabled mode captures the copied task block, writes `ALICE_TO_CODEX_TASK.md`, archives the task, invokes Codex CLI, and saves the final report under `.codex-bridge/reports/`.
 
 To create a local execution-enabled config without changing the committed default config:
 
@@ -150,7 +158,7 @@ To create a local execution-enabled config without changing the committed defaul
 Copy-Item .\tools\clipboard-bridge\config.local.example.json .\tools\clipboard-bridge\config.local.json
 ```
 
-`tools/clipboard-bridge/config.local.json` is ignored by git. Check the active mode at any time:
+`tools/clipboard-bridge/config.local.json` is ignored by git. Keep `executionEnabled` set to `true` for normal use. Check the active mode at any time:
 
 ```powershell
 .\tools\clipboard-bridge\bridge-control.ps1 status
@@ -168,14 +176,12 @@ Create or update the desktop shortcuts:
 
 This creates:
 
-* `START Lighthouse Bridge - Capture Only`
-* `START Lighthouse Bridge - Execute Codex`
+* `START Lighthouse Bridge`
 * `STOP Lighthouse Bridge`
 * `STATUS Lighthouse Bridge`
+* `Lighthouse Bridge Status`
 
-Use `START Lighthouse Bridge - Capture Only` when you only want task capture. This starts the bridge in capture-only mode and does not invoke Codex.
-
-Use `START Lighthouse Bridge - Execute Codex` when you want copied tasks to run through Codex. This shortcut uses the stable local config file `tools/clipboard-bridge/config.local.json`.
+Use `START Lighthouse Bridge` when you want copied tasks to run through Codex. This shortcut uses the stable local config file `tools/clipboard-bridge/config.local.json`.
 
 If `config.local.json` does not exist, create it first:
 
@@ -191,14 +197,30 @@ Use `STATUS Lighthouse Bridge` or the command line to check whether the bridge i
 .\tools\clipboard-bridge\bridge-control.ps1 status
 ```
 
+Use `Lighthouse Bridge Status` to open the small always-on-top visual status window. It is read-only: it does not start or stop the bridge and never invokes Codex, OpenAI, GitHub, or another API. You can also launch it directly:
+
+```powershell
+.\tools\clipboard-bridge\bridge-status-light.ps1
+```
+
+The window refreshes `.codex-bridge/status.json` every second and shows the current state, mode, last task time, last report time, and the last sanitized error kind and time. Close the window normally when it is no longer needed.
+
+Status light colors:
+
+* gray: bridge stopped, status missing, or unknown state;
+* green: bridge on and ready, or the last Codex run finished successfully;
+* yellow: task captured, Codex running, or report pending;
+* red: Codex failed or the status file is malformed.
+
+The status file contains metadata only: schema version, state, mode, update time, last task time, last report time, last error time, and a short sanitized error kind. It never contains task bodies, report bodies, clipboard contents, prompts, secrets, provider responses, or stack traces.
+
 The shortcut creator also removes old vague bridge shortcuts such as `Lighthouse Bridge Toggle` and `Lighthouse Bridge Execute Toggle`, but only when their target/arguments prove they were created by this bridge tool. It leaves unrelated desktop shortcuts alone.
 
 Shortcut behavior:
 
-* capture-only shortcut starts capture-only mode;
-* execute shortcut starts execution-enabled mode using `config.local.json`;
+* start shortcut starts execution-enabled mode using `config.local.json`;
 * stop shortcut stops the bridge and handles already-stopped state gracefully;
-* status shortcut shows running/not running plus capture-only, execution-enabled, or unknown mode;
+* status shortcut shows running/not running plus execution-enabled or unknown mode;
 * shortcut logs are written under `.codex-bridge/logs/`;
 * shortcut/control logs do not include clipboard text, task bodies, or secrets.
 
@@ -207,6 +229,8 @@ The older `toggle-bridge.ps1` script is still available for direct advanced use:
 ```powershell
 .\tools\clipboard-bridge\toggle-bridge.ps1
 ```
+
+Developer-only capture testing remains available by passing `-CaptureOnly` directly to `bridge-control.ps1`, `toggle-bridge.ps1`, or `watch-clipboard.ps1`. It is intentionally not created by the shortcut installer and is not part of the normal user workflow.
 
 To remove shortcuts manually, delete the relevant `.lnk` files from the Windows Desktop.
 
@@ -236,12 +260,13 @@ If the watcher was started with `bridge-control.ps1`, stop it with:
 * Duplicate hash state: `.codex-bridge/seen-hashes.txt`
 * Background watcher PID: `.codex-bridge/bridge.pid`
 * Background watcher status: `.codex-bridge/bridge-status.json`
+* Persistent visual status metadata: `.codex-bridge/status.json`
 
 ## Configuration
 
 Copy `config.example.json` if you want a local config file, then pass it with `-ConfigPath`.
 
-The default config keeps execution disabled:
+The default example config keeps execution enabled:
 
 ```json
 {
@@ -250,8 +275,8 @@ The default config keeps execution disabled:
   "taskOutputFile": "ALICE_TO_CODEX_TASK.md",
   "runtimeFolder": ".codex-bridge",
   "copyConfirmationToClipboard": true,
-  "executionEnabled": false,
-  "codexExecutable": "codex",
+  "executionEnabled": true,
+  "codexExePath": "",
   "codexSandbox": "workspace-write",
   "codexAskForApproval": "never",
   "copyReportToClipboard": true,
@@ -285,17 +310,26 @@ To disable GUI notifications, set `showNotifications` to `false` in your local c
 
 Console status output is still shown so the watcher remains observable from the terminal.
 
-## Phase 2 Codex CLI Invocation
+## Codex CLI Invocation
 
-Phase 2 adds optional Codex CLI invocation. It is off by default.
+### Codex executable troubleshooting
 
-To enable it, create a local config file outside source control or under an ignored runtime location, set `executionEnabled` to `true`, and run the watcher with `-ConfigPath`.
+A bridge launched from a desktop shortcut or background PowerShell process may not find `codex` from `PATH`. Set `codexExePath` in `config.local.json` to the full absolute path to `codex.exe`:
+
+```json
+{
+  "codexExePath": "C:\\Users\\paulz\\.vscode\\extensions\\openai.chatgpt-26.616.32156-win32-x64\\bin\\windows-x86_64\\codex.exe"
+}
+```
+
+If `codexExePath` is omitted or empty, the watcher attempts `Get-Command codex` as a fallback. A configured path is recommended for desktop/background execution.
+
+To use a local config file outside source control or under an ignored runtime location, keep `executionEnabled` set to `true` and run the watcher with `-ConfigPath`.
 
 Example:
 
 ```powershell
 Copy-Item .\tools\clipboard-bridge\config.example.json .\.codex-bridge\config.local.json
-# Edit .\.codex-bridge\config.local.json and set "executionEnabled": true
 powershell -ExecutionPolicy Bypass -File .\tools\clipboard-bridge\watch-clipboard.ps1 -ConfigPath .\.codex-bridge\config.local.json
 ```
 

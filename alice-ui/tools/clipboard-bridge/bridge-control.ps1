@@ -3,7 +3,9 @@ param(
     [ValidateSet("start", "stop", "restart", "status")]
     [string]$Command,
 
-    [string]$ConfigPath = ""
+    [string]$ConfigPath = "",
+
+    [switch]$CaptureOnly
 )
 
 Set-StrictMode -Version Latest
@@ -14,7 +16,9 @@ $RuntimePath = Join-Path $RepoRoot ".codex-bridge"
 $LogsPath = Join-Path $RuntimePath "logs"
 $PidPath = Join-Path $RuntimePath "bridge.pid"
 $StatusPath = Join-Path $RuntimePath "bridge-status.json"
+$DisplayStatusPath = Join-Path $RuntimePath "status.json"
 $WatcherPath = Join-Path $PSScriptRoot "watch-clipboard.ps1"
+$DefaultExecutionConfigPath = Join-Path $PSScriptRoot "config.local.json"
 $LaunchVerifyDelayMs = 1500
 
 function Initialize-ControlPaths {
@@ -29,6 +33,65 @@ function Write-ControlLog {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logPath = Join-Path $LogsPath "$date-control.log"
     Add-Content -LiteralPath $logPath -Value "[$timestamp] $Message"
+}
+
+function ConvertTo-SafeDisplayTimestamp {
+    param($Value)
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return $null }
+    try { return ([datetimeoffset]::Parse([string]$Value)).ToUniversalTime().ToString("o") } catch { return $null }
+}
+
+function ConvertTo-SafeDisplayErrorKind {
+    param($Value)
+
+    $label = [string]$Value
+    if ($label -match '^[a-z0-9-]{1,48}$') { return $label }
+    return $null
+}
+
+function Write-DisplayStoppedStatus {
+    param([string]$Reason)
+
+    $existing = $null
+    if (Test-Path -LiteralPath $DisplayStatusPath) {
+        try { $existing = Get-Content -LiteralPath $DisplayStatusPath -Raw | ConvertFrom-Json } catch { $existing = $null }
+    }
+
+    $controlStatus = Read-BridgeStatusFile
+    $displayMode = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "mode" -and $existing.mode -in @("capture-only", "execution-enabled", "unknown")) {
+        [string]$existing.mode
+    }
+    elseif ($null -ne $controlStatus -and $controlStatus.PSObject.Properties.Name -contains "executionMode" -and $controlStatus.executionMode -in @("capture-only", "execution-enabled", "unknown")) {
+        [string]$controlStatus.executionMode
+    }
+    else {
+        "unknown"
+    }
+
+    $status = [ordered]@{
+        schemaVersion = 1
+        state = "stopped"
+        mode = $displayMode
+        updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+        lastTaskAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastTaskAt") { ConvertTo-SafeDisplayTimestamp $existing.lastTaskAt } else { $null }
+        lastReportAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastReportAt") { ConvertTo-SafeDisplayTimestamp $existing.lastReportAt } else { $null }
+        lastErrorAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastErrorAt") { ConvertTo-SafeDisplayTimestamp $existing.lastErrorAt } else { $null }
+        lastErrorKind = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastErrorKind") { ConvertTo-SafeDisplayErrorKind $existing.lastErrorKind } else { $null }
+    }
+    $temporaryPath = "$DisplayStatusPath.tmp"
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($temporaryPath, ($status | ConvertTo-Json), $encoding)
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Move-Item -LiteralPath $temporaryPath -Destination $DisplayStatusPath -Force
+            return
+        }
+        catch {
+            if ($attempt -eq 5) { throw }
+            Start-Sleep -Milliseconds 50
+        }
+    }
 }
 
 function Read-BridgePid {
@@ -49,6 +112,10 @@ function Get-BridgeProcess {
 
     $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessIdValue" -ErrorAction SilentlyContinue
     if ($null -eq $process) {
+        $fallbackProcess = Get-Process -Id $ProcessIdValue -ErrorAction SilentlyContinue
+        if ($null -ne $fallbackProcess -and $fallbackProcess.ProcessName -in @("powershell", "pwsh")) {
+            return $fallbackProcess
+        }
         return $null
     }
 
@@ -108,11 +175,26 @@ function Resolve-ConfigPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
 }
 
+function Resolve-StartConfigPath {
+    if ($CaptureOnly) {
+        return Resolve-ConfigPath -Path $ConfigPath
+    }
+
+    if ($ConfigPath) {
+        return Resolve-ConfigPath -Path $ConfigPath
+    }
+
+    return [System.IO.Path]::GetFullPath($DefaultExecutionConfigPath)
+}
+
 function Get-ExecutionMode {
     param([string]$ResolvedConfigPath)
 
     if (-not $ResolvedConfigPath) {
-        return "capture-only"
+        if ($CaptureOnly) {
+            return "capture-only"
+        }
+        return "execution-enabled"
     }
 
     if (-not (Test-Path -LiteralPath $ResolvedConfigPath)) {
@@ -127,7 +209,10 @@ function Get-ExecutionMode {
             }
             return "capture-only"
         }
-        return "capture-only"
+        if ($CaptureOnly) {
+            return "capture-only"
+        }
+        return "execution-enabled"
     }
     catch {
         return "unknown"
@@ -185,6 +270,7 @@ function Update-BridgeStoppedStatus {
     }
 
     $status | ConvertTo-Json | Set-Content -LiteralPath $StatusPath
+    Write-DisplayStoppedStatus -Reason $Reason
 }
 
 function Quote-Argument {
@@ -216,10 +302,11 @@ function Start-Bridge {
     $arguments = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
+        "-STA",
         "-File", $WatcherPath
     )
 
-    $resolvedConfigPath = Resolve-ConfigPath -Path $ConfigPath
+    $resolvedConfigPath = Resolve-StartConfigPath
     $executionMode = Get-ExecutionMode -ResolvedConfigPath $resolvedConfigPath
 
     if ($resolvedConfigPath) {
@@ -233,9 +320,25 @@ function Start-Bridge {
         $arguments += @("-ConfigPath", $resolvedConfigPath)
     }
 
+    if ($CaptureOnly) {
+        $arguments += "-CaptureOnly"
+    }
+    elseif ($executionMode -ne "execution-enabled") {
+        Write-Host "Lighthouse Clipboard Bridge failed to start: normal starts require execution-enabled mode."
+        Write-Host "Set executionEnabled to true in config.local.json, or use -CaptureOnly only for explicit developer testing."
+        Write-ControlLog "start failed capture-only-config-without-dev-flag mode=$executionMode"
+        exit 1
+    }
+
     $argumentLine = ($arguments | ForEach-Object { Quote-Argument -Value ([string]$_) }) -join " "
     Write-ControlLog "start attempted mode=$executionMode configProvided=$([bool]$resolvedConfigPath)"
-    $process = Start-Process -FilePath "powershell.exe" -ArgumentList $argumentLine -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = "powershell.exe"
+    $processInfo.Arguments = $argumentLine
+    $processInfo.WorkingDirectory = $RepoRoot
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($processInfo)
     Write-ControlLog "start launched pid=$($process.Id)"
 
     Start-Sleep -Milliseconds $LaunchVerifyDelayMs

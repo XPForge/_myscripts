@@ -1,6 +1,7 @@
 param(
     [string]$ConfigPath = "",
-    [switch]$NoPopup
+    [switch]$NoPopup,
+    [switch]$CaptureOnly
 )
 
 Set-StrictMode -Version Latest
@@ -12,6 +13,7 @@ $LogsPath = Join-Path $RuntimePath "logs"
 $PidPath = Join-Path $RuntimePath "bridge.pid"
 $WatcherPath = Join-Path $PSScriptRoot "watch-clipboard.ps1"
 $ControlPath = Join-Path $PSScriptRoot "bridge-control.ps1"
+$DefaultExecutionConfigPath = Join-Path $PSScriptRoot "config.local.json"
 
 function Initialize-TogglePaths {
     New-Item -ItemType Directory -Force -Path $RuntimePath, $LogsPath | Out-Null
@@ -72,11 +74,26 @@ function Resolve-ConfigPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
 }
 
+function Resolve-StartConfigPath {
+    if ($CaptureOnly) {
+        return Resolve-ConfigPath -Path $ConfigPath
+    }
+
+    if ($ConfigPath) {
+        return Resolve-ConfigPath -Path $ConfigPath
+    }
+
+    return [System.IO.Path]::GetFullPath($DefaultExecutionConfigPath)
+}
+
 function Get-ExecutionMode {
     param([string]$ResolvedConfigPath)
 
     if (-not $ResolvedConfigPath) {
-        return "capture-only"
+        if ($CaptureOnly) {
+            return "capture-only"
+        }
+        return "execution-enabled"
     }
 
     if (-not (Test-Path -LiteralPath $ResolvedConfigPath)) {
@@ -91,7 +108,10 @@ function Get-ExecutionMode {
             }
             return "capture-only"
         }
-        return "capture-only"
+        if ($CaptureOnly) {
+            return "capture-only"
+        }
+        return "execution-enabled"
     }
     catch {
         return "unknown"
@@ -106,11 +126,20 @@ function Test-BridgeRunning {
 
     $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
     if ($null -eq $process) {
+        $fallbackProcess = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
+        if ($null -ne $fallbackProcess -and $fallbackProcess.ProcessName -in @("powershell", "pwsh")) {
+            return $true
+        }
         return $false
     }
 
     $commandLine = if ($process.CommandLine) { $process.CommandLine.ToLowerInvariant() } else { "" }
-    return $commandLine.Contains($WatcherPath.ToLowerInvariant())
+    if ($commandLine.Contains($WatcherPath.ToLowerInvariant())) {
+        return $true
+    }
+
+    $fallbackProcess = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
+    return ($null -ne $fallbackProcess -and $fallbackProcess.ProcessName -in @("powershell", "pwsh"))
 }
 
 function Invoke-Control {
@@ -123,8 +152,13 @@ function Invoke-Control {
         $ControlCommand
     )
 
-    if ($ConfigPath -and $ControlCommand -eq "start") {
-        $arguments += @("-ConfigPath", $ConfigPath)
+    if ($ControlCommand -eq "start") {
+        if ($CaptureOnly) {
+            $arguments += "-CaptureOnly"
+        }
+        if ($ConfigPath) {
+            $arguments += @("-ConfigPath", $ConfigPath)
+        }
     }
 
     $output = & powershell.exe @arguments 2>&1
@@ -153,7 +187,7 @@ if (Test-BridgeRunning) {
     }
 }
 else {
-    $resolvedConfigPath = Resolve-ConfigPath -Path $ConfigPath
+    $resolvedConfigPath = Resolve-StartConfigPath
     $executionMode = Get-ExecutionMode -ResolvedConfigPath $resolvedConfigPath
     $result = Invoke-Control -ControlCommand "start"
     if ($result.Output) {
