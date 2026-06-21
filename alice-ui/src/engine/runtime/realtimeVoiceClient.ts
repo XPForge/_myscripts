@@ -1,10 +1,12 @@
 export type RealtimeSessionConfig = {
   sessionId: string;
+  provider?: string;
   model: string;
   token: string;
   status: "initializing" | "active" | "complete";
   endpoint?: string;
   outputModality: RealtimeOutputModality;
+  discoveryModeId?: string;
   createdAt: string;
 };
 
@@ -503,7 +505,7 @@ export async function startRealtimeVoiceSession(
     }
 
     const event = createStartupResponseEvent(outputModality);
-    diagnostic(`Startup response.create payload: ${JSON.stringify(event)}`);
+    diagnostic("Startup response.create payload prepared.");
     const sent = sendRealtimeEvent(dataChannel, event, diagnostic);
     startupResponseSent = sent;
     trace(
@@ -619,7 +621,7 @@ export async function startRealtimeVoiceSession(
       scheduleStartupRetry("session.updated");
     }
     if (eventType === "error" || eventType === "invalid_request_error") {
-      diagnostic(`Realtime error event: ${JSON.stringify(parsed)}`);
+      diagnostic(`Realtime error event received: ${eventType}.`);
       const message =
         typeof parsed.message === "string"
           ? parsed.message
@@ -636,10 +638,10 @@ export async function startRealtimeVoiceSession(
 
     if (extracted.type === "transcript") {
       handlers.onTranscript?.(extracted.text, Boolean(extracted.isFinal));
-      diagnostic(`Transcript event: ${extracted.text} (final=${Boolean(extracted.isFinal)})`);
+      diagnostic(`Transcript event received. final=${Boolean(extracted.isFinal)}.`);
     } else if (extracted.type === "assistant") {
       handlers.onAssistantText?.(extracted.text);
-      diagnostic(`Assistant event: ${extracted.text}`);
+      diagnostic("Assistant text event received.");
     }
   };
 
@@ -682,10 +684,9 @@ export async function startRealtimeVoiceSession(
   }
 
   if (!response.ok) {
-    const responseText = await response.text();
     diagnostic(`Realtime offer request failed with status ${response.status}.`);
-    trace("rtc.sdp.answer.received", false, `${response.status} ${response.statusText} ${responseText}`);
-    throw new Error(`Realtime endpoint request failed: ${response.status} ${response.statusText} ${responseText}`);
+    trace("rtc.sdp.answer.received", false, `${response.status} ${response.statusText}`);
+    throw new Error(`Realtime endpoint request failed: ${response.status} ${response.statusText}`);
   }
 
   const answerSdp = await response.text();

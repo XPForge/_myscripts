@@ -3,6 +3,8 @@ import type { RealtimeOutputModality, RealtimeSessionConfig } from "../engine/ru
 
 const OPENAI_REALTIME_TOKEN_ENDPOINT =
   import.meta.env.VITE_OPENAI_REALTIME_TOKEN_ENDPOINT || "";
+const REALTIME_TOKEN_ENDPOINT =
+  import.meta.env.VITE_REALTIME_TOKEN_ENDPOINT || OPENAI_REALTIME_TOKEN_ENDPOINT;
 const OPENAI_REALTIME_MODEL =
   import.meta.env.VITE_OPENAI_REALTIME_MODEL || "gpt-realtime";
 const USE_MOCK_REALTIME_DISCOVERY =
@@ -26,7 +28,7 @@ export type RealtimeVoiceId = typeof REALTIME_VOICE_OPTIONS[number]["id"];
 export type RealtimeDiscoverySession = RealtimeSessionConfig;
 
 export function isRealtimeDiscoveryConfigured(): boolean {
-  return USE_MOCK_REALTIME_DISCOVERY || Boolean(OPENAI_REALTIME_TOKEN_ENDPOINT);
+  return USE_MOCK_REALTIME_DISCOVERY || Boolean(REALTIME_TOKEN_ENDPOINT);
 }
 
 export function buildRealtimeSessionPayload(
@@ -65,6 +67,7 @@ export async function requestRealtimeDiscoverySession(
       sessionId: `mock-realtime-${profile.id}`,
       token: "mock-realtime-token",
       model: "mock-realtime",
+      provider: "mock",
       status: "active",
       endpoint: "mock://realtime-discovery",
       outputModality,
@@ -72,13 +75,13 @@ export async function requestRealtimeDiscoverySession(
     };
   }
 
-  if (!OPENAI_REALTIME_TOKEN_ENDPOINT) {
+  if (!REALTIME_TOKEN_ENDPOINT) {
     throw new Error(
-      "Realtime discovery endpoint is not configured. Set VITE_OPENAI_REALTIME_TOKEN_ENDPOINT."
+      "Realtime discovery endpoint is not configured. Set VITE_REALTIME_TOKEN_ENDPOINT."
     );
   }
 
-  const response = await fetch(OPENAI_REALTIME_TOKEN_ENDPOINT, {
+  const response = await fetch(REALTIME_TOKEN_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -87,28 +90,45 @@ export async function requestRealtimeDiscoverySession(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
+    let errorMessage = response.statusText;
+    try {
+      const errorPayload = await response.json();
+      if (
+        typeof errorPayload === "object" &&
+        errorPayload !== null &&
+        "error" in errorPayload &&
+        typeof errorPayload.error === "string"
+      ) {
+        errorMessage = errorPayload.error;
+      }
+    } catch {
+      // Keep provider response bodies out of UI errors and diagnostics.
+    }
     throw new Error(
-      `Unable to request realtime session: ${response.status} ${response.statusText} ${errorText}`
+      `Unable to request realtime session: ${response.status} ${errorMessage}`
     );
   }
 
   const payload = (await response.json()) as {
+    provider?: string;
     sessionId: string;
     token: string;
     model?: string;
     status?: "initializing" | "active" | "complete";
     endpoint?: string;
     outputModality?: RealtimeOutputModality;
+    discoveryModeId?: string;
   };
 
   return {
     sessionId: payload.sessionId,
     token: payload.token,
     model: payload.model ?? OPENAI_REALTIME_MODEL,
+    provider: payload.provider,
     status: payload.status ?? "active",
     endpoint: payload.endpoint,
     outputModality: payload.outputModality ?? outputModality,
+    discoveryModeId: payload.discoveryModeId,
     createdAt: new Date().toISOString(),
   };
 }

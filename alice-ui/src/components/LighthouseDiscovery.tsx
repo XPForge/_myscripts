@@ -69,6 +69,41 @@ const STARTUP_TRACE_STAGES: { stage: RealtimeStartupTraceStage; label: string }[
   { stage: "realtime.event.received", label: "11. Realtime event received" },
 ];
 
+const PARTICIPANT_RESPONSE_GUIDANCE = [
+  {
+    title: "Concrete Example Prompt",
+    prompt: "Pick one real example. What happened?",
+  },
+  {
+    title: "Outcome Prompt",
+    prompt: "What changed because of what you did?",
+  },
+  {
+    title: "Observation Prompt",
+    prompt: "What did you notice first that others may have missed?",
+  },
+  {
+    title: "Action Prompt",
+    prompt: "What did you actually change, build, fix, redesign, explain, or test?",
+  },
+  {
+    title: "Thinking Pattern Prompt",
+    prompt: "What does this example reveal about how you think or solve problems?",
+  },
+  {
+    title: "Team / Influence Prompt",
+    prompt: "How did you help other people understand, follow, trust, or use the change?",
+  },
+  {
+    title: "Friction Prompt",
+    prompt: "What made the situation difficult, messy, unclear, or misunderstood?",
+  },
+  {
+    title: "Evidence Prompt",
+    prompt: "What proof, number, reaction, result, or before/after difference shows that it mattered?",
+  },
+] as const;
+
 function emptyStartupTrace() {
   return Object.fromEntries(
     STARTUP_TRACE_STAGES.map(({ stage }) => [
@@ -447,7 +482,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     if (!isRealtimeDiscoveryConfigured()) {
       setErrorMessage(
-        "Realtime discovery is not configured. Set VITE_OPENAI_REALTIME_TOKEN_ENDPOINT in your environment."
+        "Realtime discovery is not configured. Set VITE_REALTIME_TOKEN_ENDPOINT in your environment."
       );
       return;
     }
@@ -961,7 +996,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 Launching realtime discovery
               </div>
               <div style={{ color: "rgba(226,232,240,0.9)", lineHeight: 1.8, marginTop: "12px" }}>
-                We are creating your profile record and preparing the OpenAI Realtime session.
+                We are creating your profile record and preparing the realtime provider session.
               </div>
               <div
                 style={{
@@ -1187,6 +1222,49 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     gap: "10px",
                   }}
                 >
+                  <section
+                    aria-label="Optional response guidance for participant."
+                    style={{
+                      display: "grid",
+                      gap: "10px",
+                      padding: "14px",
+                      borderRadius: "16px",
+                      background: "rgba(15,23,42,0.72)",
+                      border: "1px solid rgba(148,163,184,0.14)",
+                    }}
+                  >
+                    <div style={{ color: "#e2e8f0", fontSize: "0.95rem", fontWeight: 800 }}>
+                      Optional response guidance for participant.
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                        gap: "8px",
+                      }}
+                    >
+                      {PARTICIPANT_RESPONSE_GUIDANCE.map((item) => (
+                        <div
+                          key={item.title}
+                          style={{
+                            display: "grid",
+                            gap: "5px",
+                            padding: "10px 12px",
+                            borderRadius: "12px",
+                            background: "rgba(255,255,255,0.025)",
+                            border: "1px solid rgba(148,163,184,0.1)",
+                          }}
+                        >
+                          <strong style={{ color: "#cbd5e1", fontSize: "0.82rem" }}>
+                            {item.title}
+                          </strong>
+                          <span style={{ color: "rgba(226,232,240,0.84)", fontSize: "0.86rem", lineHeight: 1.45 }}>
+                            {item.prompt}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                   <textarea
                     value={typedParticipantText}
                     onChange={(event) => setTypedParticipantText(event.target.value)}
