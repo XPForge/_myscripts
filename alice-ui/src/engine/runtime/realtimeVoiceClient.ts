@@ -32,6 +32,26 @@ export type RealtimeStartupTraceEvent = {
   error?: string;
 };
 
+export type RealtimeErrorDiagnostic = {
+  provider?: string;
+  status?: number;
+  code?: string;
+  category?: "quota" | "auth" | "provider" | "network" | "unknown";
+};
+
+export const REALTIME_QUOTA_SAFE_MESSAGE =
+  "Realtime session could not start because the API project is out of quota or over budget. No live session was started.";
+
+export class RealtimeSafeError extends Error {
+  readonly diagnostic: RealtimeErrorDiagnostic;
+
+  constructor(message: string, diagnostic: RealtimeErrorDiagnostic = {}) {
+    super(message);
+    this.name = "RealtimeSafeError";
+    this.diagnostic = diagnostic;
+  }
+}
+
 export type RealtimeVoiceHandlers = {
   onStatus?: (status: string) => void;
   onTranscript?: (text: string, isFinal: boolean) => void;
@@ -78,6 +98,103 @@ type SpeechRecognitionErrorEventLike = {
   error?: string;
   message?: string;
 };
+
+function getRealtimeErrorDiagnostic(error: unknown): RealtimeErrorDiagnostic {
+  if (error instanceof RealtimeSafeError) {
+    return error.diagnostic;
+  }
+  if (typeof error === "object" && error !== null && "diagnostic" in error) {
+    const diagnostic = (error as { diagnostic?: unknown }).diagnostic;
+    if (typeof diagnostic === "object" && diagnostic !== null) {
+      return diagnostic as RealtimeErrorDiagnostic;
+    }
+  }
+  return {};
+}
+
+function formatRealtimeErrorDiagnostic(diagnostic: RealtimeErrorDiagnostic) {
+  const parts = [
+    diagnostic.provider ? `provider=${diagnostic.provider}` : "",
+    diagnostic.status ? `status=${diagnostic.status}` : "",
+    diagnostic.code ? `code=${diagnostic.code}` : "",
+    diagnostic.category ? `category=${diagnostic.category}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" ") : "";
+}
+
+function isQuotaDiagnostic(diagnostic: RealtimeErrorDiagnostic) {
+  return diagnostic.category === "quota" || diagnostic.code === "insufficient_quota";
+}
+
+function isQuotaText(value: string) {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("insufficient_quota") ||
+    normalized.includes("insufficient quota") ||
+    normalized.includes("exceeded your current quota") ||
+    normalized.includes("out of quota") ||
+    normalized.includes("over budget")
+  );
+}
+
+function isRawProviderBodyText(value: string) {
+  const trimmed = value.trim();
+  return (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  );
+}
+
+function toProviderErrorRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
+}
+
+function extractProviderErrorBodyDiagnostic(body: string, provider = "openai"): RealtimeErrorDiagnostic {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    const record = toProviderErrorRecord(parsed);
+    const errorRecord = toProviderErrorRecord(record?.error) ?? record;
+    const code = typeof errorRecord?.code === "string" ? errorRecord.code : undefined;
+    const message = typeof errorRecord?.message === "string" ? errorRecord.message : body;
+    return {
+      provider,
+      code,
+      category: code === "insufficient_quota" || isQuotaText(message) ? "quota" : "provider",
+    };
+  } catch {
+    return {
+      provider,
+      category: isQuotaText(body) ? "quota" : "provider",
+    };
+  }
+}
+
+export function normalizeRealtimeError(
+  error: unknown,
+  fallback = "Realtime session could not be started."
+) {
+  const existingDiagnostic = getRealtimeErrorDiagnostic(error);
+  const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  const diagnostic: RealtimeErrorDiagnostic = {
+    ...existingDiagnostic,
+    category: existingDiagnostic.category ?? (isQuotaText(rawMessage) ? "quota" : undefined),
+    code: existingDiagnostic.code ?? (isQuotaText(rawMessage) ? "insufficient_quota" : undefined),
+  };
+
+  if (isQuotaDiagnostic(diagnostic)) {
+    return {
+      message: REALTIME_QUOTA_SAFE_MESSAGE,
+      diagnostic,
+      diagnosticText: formatRealtimeErrorDiagnostic(diagnostic),
+    };
+  }
+
+  return {
+    message: isRawProviderBodyText(rawMessage) ? fallback : rawMessage || fallback,
+    diagnostic,
+    diagnosticText: formatRealtimeErrorDiagnostic(diagnostic),
+  };
+}
 
 function isJsonString(value: unknown): value is string {
   return typeof value === "string";
@@ -382,8 +499,11 @@ export async function startRealtimeVoiceSession(
     handlers.onDiagnosticLog?.(`STATUS: ${message}`);
   };
   const errorHandler = (error: Error) => {
-    handlers.onError?.(error);
-    handlers.onDiagnosticLog?.(`ERROR: ${error.message}`);
+    const normalized = normalizeRealtimeError(error);
+    handlers.onError?.(new RealtimeSafeError(normalized.message, normalized.diagnostic));
+    handlers.onDiagnosticLog?.(
+      `ERROR: ${normalized.message}${normalized.diagnosticText ? ` (${normalized.diagnosticText})` : ""}`
+    );
   };
   const diagnostic = (message: string) => {
     handlers.onDiagnosticLog?.(`DEBUG: ${message}`);
@@ -393,7 +513,8 @@ export async function startRealtimeVoiceSession(
     reached: boolean,
     error?: unknown
   ) => {
-    const message = error instanceof Error ? error.message : error ? String(error) : undefined;
+    const normalized = error ? normalizeRealtimeError(error) : null;
+    const message = normalized?.diagnosticText || normalized?.message;
     handlers.onStartupTrace?.({
       stage,
       reached,
@@ -622,13 +743,21 @@ export async function startRealtimeVoiceSession(
     }
     if (eventType === "error" || eventType === "invalid_request_error") {
       diagnostic(`Realtime error event received: ${eventType}.`);
-      const message =
-        typeof parsed.message === "string"
-          ? parsed.message
-          : typeof parsed.error === "object" && parsed.error !== null && "message" in parsed.error
-            ? String((parsed.error as { message?: unknown }).message)
-            : "Realtime server emitted an error event.";
-      errorHandler(new Error(message));
+      const errorRecord = toProviderErrorRecord(parsed.error) ?? parsed;
+      const code = typeof errorRecord.code === "string" ? errorRecord.code : undefined;
+      const providerMessage =
+        typeof errorRecord.message === "string"
+          ? errorRecord.message
+          : "Realtime server emitted an error event.";
+      const errorDiagnostic: RealtimeErrorDiagnostic = {
+        provider: realtimeSession.provider ?? "openai",
+        code,
+        category: code === "insufficient_quota" || isQuotaText(providerMessage) ? "quota" : "provider",
+      };
+      const normalized = normalizeRealtimeError(
+        new RealtimeSafeError("Realtime server emitted an error event.", errorDiagnostic)
+      );
+      errorHandler(new RealtimeSafeError(normalized.message, normalized.diagnostic));
     }
 
     const extracted = extractTextFromEvent(parsed);
@@ -684,9 +813,17 @@ export async function startRealtimeVoiceSession(
   }
 
   if (!response.ok) {
+    const providerErrorBody = await response.text().catch(() => "");
+    const providerDiagnostic = {
+      ...extractProviderErrorBodyDiagnostic(providerErrorBody, realtimeSession.provider ?? "openai"),
+      status: response.status,
+    };
+    const normalized = normalizeRealtimeError(
+      new RealtimeSafeError(`Realtime endpoint request failed: ${response.status} ${response.statusText}`, providerDiagnostic)
+    );
     diagnostic(`Realtime offer request failed with status ${response.status}.`);
-    trace("rtc.sdp.answer.received", false, `${response.status} ${response.statusText}`);
-    throw new Error(`Realtime endpoint request failed: ${response.status} ${response.statusText}`);
+    trace("rtc.sdp.answer.received", false, new RealtimeSafeError(normalized.message, normalized.diagnostic));
+    throw new RealtimeSafeError(normalized.message, normalized.diagnostic);
   }
 
   const answerSdp = await response.text();

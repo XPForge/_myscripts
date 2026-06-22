@@ -21,6 +21,7 @@ import {
 } from "../ai/lighthouseDiscoveryService";
 import {
   startRealtimeVoiceDiscovery,
+  normalizeRealtimeError,
   type RealtimeOutputModality,
   type RealtimeStartupTraceEvent,
   type RealtimeStartupTraceStage,
@@ -158,9 +159,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [realtimeVoice, setRealtimeVoice] = useState<RealtimeVoiceId>(() => loadSavedRealtimeVoice());
   const [typedParticipantText, setTypedParticipantText] = useState("");
   const [modeSwitching, setModeSwitching] = useState(false);
+  const [startInProgress, setStartInProgress] = useState(false);
   const [microphoneMuted, setMicrophoneMuted] = useState(false);
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
+  const startInProgressRef = useRef(false);
 
   useEffect(() => {
     const storedSession = loadLighthouseSession();
@@ -384,7 +387,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     ) {
       return error.message;
     }
-    return `Realtime session failed: ${error.message}`;
+    return normalizeRealtimeError(error, fallback).message;
+  };
+
+  const addRealtimeErrorDiagnostic = (error: unknown) => {
+    const normalized = normalizeRealtimeError(error);
+    if (normalized.diagnosticText) {
+      addDiagnosticLog(`Realtime error diagnostic: ${normalized.diagnosticText}`);
+    }
   };
 
   const isMockRealtimeSession = (realtime: { endpoint?: string }) =>
@@ -407,8 +417,12 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     onStartupTrace: recordStartupTrace,
     onDiagnosticLog: addDiagnosticLog,
     onError: (error: Error) => {
-      setErrorMessage(error.message);
-      addDiagnosticLog(`Error: ${error.message}`);
+      const normalized = normalizeRealtimeError(error);
+      setErrorMessage(normalized.message);
+      addDiagnosticLog(`Error: ${normalized.message}`);
+      if (normalized.diagnosticText) {
+        addDiagnosticLog(`Realtime error diagnostic: ${normalized.diagnosticText}`);
+      }
       setStatusMessage("");
     },
   });
@@ -458,12 +472,14 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       const message = getRealtimeFailureMessage(error, `Unable to switch to ${mode} mode.`);
       setErrorMessage(message);
       addDiagnosticLog(message);
+      addRealtimeErrorDiagnostic(error);
     } finally {
       setModeSwitching(false);
     }
   };
 
   const startDiscovery = async () => {
+    if (startInProgressRef.current) return;
     setResumeAvailable(false);
     setErrorMessage("");
     setTokenStatus("pending");
@@ -487,6 +503,8 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       return;
     }
 
+    startInProgressRef.current = true;
+    setStartInProgress(true);
     const initialMode: RealtimeOutputModality = "audio";
     setDiscoveryMode(initialMode);
     const createdProfile = createLighthouseProfile(name, email);
@@ -548,14 +566,17 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setVoiceClient(client);
       setMicrophoneMuted(false);
     } catch (error) {
-      setErrorMessage(getRealtimeFailureMessage(error, "Unable to connect to realtime discovery."));
+      const message = getRealtimeFailureMessage(error, "Unable to connect to realtime discovery.");
+      setErrorMessage(message);
       setTokenStatus("failed");
-      addDiagnosticLog(
-        getRealtimeFailureMessage(error, "Unable to connect to realtime discovery.")
-      );
+      addDiagnosticLog(message);
+      addRealtimeErrorDiagnostic(error);
       saveSession({ status: "paused", step: "capture" });
       setStep("capture");
       setStatusMessage("");
+    } finally {
+      startInProgressRef.current = false;
+      setStartInProgress(false);
     }
   };
 
@@ -607,17 +628,11 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setMicrophoneMuted(false);
       setStatusMessage("Realtime discovery resumed. Speak naturally now.");
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? `Unable to resume realtime discovery: ${error.message}`
-          : "Unable to reconnect to realtime discovery."
-      );
+      const message = getRealtimeFailureMessage(error, "Unable to reconnect to realtime discovery.");
+      setErrorMessage(message);
       setTokenStatus("failed");
-      addDiagnosticLog(
-        error instanceof Error
-          ? `Unable to resume realtime discovery: ${error.message}`
-          : "Unable to reconnect to realtime discovery."
-      );
+      addDiagnosticLog(message);
+      addRealtimeErrorDiagnostic(error);
       setResumeAvailable(true);
       setStatusMessage("Click Resume to try reconnecting again.");
     }
@@ -971,14 +986,17 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 <button
                   type="button"
                   onClick={startDiscovery}
+                  disabled={startInProgress}
                   style={{
                     padding: "14px 20px",
                     borderRadius: "16px",
                     border: "1px solid rgba(59,130,246,0.45)",
-                    background: "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(14,165,233,0.18))",
+                    background: startInProgress
+                      ? "rgba(71,85,105,0.22)"
+                      : "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(14,165,233,0.18))",
                     color: "#eef2ff",
                     fontWeight: 800,
-                    cursor: "pointer",
+                    cursor: startInProgress ? "not-allowed" : "pointer",
                   }}
                 >
                   Start Your Discovery Session

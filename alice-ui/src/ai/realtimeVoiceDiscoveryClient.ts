@@ -5,6 +5,7 @@ import {
 } from "../engine/runtime";
 
 export type { RealtimeSessionConfig as RealtimeDiscoverySession } from "../engine/runtime";
+export { normalizeRealtimeError } from "../engine/runtime";
 export type {
   RealtimeOutputModality,
   RealtimeStartupTraceEvent,
