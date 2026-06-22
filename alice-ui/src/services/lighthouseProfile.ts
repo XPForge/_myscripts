@@ -151,6 +151,14 @@ export function persistLighthouseProfile(profile: LighthouseProfile): void {
   persistStorage(PROFILE_STORE_KEY, profiles);
 }
 
+export function deleteLighthouseProfile(profileId: string): void {
+  const profiles = loadLighthouseProfiles();
+  persistStorage(
+    PROFILE_STORE_KEY,
+    profiles.filter((profile) => profile.id !== profileId)
+  );
+}
+
 export function createLighthouseProfile(name: string, email: string): LighthouseProfile {
   const profiles = loadLighthouseProfiles();
   const nextNumber = profiles.reduce((max, current) => {

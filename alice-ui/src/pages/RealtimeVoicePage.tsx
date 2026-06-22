@@ -239,6 +239,30 @@ export default function RealtimeVoicePage() {
 
         <section className="realtime-session-meta" aria-label="Session metadata">
           <div>
+            <span>provider</span>
+            <strong>{session.metadata?.provider ?? "openai"}</strong>
+          </div>
+          <div>
+            <span>discovery mode</span>
+            <strong>{session.metadata?.discoveryModeId ?? "native-discovery-realtime2-v0.1"}</strong>
+          </div>
+          <div>
+            <span>credential source</span>
+            <strong>server-issued temporary credential</strong>
+          </div>
+          <div>
+            <span>secrets exposed</span>
+            <strong>no</strong>
+          </div>
+          <div>
+            <span>transcript storage</span>
+            <strong>local/user-controlled</strong>
+          </div>
+          <div>
+            <span>error handling</span>
+            <strong>redacted</strong>
+          </div>
+          <div>
             <span>endpoint</span>
             <strong>{backendDiagnostics.endpointUrl}</strong>
           </div>

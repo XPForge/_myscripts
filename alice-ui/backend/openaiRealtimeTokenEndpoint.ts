@@ -42,6 +42,19 @@ const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "";
 const AI_PROVIDER = process.env.AI_PROVIDER || "openai";
 const PORT = Number(process.env.PORT || 3000);
 const ENDPOINT_SECRET = process.env.REALTIME_TOKEN_ENDPOINT_SECRET || "";
+const REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS = Number(
+  process.env.REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS || 60_000
+);
+const REALTIME_TOKEN_RATE_LIMIT_MAX = Number(
+  process.env.REALTIME_TOKEN_RATE_LIMIT_MAX || 6
+);
+const REALTIME_ALLOWED_ORIGINS = (
+  process.env.REALTIME_ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const DEFAULT_REALTIME_VOICE = "marin";
 const REALTIME_DISCOVERY_MODE_ID = "native-discovery-realtime2-v0.1";
 const REALTIME_DISCOVERY_INSTRUCTIONS =
@@ -64,7 +77,6 @@ type RealtimeClientSecretRequest = {
 type NormalizedRealtimeSession = {
   provider: string;
   sessionId: string | null;
-  clientSecret: string;
   token: string;
   model: string;
   endpoint: string;
@@ -72,6 +84,7 @@ type NormalizedRealtimeSession = {
   expiresAt: number | string | null;
   transport: "webrtc-sdp";
   discoveryModeId: string;
+  credentialIssued: true;
 };
 
 type RealtimeProviderAdapter = {
@@ -81,12 +94,89 @@ type RealtimeProviderAdapter = {
   ) => Promise<NormalizedRealtimeSession>;
 };
 
-function sendJson(res: any, status: number, payload: unknown) {
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function isLocalHost(host: string) {
+  const hostname = host.split(":")[0].toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function isAllowedOrigin(origin: string | undefined, host: string) {
+  if (!origin) {
+    return isLocalHost(host);
+  }
+
+  if (REALTIME_ALLOWED_ORIGINS.includes(origin)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(origin);
+    return isLocalHost(host) && isLocalHost(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function getCorsOrigin(origin: string | undefined, host: string) {
+  if (origin && isAllowedOrigin(origin, host)) {
+    return origin;
+  }
+  if (!origin && isLocalHost(host)) {
+    return `http://${host}`;
+  }
+  return "";
+}
+
+function getClientKey(req: any) {
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const forwardedIp = Array.isArray(forwardedFor)
+    ? forwardedFor[0]
+    : typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : "";
+  const remoteIp = req.socket?.remoteAddress || "unknown";
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "no-origin";
+  return `${origin}:${forwardedIp || remoteIp}`;
+}
+
+function isRateLimited(req: any) {
+  const now = Date.now();
+  const key = getClientKey(req);
+  const current = rateLimitBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimitBuckets.set(key, {
+      count: 1,
+      resetAt: now + REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS,
+    });
+    return false;
+  }
+
+  current.count += 1;
+  if (current.count > REALTIME_TOKEN_RATE_LIMIT_MAX) {
+    return true;
+  }
+  return false;
+}
+
+function sendJson(
+  req: any,
+  res: any,
+  status: number,
+  payload: unknown,
+  headers: Record<string, string> = {}
+) {
+  const host = req.headers.host || "localhost";
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const corsOrigin = getCorsOrigin(origin, host);
   res.writeHead(status, {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-store",
+    Pragma: "no-cache",
+    ...(corsOrigin ? { "Access-Control-Allow-Origin": corsOrigin, Vary: "Origin" } : {}),
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    ...headers,
   });
   res.end(JSON.stringify(payload));
 }
@@ -97,8 +187,8 @@ function getConfigDiagnostics() {
     route: "/api/realtime/client-secret",
     accepts: ["GET", "POST", "OPTIONS"],
     missing: {
-      OPENAI_API_KEY: !OPENAI_API_KEY,
-      OPENAI_REALTIME_MODEL: !OPENAI_REALTIME_MODEL,
+      serverCredential: !OPENAI_API_KEY,
+      realtimeModel: !OPENAI_REALTIME_MODEL,
     },
     provider: AI_PROVIDER,
     modelConfigured: Boolean(OPENAI_REALTIME_MODEL),
@@ -141,11 +231,11 @@ function createOpenAIRealtimeAdapter(): RealtimeProviderAdapter {
     id: "openai",
     async createClientSecret(request) {
       if (!OPENAI_API_KEY) {
-        throw new ProviderConfigurationError("Missing server configuration: OPENAI_API_KEY is required.");
+        throw new ProviderConfigurationError("Realtime discovery is not configured on the server.");
       }
 
       if (!OPENAI_REALTIME_MODEL) {
-        throw new ProviderConfigurationError("Missing server configuration: OPENAI_REALTIME_MODEL is required.");
+        throw new ProviderConfigurationError("Realtime discovery is not configured on the server.");
       }
 
       const realtimeVoice = resolveRealtimeVoice(request.voice);
@@ -207,7 +297,6 @@ function createOpenAIRealtimeAdapter(): RealtimeProviderAdapter {
       return {
         provider: this.id,
         sessionId: data?.session?.id || null,
-        clientSecret: token,
         token,
         model: returnedModel,
         endpoint: `${OPENAI_API_BASE}/v1/realtime/calls`,
@@ -215,6 +304,7 @@ function createOpenAIRealtimeAdapter(): RealtimeProviderAdapter {
         expiresAt: data?.expires_at || null,
         transport: "webrtc-sdp",
         discoveryModeId: REALTIME_DISCOVERY_MODE_ID,
+        credentialIssued: true,
       };
     },
   };
@@ -252,24 +342,33 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${host}`);
 
   if (req.method === "OPTIONS") {
-    sendJson(res, 204, {});
+    if (!isAllowedOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined, host)) {
+      sendJson(req, res, 403, { error: "Realtime session requests are not allowed from this origin." });
+      return;
+    }
+    sendJson(req, res, 204, {});
     return;
   }
 
   const isRealtimeEndpoint =
     url.pathname === "/api/realtime/client-secret" || url.pathname === "/api/realtime-token";
   if (!isRealtimeEndpoint) {
-    sendJson(res, 404, { error: "Not found" });
+    sendJson(req, res, 404, { error: "Not found" });
+    return;
+  }
+
+  if (!isAllowedOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined, host)) {
+    sendJson(req, res, 403, { error: "Realtime session requests are not allowed from this origin." });
     return;
   }
 
   if (req.method === "GET") {
-    sendJson(res, 200, getConfigDiagnostics());
+    sendJson(req, res, 200, getConfigDiagnostics());
     return;
   }
 
   if (req.method !== "POST") {
-    sendJson(res, 405, {
+    sendJson(req, res, 405, {
       error: "Method not allowed. Use POST to create a realtime client secret.",
       diagnostics: getConfigDiagnostics(),
     });
@@ -279,9 +378,16 @@ const server = createServer(async (req, res) => {
   if (ENDPOINT_SECRET) {
     const auth = req.headers.authorization || "";
     if (!auth.startsWith("Bearer ") || auth.slice(7) !== ENDPOINT_SECRET) {
-      sendJson(res, 401, { error: "Unauthorized" });
+      sendJson(req, res, 401, { error: "Unauthorized" });
       return;
     }
+  }
+
+  if (isRateLimited(req)) {
+    sendJson(req, res, 429, {
+      error: "Realtime session requests are temporarily limited. Please wait a moment and try again.",
+    });
+    return;
   }
 
   try {
@@ -290,21 +396,21 @@ const server = createServer(async (req, res) => {
     try {
       body = JSON.parse(rawBody || "{}");
     } catch {
-      sendJson(res, 400, { error: "Malformed request: expected a JSON object body." });
+      sendJson(req, res, 400, { error: "Malformed request: expected a JSON object body." });
       return;
     }
 
     if (!isRecord(body)) {
-      sendJson(res, 400, { error: "Malformed request: expected a JSON object body." });
+      sendJson(req, res, 400, { error: "Malformed request: expected a JSON object body." });
       return;
     }
 
     const adapter = getRealtimeProviderAdapter();
     const normalizedSession = await adapter.createClientSecret({ voice: body.voice });
-    sendJson(res, 200, normalizedSession);
+    sendJson(req, res, 200, normalizedSession);
   } catch (error) {
     if (error instanceof ProviderConfigurationError) {
-      sendJson(res, error.status, {
+      sendJson(req, res, error.status, {
         error: error.message,
         diagnostics: getConfigDiagnostics(),
       });
@@ -312,16 +418,15 @@ const server = createServer(async (req, res) => {
     }
 
     if (error instanceof ProviderRequestError) {
-      sendJson(res, error.status, {
+      sendJson(req, res, error.status, {
         error: error.message,
         ...(error.metadata ?? {}),
       });
       return;
     }
 
-    sendJson(res, 500, {
+    sendJson(req, res, 500, {
       error: "Realtime client secret request failed.",
-      detail: error instanceof Error ? error.message : "Unexpected failure",
     });
   }
 });

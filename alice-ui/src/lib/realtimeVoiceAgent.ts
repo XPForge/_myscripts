@@ -28,17 +28,21 @@ export type RealtimeSessionMetadata = {
   voice: string | null;
   endpoint: string;
   createdAt: string;
+  provider?: string;
+  discoveryModeId?: string;
+  credentialIssued?: boolean;
 };
 
 export type RealtimeClientSecretResponse = {
-  clientSecret?: string;
   token?: string;
   sessionId?: string | null;
   model?: string;
   endpoint?: string;
   voice?: string | null;
+  provider?: string;
+  discoveryModeId?: string;
+  credentialIssued?: boolean;
   error?: string;
-  detail?: string;
 };
 
 export type RealtimeBackendFetchDiagnostics = {
@@ -88,6 +92,15 @@ function getSafeRealtimeFailureMessage(status: number, statusText: string, rawDe
   }
 
   return `Realtime connection failed: ${status} ${statusText || "provider error"}.`;
+}
+
+function redactSensitiveText(value: string) {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(
+      /\b(token|authorization|bearer|api[_-]?key|client[_-]?secret|secret|credential|key)\b\s*[:=]\s*["']?[^"',\s}]+/gi,
+      "$1=[redacted]"
+    );
 }
 
 function makeId(prefix: string) {
@@ -235,7 +248,7 @@ async function requestClientSecret(
       body: JSON.stringify({ voice }),
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "Fetch was blocked or unreachable.";
+    const detail = error instanceof Error ? redactSensitiveText(error.message) : "Fetch was blocked or unreachable.";
     const message = `Backend unreachable at ${endpointUrl}. Start it with npm run backend:start and verify the route is reachable. ${detail}`;
     onDiagnostics?.({
       endpointUrl,
@@ -249,9 +262,7 @@ async function requestClientSecret(
   const body = (await response.json().catch(() => null)) as RealtimeClientSecretResponse | null;
 
   const serverMessage = body?.error
-    ? body.detail
-      ? `${body.error} ${body.detail}`
-      : body.error
+    ? redactSensitiveText(body.error)
     : response.ok
       ? "Backend returned a realtime client-secret response."
       : `Backend returned HTTP ${response.status}.`;
@@ -263,28 +274,29 @@ async function requestClientSecret(
   });
 
   if (!response.ok) {
-    const message = body?.error || `Realtime session request failed: ${response.status}`;
-    const isMissingConfig = /Missing server configuration/i.test(message);
+    const message = redactSensitiveText(body?.error || `Realtime session request failed: ${response.status}`);
+    const isMissingConfig = /not configured on the server/i.test(message);
     throw new Error(
-      body?.detail
-        ? `${message} ${body.detail}`
-        : isMissingConfig
+      isMissingConfig
           ? `${message} Check the backend environment used by npm run backend:start.`
           : message,
     );
   }
 
-  const clientSecret = body?.clientSecret || body?.token;
-  if (!clientSecret || !body?.endpoint || !body.model) {
-    throw new Error("Realtime session response was missing clientSecret, endpoint, or model.");
+  const temporaryCredential = body?.token;
+  if (!temporaryCredential || !body?.endpoint || !body.model) {
+    throw new Error("Realtime session response was missing the temporary credential, endpoint, or model.");
   }
 
   return {
-    clientSecret,
+    temporaryCredential,
     sessionId: body.sessionId ?? null,
     model: body.model,
     endpoint: body.endpoint,
     voice: body.voice ?? null,
+    provider: body.provider,
+    discoveryModeId: body.discoveryModeId,
+    credentialIssued: Boolean(body.credentialIssued),
   };
 }
 
@@ -349,7 +361,7 @@ export async function startRealtimeVoiceAgent(
   const sdpResponse = await fetch(session.endpoint, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${session.clientSecret}`,
+      Authorization: `Bearer ${session.temporaryCredential}`,
       "Content-Type": "application/sdp",
       Accept: "application/sdp",
     },
@@ -405,6 +417,9 @@ export async function startRealtimeVoiceAgent(
       model: session.model,
       voice: session.voice,
       endpoint: session.endpoint,
+      provider: session.provider,
+      discoveryModeId: session.discoveryModeId,
+      credentialIssued: session.credentialIssued,
       createdAt: new Date().toISOString(),
     },
     stop,

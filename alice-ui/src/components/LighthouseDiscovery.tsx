@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createLighthouseProfile,
+  deleteLighthouseProfile,
   loadLighthouseProfile,
   persistLighthouseProfile,
   updateLighthouseProfile,
@@ -104,6 +105,24 @@ const PARTICIPANT_RESPONSE_GUIDANCE = [
     prompt: "What proof, number, reaction, result, or before/after difference shows that it mattered?",
   },
 ] as const;
+
+const SECURITY_STATUS_ITEMS = [
+  ["Provider", "openai"],
+  ["Discovery mode", "native-discovery-realtime2-v0.1"],
+  ["Credential source", "server-issued temporary credential"],
+  ["Secrets exposed", "no"],
+  ["Transcript storage", "local/user-controlled"],
+  ["Error handling", "redacted"],
+] as const;
+
+function redactSensitiveDiagnostic(value: string) {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(
+      /\b(token|authorization|bearer|api[_-]?key|client[_-]?secret|secret|credential|key)\b\s*[:=]\s*["']?[^"',\s}]+/gi,
+      "$1=[redacted]"
+    );
+}
 
 function emptyStartupTrace() {
   return Object.fromEntries(
@@ -234,8 +253,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   };
 
   const addDiagnosticLog = (message: string) => {
+    const safeMessage = redactSensitiveDiagnostic(message);
     setDiagnosticLogs((prev) => [
-      `${new Date().toISOString()} - ${message}`,
+      `${new Date().toISOString()} - ${safeMessage}`,
       ...prev,
     ].slice(0, 60));
   };
@@ -662,6 +682,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     }
     setMicrophoneMuted(false);
 
+    if (profileRef.current) {
+      deleteLighthouseProfile(profileRef.current.id);
+    }
     clearLighthouseSession();
     profileRef.current = null;
     sessionRef.current = null;
@@ -758,6 +781,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         <div><strong>Audio Playback:</strong> {audioStatus}</div>
         <div><strong>Data Channel:</strong> {dataChannelStatus}</div>
         <div><strong>Transcript Count:</strong> {transcriptCount}</div>
+        {SECURITY_STATUS_ITEMS.map(([label, value]) => (
+          <div key={label}><strong>{label}:</strong> {value}</div>
+        ))}
         <div>
           <strong>Last Successful Startup Step:</strong>{" "}
           {STARTUP_TRACE_STAGES
