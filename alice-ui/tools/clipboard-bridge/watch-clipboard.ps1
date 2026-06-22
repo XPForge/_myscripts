@@ -137,6 +137,10 @@ function Write-BridgeDisplayStatus {
     if ($EventTimeField -in @("lastTaskAt", "lastReportAt", "lastErrorAt")) {
         $status[$EventTimeField] = $now
     }
+    if ($State -in @("capture-only-idle", "execution-idle", "codex-finished")) {
+        $status.lastErrorAt = $null
+        $status.lastErrorKind = $null
+    }
     if ($State -eq "codex-failed") {
         $safeErrorKind = if ($ErrorKind -match '^[a-z0-9-]{1,48}$') { $ErrorKind } else { "execution-failed" }
         $status.lastErrorKind = $safeErrorKind
