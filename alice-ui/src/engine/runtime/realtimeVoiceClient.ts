@@ -7,6 +7,8 @@ export type RealtimeSessionConfig = {
   endpoint?: string;
   outputModality: RealtimeOutputModality;
   discoveryModeId?: string;
+  credentialIssued?: boolean;
+  credentialExpiresAt?: number | string | null;
   createdAt: string;
 };
 
@@ -122,6 +124,16 @@ function formatRealtimeErrorDiagnostic(diagnostic: RealtimeErrorDiagnostic) {
   return parts.length ? parts.join(" ") : "";
 }
 
+function redactSensitiveText(value: string) {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]")
+    .replace(
+      /\b(secret|token|authorization|bearer|api[_-]?key|client[_-]?secret|credential|key)\b\s*[:=]\s*["']?[^"',\s}]+/gi,
+      "$1=[redacted]"
+    );
+}
+
 function isQuotaDiagnostic(diagnostic: RealtimeErrorDiagnostic) {
   return diagnostic.category === "quota" || diagnostic.code === "insufficient_quota";
 }
@@ -174,7 +186,9 @@ export function normalizeRealtimeError(
   fallback = "Realtime session could not be started."
 ) {
   const existingDiagnostic = getRealtimeErrorDiagnostic(error);
-  const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  const rawMessage = redactSensitiveText(
+    error instanceof Error ? error.message : typeof error === "string" ? error : fallback
+  );
   const diagnostic: RealtimeErrorDiagnostic = {
     ...existingDiagnostic,
     category: existingDiagnostic.category ?? (isQuotaText(rawMessage) ? "quota" : undefined),
@@ -449,10 +463,13 @@ function createResponseEvent(outputModality: RealtimeOutputModality, instruction
   };
 }
 
+const REALTIME_DISCOVERY_STARTUP_GUIDANCE =
+  "Conduct Discovery naturally. Ask one question at a time. Let each answer shape the next question. Preserve participant authority: the participant may correct, reject, refine, or redirect. Do not score, rank, diagnose, assess, classify, or treat profile readiness as the end of Discovery. Keep the tone human, curious, non-clinical, and non-corporate.";
+
 function createStartupResponseEvent(outputModality: RealtimeOutputModality) {
   return createResponseEvent(
     outputModality,
-    `Begin the conversation by asking exactly this question and nothing else: "When you look back on your life so far across all the different things you've done, what's the one thread you'd say has always been there, even when everything else changed?"`
+    `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} Begin the conversation by asking exactly this question and nothing else: "When you look back on your life so far across all the different things you've done, what's the one thread you'd say has always been there, even when everything else changed?"`
   );
 }
 
