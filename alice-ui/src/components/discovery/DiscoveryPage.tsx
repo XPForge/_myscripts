@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Brain, Check, ChevronDown, CircleUserRound, Download, FileText, Heart, Lightbulb, Menu, Mic, Moon, Paperclip, Pause, Play, Send, ShieldCheck, Sparkles, Speaker, Square, Sun, Trash2, Volume2, X, Zap } from "lucide-react";
 import AliceAvatar, { AliceStatusLegend, AliceStatusWaveform, type AliceStatus } from "./AliceAvatar";
 import { lighthouseDiscoveryConfig as config } from "../../config/lighthouseDiscoveryConfig";
+import { alicePromptProfiles, getAlicePromptProfile, isAlicePromptProfileId, type AlicePromptProfileId } from "../../config/alicePromptProfiles";
 import "./discovery.css";
 
 type Turn = { id: string; role: "participant" | "alice" | "system"; text: string; timestamp: string; inputMode: "typed" | "voice"; transcriptEdited: boolean; aliceVoiceEnabled: boolean; quietMode: boolean; aliceStatusAtTime: AliceStatus; audioUrl?: string; source: "chat" | "transcript" | "note" };
 type Tab = "speak" | "type" | "attach";
 const STORAGE_KEY = "lighthouse.discovery.run1";
+const PROMPT_PROFILE_STORAGE_KEY = "lighthouse.discovery.alicePromptProfile";
 const now = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const seed: Turn[] = [{ id: "welcome", role: "alice", text: "To help me understand you deeply, what have been the moments in your life that changed the way you see yourself or the world?", timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: true, quietMode: false, aliceStatusAtTime: "listening", source: "chat" }];
 
-function useAliceSession() {
+function useAliceSession(systemPrompt: string) {
   const [turns, setTurns] = useState<Turn[]>(() => { try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved).turns ?? seed : seed; } catch { return seed; } });
   const [status, setStatus] = useState<AliceStatus>("listening");
   const [voiceOn, setVoiceOn] = useState<boolean>(config.defaultVoiceOn);
@@ -37,7 +39,7 @@ function useAliceSession() {
     const next = [...turns, userTurn]; setTurns(next); setStatus("thinking");
     let reply = "Thank you for sharing that. What did that experience teach you about yourself?";
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: config.instruction, messages: next.filter(t => t.role !== "system").map(t => ({ role: t.role === "participant" ? "user" : "assistant", content: t.text })) }) });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: systemPrompt, messages: next.filter(t => t.role !== "system").map(t => ({ role: t.role === "participant" ? "user" : "assistant", content: t.text })) }) });
       if (response.ok) reply = (await response.json()).reply || reply;
     } catch { /* preserve a natural offline fallback */ }
     const aliceTurn: Turn = { id: crypto.randomUUID(), role: "alice", text: reply, timestamp: now(), inputMode, transcriptEdited: false, aliceVoiceEnabled: voiceOn, quietMode, aliceStatusAtTime: quietMode || !voiceOn ? "thinking" : "speaking", source: "chat" };
@@ -51,7 +53,9 @@ const Card = ({ title, children, className = "" }: { title: string; children: Re
 const PlaceholderButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button className="outline-button" onClick={onClick}>{children}</button>;
 
 export default function DiscoveryPage() {
-  const session = useAliceSession();
+  const [promptProfileId, setPromptProfileId] = useState<AlicePromptProfileId>(() => { const saved = localStorage.getItem(PROMPT_PROFILE_STORAGE_KEY); return isAlicePromptProfileId(saved) ? saved : config.defaultAlicePromptProfileId; });
+  const activePromptProfile = useMemo(() => getAlicePromptProfile(promptProfileId), [promptProfileId]);
+  const session = useAliceSession(activePromptProfile.systemPrompt);
   const [theme, setTheme] = useState<"dark" | "light">(() => localStorage.getItem("lighthouse.discovery.theme") === "light" ? "light" : "dark");
   const [tab, setTab] = useState<Tab>("speak"); const [typed, setTyped] = useState(""); const [recording, setRecording] = useState(false); const [paused, setPaused] = useState(false); const [seconds, setSeconds] = useState(0); const [review, setReview] = useState(""); const [originalReview, setOriginalReview] = useState("");
   const [modal, setModal] = useState<"transcript" | "placeholder" | "delete" | null>(null); const [placeholder, setPlaceholder] = useState(""); const [mobileRail, setMobileRail] = useState<"left" | "right" | null>(null); const [sessionPaused, setSessionPaused] = useState(false);
@@ -69,6 +73,8 @@ export default function DiscoveryPage() {
   const clearData = () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); setModal(null); };
   const toggleVoice = () => { const next = !session.voiceOn; session.setVoiceOn(next); session.setQuietMode(!next); if (!next) session.stopAudio(); };
   const toggleTheme = () => { const next = theme === "dark" ? "light" : "dark"; setTheme(next); localStorage.setItem("lighthouse.discovery.theme", next); };
+  const selectPromptProfile = (id: AlicePromptProfileId) => { setPromptProfileId(id); localStorage.setItem(PROMPT_PROFILE_STORAGE_KEY, id); };
+  const showPromptProfileSelector = import.meta.env.DEV || import.meta.env.VITE_SHOW_ALICE_PROMPT_SELECTOR === "true";
   const elapsed = useMemo(() => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, [seconds]);
   return <div className={`discovery-page discovery-page--${theme}`}>
     <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileRail("left")} aria-label="Open progress menu"><Menu /></button><div className="brand"><img className="brand-medallion" src="/lighthouse-medallion.png" alt="Lighthouse"/><span>LIGHTHOUSE<small>Human Insight. Real Connection.</small></span></div><div className="page-title"><strong>LIGHTHOUSE DISCOVERY ENGINE</strong><small>You guide the conversation. <b>Alice</b> helps you be fully seen.</small></div><div className="top-actions"><span className="session-pill"><small>Session Status</small><b>● &nbsp; In Progress</b></span><button className="top-action-button save-exit-button" onClick={() => { session.save(); openPlaceholder("Progress saved on this device."); }}>Save & Exit</button><button className="top-action-button icon-button theme-toggle" onClick={toggleTheme} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun/> : <Moon/>}</button><button className="top-action-button icon-button" aria-label="Notifications"><Bell /></button><button className="top-action-button profile-button" aria-label="Open profile menu"><span>E</span><ChevronDown/></button></div><button className="icon-button mobile-menu" onClick={() => setMobileRail("right")} aria-label="Open insights menu"><Sparkles /></button></header>
@@ -79,7 +85,7 @@ export default function DiscoveryPage() {
         <Card title="SESSION INFO"><dl className="session-info"><div><dt>◷ &nbsp; Started</dt><dd>Today, {seed[0].timestamp}</dd></div><div><dt>◷ &nbsp; Time Together</dt><dd>48 min</dd></div><div><dt>▣ &nbsp; Conversations</dt><dd>{session.turns.length}</dd></div><div><dt>▤ &nbsp; Last Saved</dt><dd>just now</dd></div></dl><PlaceholderButton onClick={() => setModal("transcript")}>View Full Transcript</PlaceholderButton></Card>
         <Card title="NEED A BREAK?"><Info icon={<Pause/>} title="Pause Discovery." text="We'll save everything."/><PlaceholderButton onClick={() => { setSessionPaused(!sessionPaused); session.stopAudio(); session.save(); }}>{sessionPaused ? "Resume Session" : "Pause Session"}</PlaceholderButton></Card>
       </aside>
-      <section className="center-panel"><div className="discovery-console"><div className="alice-identity"><AliceAvatar status={session.status} size="lg"/><h1>Alice <Sparkles/></h1><b>Your Discovery Guide</b><button className={`voice-mode-button ${session.voiceOn?"active":""}`} onClick={toggleVoice} aria-pressed={session.voiceOn}><Volume2/> Voice {session.voiceOn?"On":"Off"}</button><span className={`alice-debug alice-debug--${session.status}`}>Alice status: {session.status}</span></div>
+      <section className="center-panel"><div className="discovery-console"><div className="alice-identity"><AliceAvatar status={session.status} size="lg"/><h1>Alice <Sparkles/></h1><b>Your Discovery Guide</b><button className={`voice-mode-button ${session.voiceOn?"active":""}`} onClick={toggleVoice} aria-pressed={session.voiceOn}><Volume2/> Voice {session.voiceOn?"On":"Off"}</button><span className={`alice-debug alice-debug--${session.status}`}>Alice status: {session.status}{showPromptProfileSelector ? ` · ${activePromptProfile.name}` : ""}</span>{showPromptProfileSelector && <label className="prompt-mode-control">Alice Prompt Mode<select value={promptProfileId} onChange={event=>selectPromptProfile(event.target.value as AlicePromptProfileId)}>{alicePromptProfiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label>}</div>
         <div className="composer"><div className="tabs"><button className={tab==="speak"?"active":""} onClick={()=>setTab("speak")}><Mic/> Speak Your Answer</button><button className={tab==="type"?"active":""} onClick={()=>setTab("type")}><FileText/> Type Instead</button><button className={tab==="attach"?"active":""} onClick={()=>setTab("attach")}><Paperclip/> Attach (Optional)</button></div>
           {tab === "speak" && <div className="speak-pane"><b>Push to Talk</b><small>Tap to record. Review before Alice responds.</small><div className="record-line"><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/><button className={`record-button ${recording?"recording":""}`} onClick={recording?finishRecording:startRecording} aria-label={recording?"Done speaking":"Start recording"}>{recording?<Square/>:<Mic/>}</button><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/></div><strong>{elapsed}</strong><span>{recording ? paused ? "Recording paused" : "Listening..." : "Ready to record"}</span><div className="record-actions"><button disabled={!recording} onClick={()=>{ if(!recorder.current)return; if (paused) recorder.current.resume(); else recorder.current.pause(); setPaused(!paused); }}>{paused?<Play/>:<Pause/>} {paused?"Resume":"Pause"}</button><button disabled={!recording} onClick={finishRecording}><Check/> Done Speaking</button><button disabled={!recording} onClick={cancelRecording}><X/> Cancel</button></div></div>}
           {tab === "type" && <div className="type-pane"><textarea value={typed} onChange={e=>setTyped(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); void sendText();}}} placeholder="Share what’s on your mind…"/><button onClick={sendText} disabled={!typed.trim()}><Send/> Send to Alice</button></div>}
