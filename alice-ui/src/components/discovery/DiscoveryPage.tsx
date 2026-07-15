@@ -3,6 +3,7 @@ import { Bell, Brain, Check, ChevronDown, CircleUserRound, Download, FileText, H
 import AliceAvatar, { AliceStatusLegend, AliceStatusWaveform, type AliceStatus } from "./AliceAvatar";
 import { lighthouseDiscoveryConfig as config } from "../../config/lighthouseDiscoveryConfig";
 import { alicePromptProfiles, getAlicePromptProfile, isAlicePromptProfileId, type AlicePromptProfileId } from "../../config/alicePromptProfiles";
+import { captureOzDiscovery, clearOzDiscoveryCaptures } from "../../oz/ozDiscoveryCapture";
 import "./discovery.css";
 
 type Turn = { id: string; role: "participant" | "alice" | "system"; text: string; timestamp: string; inputMode: "typed" | "voice"; transcriptEdited: boolean; aliceVoiceEnabled: boolean; quietMode: boolean; aliceStatusAtTime: AliceStatus; audioUrl?: string; source: "chat" | "transcript" | "note" };
@@ -43,7 +44,9 @@ function useAliceSession(systemPrompt: string) {
       if (response.ok) reply = (await response.json()).reply || reply;
     } catch { /* preserve a natural offline fallback */ }
     const aliceTurn: Turn = { id: crypto.randomUUID(), role: "alice", text: reply, timestamp: now(), inputMode, transcriptEdited: false, aliceVoiceEnabled: voiceOn, quietMode, aliceStatusAtTime: quietMode || !voiceOn ? "thinking" : "speaking", source: "chat" };
+    const completedExchange = [...next, aliceTurn];
     setTurns(current => [...current, aliceTurn]);
+    void captureOzDiscovery(completedExchange.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, timestamp: turn.timestamp }))).catch(() => undefined);
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
   return { turns, setTurns, status, setStatus, voiceOn, setVoiceOn, quietMode, setQuietMode, voiceError, setVoiceError, playVoice, save, stopAudio, send };
@@ -70,7 +73,7 @@ export default function DiscoveryPage() {
   const sendText = async () => { const value = typed.trim(); if (!value) return; setTyped(""); await session.send(value, "typed"); };
   const sendReview = async () => { const value = review.trim(); if (!value) return; const edited = value !== originalReview; setReview(""); await session.send(value, "voice", edited); };
   const exportTranscript = () => { const content = session.turns.map(t => `[${t.timestamp}] ${t.role === "participant" ? "You" : "Alice"}: ${t.text}`).join("\n\n"); const url = URL.createObjectURL(new Blob([content], { type: "text/plain" })); const a = document.createElement("a"); a.href = url; a.download = "lighthouse-discovery-transcript.txt"; a.click(); URL.revokeObjectURL(url); };
-  const clearData = () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); setModal(null); };
+  const clearData = () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); clearOzDiscoveryCaptures(); setModal(null); };
   const toggleVoice = () => { const next = !session.voiceOn; session.setVoiceOn(next); session.setQuietMode(!next); if (!next) session.stopAudio(); };
   const toggleTheme = () => { const next = theme === "dark" ? "light" : "dark"; setTheme(next); localStorage.setItem("lighthouse.discovery.theme", next); };
   const selectPromptProfile = (id: AlicePromptProfileId) => { setPromptProfileId(id); localStorage.setItem(PROMPT_PROFILE_STORAGE_KEY, id); };

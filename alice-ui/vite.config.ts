@@ -32,6 +32,7 @@ function localApiPlugin(mode: string): Plugin {
         const modulePath = pathname === '/api/chat' ? './api/chat.js'
           : pathname === '/api/transcribe' ? './api/transcribe.js'
           : pathname === '/api/tts' ? './api/tts.js'
+          : pathname === '/api/oz-capture' ? './api/oz-capture.js'
           : null
         if (!modulePath) return next()
 
