@@ -375,7 +375,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
         <CollapsibleCard title="DISCOVERY PROGRESS" collapsed={progressCollapsed} onToggle={() => setProgressCollapsed(v => !v)} dataTour="discovery-progress">
           <div style={{ display: "grid", justifyItems: "center", gap: "8px" }}>
             {discoveryIdentity?.name && <b style={{ fontSize: "1.3rem", lineHeight: 1.2, textAlign: "center" }}>{discoveryIdentity.name}</b>}
-            <SingleProgressRing percentage={schemaCoverage.profileReadinessPercentage} label="profile creation" />
+            <SingleProgressRing percentage={schemaCoverage.profileReadinessPercentage} label="profile progress" />
           </div>
         </CollapsibleCard>
         <CollapsibleCard title="SESSION INFO" collapsed={sessionInfoCollapsed} onToggle={() => setSessionInfoCollapsed(v => !v)} dataTour="session-info">
