@@ -8,7 +8,7 @@ export const lighthouseDiscoveryConfig = {
   shortTtsInstructions:
     "Speak calmly, warmly, and unhurried, like a comfortable conversation with a friend — soft and easy, with real pauses, without any performance or brightness. Avoid sounding corporate, robotic, or childish.",
   responseFormat: "mp3",
-  playbackRate: 1.08,
+  playbackRate: 1.0,
   defaultAlicePromptProfileId: "weighted-synthesis",
   defaultVoiceOn: true,
   defaultQuietMode: false,
