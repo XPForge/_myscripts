@@ -31,7 +31,8 @@ import type {
 import "./styles/global.css";
 import DiscoveryPage from "./components/discovery/DiscoveryPage";
 import HeroLandingPage from "./pages/HeroLandingPage";
-import { loadDiscoveryIdentity } from "./services/discoveryIdentity";
+import { saveDiscoveryIdentity } from "./services/discoveryIdentity";
+import { getCurrentUser } from "./services/authClient";
 
 function LighthouseCockpit() {
   const [session, setSession] = useState<DiscoverySession>(() => loadDiscoverySession());
@@ -139,13 +140,29 @@ function AppContent() {
 }
 
 function DiscoveryEntry() {
-  // Name/email capture now happens inline on the hero page (/) — this route
-  // just trusts that identity is already set. If someone lands here directly
-  // without it (bookmark, shared link), send them back to capture first.
-  if (!loadDiscoveryIdentity()) {
-    window.location.href = "/";
-    return null;
-  }
+  // Real sign-up/sign-in now happens inline on the hero page (/) — this
+  // route checks the actual session cookie server-side rather than trusting
+  // localStorage, since that can be cleared or absent on a new device even
+  // when the account itself is real. Local identity is re-synced from the
+  // verified session so the rest of the Discovery UI keeps reading it the
+  // same way it always has.
+  const [checked, setChecked] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) {
+        saveDiscoveryIdentity(user.name, user.email);
+        setAuthorized(true);
+      } else {
+        window.location.href = "/";
+      }
+      setChecked(true);
+    });
+  }, []);
+
+  if (!checked) return null;
+  if (!authorized) return null;
   return <DiscoveryPage onRestart={() => { window.location.href = "/"; }} />;
 }
 

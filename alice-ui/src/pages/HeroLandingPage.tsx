@@ -3,14 +3,14 @@
 // Background photo and hero copy are pulled directly from that page's source;
 // the image is stored locally in public/ so this page has no runtime
 // dependency on Framer's hosting.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   clearDiscoveryIdentity,
   clearSavedDiscoverySession,
   hasSavedDiscoverySession,
-  loadDiscoveryIdentity,
   saveDiscoveryIdentity,
 } from "../services/discoveryIdentity";
+import { getCurrentUser, signIn, signOut, signUp, type AuthUser } from "../services/authClient";
 
 const LIGHTHOUSE_BACKGROUND_IMAGE = "/lighthouse-hero-background.jpg";
 const CONTENT_MAX_WIDTH = "520px";
@@ -52,27 +52,61 @@ const secondaryButtonStyle: React.CSSProperties = {
 };
 
 function DiscoveryCapture() {
-  const [identity, setIdentity] = useState(() => loadDiscoveryIdentity());
+  const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [mode, setMode] = useState<"signup" | "login">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getCurrentUser().then((current) => {
+      setUser(current);
+      setChecking(false);
+    });
+  }, []);
 
   const enterDiscovery = () => {
     window.location.href = "/discovery";
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email.trim()) return;
-    saveDiscoveryIdentity(name, email);
-    enterDiscovery();
+    setError("");
+    setSubmitting(true);
+    try {
+      const account = mode === "signup" ? await signUp(name, email, password) : await signIn(email, password);
+      saveDiscoveryIdentity(account.name, account.email);
+      enterDiscovery();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (identity) {
+  const handleSignOut = async () => {
+    await signOut().catch(() => undefined);
+    clearSavedDiscoverySession();
+    clearDiscoveryIdentity();
+    setUser(null);
+    setName("");
+    setEmail("");
+    setPassword("");
+  };
+
+  if (checking) {
+    return <div style={{ maxWidth: CONTENT_MAX_WIDTH, minHeight: "160px" }} />;
+  }
+
+  if (user) {
     const hasSession = hasSavedDiscoverySession();
     return (
       <div style={{ display: "grid", gap: "14px", maxWidth: CONTENT_MAX_WIDTH }}>
         <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff" }}>
-          Welcome back{identity.name ? `, ${identity.name}` : ""}
+          Welcome back{user.name ? `, ${user.name}` : ""}
         </div>
         <div style={{ fontSize: "0.88rem", color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
           {hasSession
@@ -89,14 +123,14 @@ function DiscoveryCapture() {
             type="button"
             onClick={() => {
               clearSavedDiscoverySession();
-              clearDiscoveryIdentity();
-              setName("");
-              setEmail("");
-              setIdentity(null);
+              enterDiscovery();
             }}
             style={hasSession ? secondaryButtonStyle : primaryButtonStyle}
           >
             {hasSession ? "Start New Discovery Session" : "Start Discovery"}
+          </button>
+          <button type="button" onClick={() => void handleSignOut()} style={{ ...secondaryButtonStyle, background: "transparent", border: "none", fontWeight: 500, fontSize: "0.82rem", opacity: 0.7 }}>
+            Not you? Sign out
           </button>
         </div>
       </div>
@@ -104,17 +138,36 @@ function DiscoveryCapture() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px", maxWidth: CONTENT_MAX_WIDTH }}>
-      <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
-        Your name (optional)
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          type="text"
-          autoComplete="name"
-          style={inputStyle}
-        />
-      </label>
+    <form onSubmit={(event) => void handleSubmit(event)} style={{ display: "grid", gap: "12px", maxWidth: CONTENT_MAX_WIDTH }}>
+      <div style={{ display: "flex", gap: "18px", fontSize: "0.85rem", fontWeight: 700 }}>
+        <button
+          type="button"
+          onClick={() => { setMode("signup"); setError(""); }}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: mode === "signup" ? "#ffffff" : "rgba(255,255,255,0.5)", borderBottom: mode === "signup" ? "2px solid #60a5fa" : "2px solid transparent", paddingBottom: "4px" }}
+        >
+          Create account
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode("login"); setError(""); }}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: mode === "login" ? "#ffffff" : "rgba(255,255,255,0.5)", borderBottom: mode === "login" ? "2px solid #60a5fa" : "2px solid transparent", paddingBottom: "4px" }}
+        >
+          Log in
+        </button>
+      </div>
+      {mode === "signup" && (
+        <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+          Your name
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            type="text"
+            required
+            autoComplete="name"
+            style={inputStyle}
+          />
+        </label>
+      )}
       <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
         Email address
         <input
@@ -126,12 +179,30 @@ function DiscoveryCapture() {
           style={inputStyle}
         />
       </label>
+      <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+        Password
+        <input
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          type="password"
+          required
+          minLength={8}
+          autoComplete={mode === "signup" ? "new-password" : "current-password"}
+          style={inputStyle}
+        />
+      </label>
+      {error && <div style={{ fontSize: "0.82rem", color: "#fca5a5" }}>{error}</div>}
       <button
         type="submit"
-        disabled={!email.trim()}
-        style={{ ...primaryButtonStyle, opacity: email.trim() ? 1 : 0.5, cursor: email.trim() ? "pointer" : "not-allowed", marginTop: "4px" }}
+        disabled={submitting || !email.trim() || password.length < 8 || (mode === "signup" && !name.trim())}
+        style={{
+          ...primaryButtonStyle,
+          opacity: submitting ? 0.7 : 1,
+          cursor: submitting ? "wait" : "pointer",
+          marginTop: "4px",
+        }}
       >
-        Start Discovery
+        {submitting ? "Please wait…" : mode === "signup" ? "Create account & start Discovery" : "Log in"}
       </button>
     </form>
   );
