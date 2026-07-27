@@ -4,6 +4,8 @@ import { DISCOVERY_FIELD_KEYS, type DiscoveryFieldKey } from "./lighthouseProfil
 // plugin) and on Vercel (as a real serverless function), so it works the same
 // way in both places instead of pointing at a hardcoded localhost port.
 const PROFILE_AUTHORING_API_URL = "/api/profile-author";
+const SEND_PROFILE_EMAIL_API_URL = "/api/send-profile-email";
+const GENERATE_PROFILE_PDF_API_URL = "/api/generate-profile-pdf";
 
 export type AuthoredProfileFields = Record<DiscoveryFieldKey, string> & {
   discoverySummary: string;
@@ -57,4 +59,47 @@ export async function authorLighthouseProfile(
       generatedProfile: toFieldString(rawProfile.generatedProfile),
     },
   };
+}
+
+export async function sendProfileEmail(
+  participantName: string,
+  participantEmail: string,
+  fields: AuthoredProfileFields
+): Promise<void> {
+  const response = await fetch(SEND_PROFILE_EMAIL_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ participantName, participantEmail, profile: fields }),
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Email delivery failed: ${response.status}`;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.error === "string") errorMessage = payload.error;
+    } catch {
+      // keep default message
+    }
+    throw new Error(errorMessage);
+  }
+}
+
+export async function downloadProfilePdf(participantName: string, fields: AuthoredProfileFields): Promise<void> {
+  const response = await fetch(GENERATE_PROFILE_PDF_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ participantName, profile: fields }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`PDF generation failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "lighthouse-discovery-profile.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
 }

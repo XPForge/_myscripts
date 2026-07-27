@@ -3,6 +3,8 @@
 // relative path (/api/profile-author) instead of a hardcoded localhost port,
 // so it actually works once deployed.
 
+import { neon } from "@neondatabase/serverless";
+
 export const config = { api: { bodyParser: false } };
 
 function sanitizeSecret(value) {
@@ -20,6 +22,23 @@ const OPENAI_MODEL = sanitizeSecret(process.env.OPENAI_MODEL) || "gpt-5.6-sol";
 // cheaper mini variant) — always defaults to the flagship text model.
 const PROFILE_AUTHORING_MODEL = sanitizeSecret(process.env.PROFILE_AUTHORING_MODEL) || OPENAI_MODEL;
 const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
+const DATABASE_URL = sanitizeSecret(process.env.DATABASE_URL);
+
+// Best-effort retention of a development copy. Only called when the
+// participant explicitly consents via the Participant Authority checkbox.
+// A failure here must never break profile generation for the participant.
+async function saveDevelopmentCopy(participantName, participantEmail, model, profile) {
+  if (!DATABASE_URL) return;
+  try {
+    const sql = neon(DATABASE_URL);
+    await sql`
+      INSERT INTO discovery_profiles (participant_name, participant_email, model, profile_json)
+      VALUES (${participantName}, ${participantEmail || null}, ${model}, ${JSON.stringify(profile)})
+    `;
+  } catch (err) {
+    console.error("Failed to save development copy:", err);
+  }
+}
 
 // Mirrors src/services/lighthouseProfile.ts's DISCOVERY_FIELD_KEYS and
 // src/services/discoverySchemaTracker.ts's DISCOVERY_FIELD_LABELS. Duplicated
@@ -125,6 +144,8 @@ export default async function handler(req, res) {
 
   let transcript;
   let participantName;
+  let participantEmail;
+  let retainForDevelopment;
   try {
     const body = await readJsonBody(req);
     if (typeof body.transcript !== "string" || !body.transcript.trim()) {
@@ -133,10 +154,8 @@ export default async function handler(req, res) {
     }
     transcript = body.transcript;
     participantName = typeof body.participantName === "string" ? body.participantName : "the participant";
-    // Note: the local-disk "retain for development" save from
-    // backend/modelResponseEndpoint.ts is intentionally not ported here —
-    // Vercel's serverless filesystem is ephemeral and not visible to you
-    // locally, so it would silently do nothing useful in production.
+    participantEmail = typeof body.participantEmail === "string" ? body.participantEmail : "";
+    retainForDevelopment = body.retainForDevelopment === true;
   } catch {
     sendJson(res, 400, { error: "Invalid request" });
     return;
@@ -172,6 +191,10 @@ export default async function handler(req, res) {
     if (!parsed || typeof parsed !== "object") {
       sendJson(res, 502, { error: "Profile authoring returned an unreadable response" });
       return;
+    }
+
+    if (retainForDevelopment) {
+      await saveDevelopmentCopy(participantName, participantEmail, PROFILE_AUTHORING_MODEL, parsed);
     }
 
     sendJson(res, 200, { model: PROFILE_AUTHORING_MODEL, profile: parsed });

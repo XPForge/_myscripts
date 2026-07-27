@@ -6,7 +6,7 @@ import { alicePromptProfiles, getAlicePromptProfile, isAlicePromptProfileId, typ
 import { captureOzDiscovery, clearOzDiscoveryCaptures } from "../../oz/ozDiscoveryCapture";
 import { ConcentricProgressRings, SingleProgressRing } from "../shared/ConcentricProgressRings";
 import { computeSchemaCoverage, DISCOVERY_FIELD_LABELS, type SchemaCoverageReport } from "../../services/discoverySchemaTracker";
-import { authorLighthouseProfile, type AuthorProfileResult } from "../../services/profileAuthoringClient";
+import { authorLighthouseProfile, sendProfileEmail, downloadProfilePdf, type AuthorProfileResult } from "../../services/profileAuthoringClient";
 import { clearDiscoveryIdentity, loadDiscoveryIdentity } from "../../services/discoveryIdentity";
 import { GuidedTour, GuidedTourWaitingOverlay } from "./GuidedTour";
 import "./discovery.css";
@@ -149,6 +149,8 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const [otherFormatDescription, setOtherFormatDescription] = useState("");
   const [deliveryEmail, setDeliveryEmail] = useState(() => discoveryIdentity?.email ?? "");
   const [deliveryRequested, setDeliveryRequested] = useState(false);
+  const [deliverySending, setDeliverySending] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
   const [allowDevelopmentCopy, setAllowDevelopmentCopy] = useState(false);
   const [tourState, setTourState] = useState<"idle" | "waiting" | "active">("idle");
   const [tourKey, setTourKey] = useState(0);
@@ -245,7 +247,31 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     const a = document.createElement("a"); a.href = url; a.download = "lighthouse-discovery-profile.txt"; a.click(); URL.revokeObjectURL(url);
   };
-  const requestProfileDelivery = () => { setDeliveryRequested(true); };
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+  const handleDownloadPdf = async () => {
+    if (!authoredProfile) return;
+    setPdfDownloading(true); setPdfError("");
+    try {
+      await downloadProfilePdf(reviewName.trim() || "Participant", authoredProfile.fields);
+    } catch (error) {
+      setPdfError(error instanceof Error ? error.message : "Unable to generate the PDF.");
+    } finally {
+      setPdfDownloading(false);
+    }
+  };
+  const requestProfileDelivery = async () => {
+    if (!authoredProfile) return;
+    setDeliverySending(true); setDeliveryError(""); setDeliveryRequested(false);
+    try {
+      await sendProfileEmail(reviewName.trim() || "Participant", deliveryEmail.trim(), authoredProfile.fields);
+      setDeliveryRequested(true);
+    } catch (error) {
+      setDeliveryError(error instanceof Error ? error.message : "Unable to send the email.");
+    } finally {
+      setDeliverySending(false);
+    }
+  };
   const debugFillSampleTranscript = () => {
     if (!isDebugAccount) return;
     session.setTurns(current => [...current, { id: crypto.randomUUID(), role: "participant", text: SAMPLE_TEST_TRANSCRIPT, timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: session.voiceOn, quietMode: session.quietMode, aliceStatusAtTime: "listening", source: "chat" }]);
@@ -382,13 +408,31 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
                 ))}
               </div>
               {exportFormat === "other" && <input value={otherFormatDescription} onChange={e => setOtherFormatDescription(e.target.value)} placeholder="Describe the format you'd like" />}
-              {(exportFormat === "pdf" || exportFormat === "docx") && <span style={{ fontSize: "0.76rem", color: "#ca8a04" }}>{exportFormat === "pdf" ? "PDF" : "Word (.docx)"} generation isn't built yet — your request will be recorded, and plain text is available to download right now.</span>}
-              <label>Email address to send the finished profile to<input type="email" value={deliveryEmail} onChange={e => setDeliveryEmail(e.target.value)} placeholder="you@example.com" /></label>
+              {exportFormat === "docx" && <span style={{ fontSize: "0.76rem", color: "#ca8a04" }}>Word (.docx) generation isn't built yet — your request will be recorded, and plain text or the emailed document are available now.</span>}
+              {exportFormat === "other" && <span style={{ fontSize: "0.76rem", color: "#ca8a04" }}>Custom formats aren't built yet — your request will be recorded, and plain text or the emailed document are available now.</span>}
+              {discoveryIdentity?.email ? (
+                <span style={{ fontSize: "0.85rem" }}>
+                  We'll send your finished profile to <b>{discoveryIdentity.email}</b>.{" "}
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", padding: 0, textDecoration: "underline", cursor: "pointer", fontSize: "inherit" }}
+                    onClick={() => setDeliveryEmail(deliveryEmail === discoveryIdentity.email ? "" : discoveryIdentity.email)}
+                  >
+                    {deliveryEmail === discoveryIdentity.email ? "Use a different email" : "Use my sign-in email instead"}
+                  </button>
+                </span>
+              ) : null}
+              {(!discoveryIdentity?.email || deliveryEmail !== discoveryIdentity.email) && (
+                <label>Email address to send the finished profile to<input type="email" value={deliveryEmail} onChange={e => setDeliveryEmail(e.target.value)} placeholder="you@example.com" /></label>
+              )}
               <div className="modal-actions">
-                <button onClick={downloadPlainTextProfile}>Download plain text now</button>
-                <button className="primary" disabled={!deliveryEmail.trim()} onClick={requestProfileDelivery}>Request email delivery</button>
+                <button onClick={downloadPlainTextProfile}>Download plain text</button>
+                <button onClick={() => void handleDownloadPdf()} disabled={pdfDownloading}>{pdfDownloading ? "Preparing PDF…" : "Download PDF"}</button>
+                <button className="primary" disabled={!deliveryEmail.trim() || deliverySending} onClick={() => void requestProfileDelivery()}>{deliverySending ? "Sending…" : "Email me this profile"}</button>
               </div>
-              {deliveryRequested && <span style={{ fontSize: "0.8rem", color: "#16a34a" }}>Request recorded. Email sending isn't connected yet, so nothing has actually been sent — use the download button above to get your document now.</span>}
+              {pdfError && <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{pdfError}</span>}
+              {deliveryRequested && <span style={{ fontSize: "0.8rem", color: "#16a34a" }}>Sent! Check {deliveryEmail} for your profile (PDF attached).</span>}
+              {deliveryError && <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{deliveryError}</span>}
               <button onClick={() => setModal(null)}>Back to conversation</button>
             </div>
           )}

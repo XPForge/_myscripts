@@ -7,18 +7,6 @@ import react from '@vitejs/plugin-react'
 type ApiRequest = IncomingMessage & { body?: unknown }
 type ApiHandler = (req: ApiRequest, res: ServerResponse) => Promise<void>
 
-function readJsonBody(req: IncomingMessage) {
-  return new Promise<unknown>((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')) }
-      catch (error) { reject(error) }
-    })
-    req.on('error', reject)
-  })
-}
-
 function localApiPlugin(mode: string): Plugin {
   const env = loadEnv(mode, process.cwd(), '')
   Object.entries(env).forEach(([key, value]) => { process.env[key] = value })
@@ -34,12 +22,15 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/tts' ? './api/tts.js'
           : pathname === '/api/oz-capture' ? './api/oz-capture.js'
           : pathname === '/api/profile-author' ? './api/profile-author.js'
+          : pathname === '/api/send-profile-email' ? './api/send-profile-email.js'
+          : pathname === '/api/generate-profile-pdf' ? './api/generate-profile-pdf.js'
           : null
         if (!modulePath) return next()
 
         try {
+          // All handlers read the raw request stream themselves (bodyParser
+          // is disabled on Vercel), so nothing here should pre-consume it.
           const req = request as ApiRequest
-          if (pathname !== '/api/transcribe') req.body = await readJsonBody(request)
           const moduleUrl = pathToFileURL(resolve(process.cwd(), modulePath)).href
           const module = await import(`${moduleUrl}?dev=${apiModuleVersion}`) as { default: ApiHandler }
           await module.default(req, response)

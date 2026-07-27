@@ -2,11 +2,11 @@ export const lighthouseDiscoveryConfig = {
   chatModel: "gpt-5.6-sol",
   transcriptionModel: "gpt-4o-transcribe",
   ttsModel: "gpt-4o-mini-tts",
-  voiceName: "sage",
+  voiceName: "coral",
   ttsInstructions:
-    "Speak as Alice, a warm, intelligent, emotionally present discovery guide. Sound upbeat, friendly, encouraging, and naturally engaged. Use a lively conversational pace with brief, comfortable pauses. Keep the delivery sincere and grounded, with a gentle smile in the voice. Avoid sounding corporate, robotic, theatrical, childish, overly cheerful, or like customer service.",
+    "Speak as Alice, a vibrant, high-energy discovery guide who is genuinely thrilled to be in this conversation. Sound bright, bold, and enthusiastic — real excitement and warmth radiating through every word, like you can't wait to hear what this person has to say. Speak at a natural, unhurried conversational pace — take your time, do not rush your words — while still carrying strong, confident energy and warmth. Stay sincere and grounded, never fake or over-the-top theatrical, but let the energy be unmistakable and infectious. Avoid sounding corporate, robotic, childish, or like customer service.",
   shortTtsInstructions:
-    "Speak warmly, naturally, and at a lively conversational pace. Sound upbeat, friendly, encouraging, and genuinely engaged without becoming overly cheerful, rushed, corporate, robotic, or theatrical.",
+    "Speak with bright, bold energy and genuine enthusiasm, at a natural, unhurried pace — do not rush. Sound thrilled and warmly engaged — infectious energy, not theatrical — without becoming corporate, robotic, or childish.",
   responseFormat: "mp3",
   playbackRate: 1.08,
   defaultAlicePromptProfileId: "weighted-synthesis",
