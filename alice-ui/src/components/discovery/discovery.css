@@ -95,3 +95,10 @@
 .discovery-page--dark .bubble{background:rgba(24,36,59,.85)}
 .discovery-page--dark .composer,.discovery-page--dark .transcript-review{background:rgba(16,27,49,.78)}
 @media(max-width:820px){.discovery-page--dark .left-rail,.discovery-page--dark .right-rail{background:rgba(9,18,37,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}}
+
+/* Decorative domain-wheel graphic anchored to the lower-left corner, sized
+   and offset so roughly 40% of it bleeds off the edge of the screen. Fixed
+   to the viewport, behind all interactive content, never intercepts clicks. */
+.domain-wheel-decor{position:fixed;left:0;bottom:0;width:min(560px,55vw);height:auto;transform:translate(-40%,40%);pointer-events:none;z-index:0;opacity:.9}
+@media(max-width:820px){.domain-wheel-decor{width:min(360px,70vw)}}
+.three-column,.bottom-bar{position:relative;z-index:1}
