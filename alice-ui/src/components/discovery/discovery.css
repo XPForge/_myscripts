@@ -79,3 +79,8 @@
    bottom bar. This is the authoritative override, desktop-only so the
    already-reasonable max-width:820px mobile rules are untouched. */
 @media(min-width:821px){.center-panel{min-height:420px}.chat{min-height:0;max-height:58vh}}
+
+/* Reserved for a graphic to replace the old redundant Voice & Audio toggle
+   (the real control lives on Alice's identity panel already). Swap in a
+   background-image or <img> here once one is picked. */
+.footer-graphic-slot{min-height:60px;border-radius:8px}
