@@ -84,3 +84,14 @@
    (the real control lives on Alice's identity panel already). Swap in a
    background-image or <img> here once one is picked. */
 .footer-graphic-slot{min-height:60px;border-radius:8px}
+
+/* Faint background graphic behind the whole dark-theme interface, visible
+   through the panels via a frosted-glass treatment (semi-transparent
+   background + blur) instead of the previous fully opaque panel fills. */
+.discovery-page--dark{background-image:linear-gradient(180deg,rgba(4,7,15,.84),rgba(4,7,15,.91)),radial-gradient(circle at 52% -10%,rgba(23,43,98,.55) 0,rgba(12,22,49,.65) 34%,rgba(7,13,28,.82) 76%),url(/lighthouse-hero-background.jpg);background-size:cover;background-position:center;background-attachment:fixed;background-repeat:no-repeat}
+.discovery-page--dark .topbar{background:rgba(8,15,32,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.discovery-page--dark .rail-card,.discovery-page--dark .bottom-bar{background:rgba(14,23,43,.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.discovery-page--dark .center-panel{background:rgba(13,27,53,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.discovery-page--dark .bubble{background:rgba(24,36,59,.85)}
+.discovery-page--dark .composer,.discovery-page--dark .transcript-review{background:rgba(16,27,49,.78)}
+@media(max-width:820px){.discovery-page--dark .left-rail,.discovery-page--dark .right-rail{background:rgba(9,18,37,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}}
