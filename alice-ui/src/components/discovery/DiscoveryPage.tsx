@@ -32,7 +32,7 @@ const AUTHORING_STAGE_MESSAGES = [
   "Almost done…",
 ];
 type ReviewPhase = "decide" | "authoring" | "authored" | "error";
-type ExportFormat = "pdf" | "docx" | "text" | "other";
+type ExportFormat = "pdf" | "text";
 
 // Persists across sessions/resets — a running cumulative total, distinct from
 // the ephemeral per-visit "This Session" timer below.
@@ -186,7 +186,6 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const [authoringError, setAuthoringError] = useState("");
   const [reviewName, setReviewName] = useState(() => discoveryIdentity?.name ?? "");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("text");
-  const [otherFormatDescription, setOtherFormatDescription] = useState("");
   const [deliveryEmail, setDeliveryEmail] = useState(() => discoveryIdentity?.email ?? "");
   const [deliveryRequested, setDeliveryRequested] = useState(false);
   const [deliverySending, setDeliverySending] = useState(false);
@@ -531,15 +530,12 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
               <label>Your name (for the profile)<input value={reviewName} onChange={e => setReviewName(e.target.value)} placeholder="Your name" /></label>
               <span>Choose a format for your emailed document:</span>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {(["pdf", "docx", "text", "other"] as ExportFormat[]).map(format => (
+                {(["pdf", "text"] as ExportFormat[]).map(format => (
                   <button key={format} className={exportFormat === format ? "primary" : ""} onClick={() => setExportFormat(format)}>
-                    {format === "pdf" ? "PDF" : format === "docx" ? "Word (.docx)" : format === "text" ? "Plain text" : "Other"}
+                    {format === "pdf" ? "PDF" : "Plain text"}
                   </button>
                 ))}
               </div>
-              {exportFormat === "other" && <input value={otherFormatDescription} onChange={e => setOtherFormatDescription(e.target.value)} placeholder="Describe the format you'd like" />}
-              {exportFormat === "docx" && <span style={{ fontSize: "0.76rem", color: "#ca8a04" }}>Word (.docx) generation isn't built yet — your request will be recorded, and plain text or the emailed document are available now.</span>}
-              {exportFormat === "other" && <span style={{ fontSize: "0.76rem", color: "#ca8a04" }}>Custom formats aren't built yet — your request will be recorded, and plain text or the emailed document are available now.</span>}
               {discoveryIdentity?.email ? (
                 <span style={{ fontSize: "0.85rem" }}>
                   We'll send your finished profile to <b>{discoveryIdentity.email}</b>.{" "}
