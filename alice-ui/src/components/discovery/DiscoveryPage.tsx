@@ -19,6 +19,16 @@ const SAMPLE_TEST_TRANSCRIPT =
   "What motivates me most is solving something nobody else has cracked yet — I'm deeply motivated when I can see the impact of what I built. I get frustrated by unclear priorities, and it frustrates me when decisions keep changing. I learn best by building something small and breaking it, that's my learning style. When I hit a hard bug I try to figure out the smallest reproduction, then troubleshoot from there. I try to explain things simply to others, and I make sure I listen before I respond. I've had to lead a small team before, and I mentor a couple of junior engineers now. I do my best work as a team, and I love how collaborative a good sprint can feel. I thrive when the goals are clear and I'm energized by fast feedback loops. I struggle when I'm micromanaged, and I get drained by constant context switching. I adapt fairly fast when things change, even when a project pivots halfway through. Under pressure, especially near a deadline, I get very focused. There's an opportunity I'd like to explore in more technical leadership. One thing that's often overlooked about me is how much of the groundwork I do that nobody sees — it's a bit of a hidden strength. For example, last quarter I quietly rebuilt our deploy pipeline; for instance, that cut release time in half. I realized I care more about enabling others than I first said, and I noticed that pattern repeating.";
 const CHECKPOINT_ANNOUNCEMENT_TEXT =
   "We've covered a lot of good ground so far. You're welcome to keep going if there's more you'd like to share, or we can wrap up here whenever you're ready — that's entirely your call.";
+// Authoring is a single non-streaming model call, so there's no real
+// percentage to track — this cycles through honest-feeling stages instead
+// of leaving the screen static during the wait.
+const AUTHORING_STAGE_MESSAGES = [
+  "Reading through your conversation…",
+  "Identifying patterns across what you shared…",
+  "Weighing evidence for each area…",
+  "Writing your profile…",
+  "Almost done…",
+];
 type ReviewPhase = "decide" | "authoring" | "authored" | "error";
 type ExportFormat = "pdf" | "docx" | "text" | "other";
 
@@ -143,6 +153,14 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
   const [checkpointAnnounced, setCheckpointAnnounced] = useState(false);
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>("decide");
+  const [authoringStageIndex, setAuthoringStageIndex] = useState(0);
+  useEffect(() => {
+    if (reviewPhase !== "authoring") { setAuthoringStageIndex(0); return; }
+    const id = window.setInterval(() => {
+      setAuthoringStageIndex((i) => Math.min(i + 1, AUTHORING_STAGE_MESSAGES.length - 1));
+    }, 2600);
+    return () => clearInterval(id);
+  }, [reviewPhase]);
   const [authoredProfile, setAuthoredProfile] = useState<AuthorProfileResult | null>(null);
   const [authoringError, setAuthoringError] = useState("");
   const [reviewName, setReviewName] = useState(() => discoveryIdentity?.name ?? "");
@@ -444,7 +462,15 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
               </div>
             </div>
           )}
-          {reviewPhase === "authoring" && <p>Authoring your profile with the flagship model…</p>}
+          {reviewPhase === "authoring" && (
+            <div style={{ display: "grid", justifyItems: "center", gap: "14px", padding: "20px 0" }}>
+              <AliceAvatar status="loading" size="md" />
+              <div className="authoring-progress-track">
+                <div className="authoring-progress-fill" />
+              </div>
+              <p style={{ margin: 0, fontSize: "0.88rem", opacity: 0.85 }}>{AUTHORING_STAGE_MESSAGES[authoringStageIndex]}</p>
+            </div>
+          )}
           {reviewPhase === "error" && (
             <div><p style={{ color: "#b91c1c" }}>{authoringError}</p><button className="primary" onClick={() => void generateProfileFromReview()}>Try again</button></div>
           )}
