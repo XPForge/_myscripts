@@ -25,6 +25,10 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/send-profile-email' ? './api/send-profile-email.js'
           : pathname === '/api/generate-profile-pdf' ? './api/generate-profile-pdf.js'
           : pathname === '/api/submit-feedback' ? './api/submit-feedback.js'
+          : pathname === '/api/auth-signup' ? './api/auth-signup.js'
+          : pathname === '/api/auth-login' ? './api/auth-login.js'
+          : pathname === '/api/auth-logout' ? './api/auth-logout.js'
+          : pathname === '/api/auth-me' ? './api/auth-me.js'
           : null
         if (!modulePath) return next()
 
