@@ -24,6 +24,7 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/profile-author' ? './api/profile-author.js'
           : pathname === '/api/send-profile-email' ? './api/send-profile-email.js'
           : pathname === '/api/generate-profile-pdf' ? './api/generate-profile-pdf.js'
+          : pathname === '/api/submit-feedback' ? './api/submit-feedback.js'
           : null
         if (!modulePath) return next()
 

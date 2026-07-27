@@ -8,6 +8,7 @@ import { ConcentricProgressRings, SingleProgressRing } from "../shared/Concentri
 import { computeSchemaCoverage, DISCOVERY_FIELD_LABELS, type SchemaCoverageReport } from "../../services/discoverySchemaTracker";
 import { authorLighthouseProfile, sendProfileEmail, downloadProfilePdf, type AuthorProfileResult } from "../../services/profileAuthoringClient";
 import { clearDiscoveryIdentity, loadDiscoveryIdentity } from "../../services/discoveryIdentity";
+import { submitDiscoveryFeedback } from "../../services/feedbackClient";
 import { GuidedTour, GuidedTourWaitingOverlay } from "./GuidedTour";
 import "./discovery.css";
 
@@ -152,6 +153,16 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const [deliverySending, setDeliverySending] = useState(false);
   const [deliveryError, setDeliveryError] = useState("");
   const [allowDevelopmentCopy, setAllowDevelopmentCopy] = useState(false);
+  const [feedbackTab, setFeedbackTab] = useState<"speak" | "type">("type");
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackConsent, setFeedbackConsent] = useState(false);
+  const [feedbackRecording, setFeedbackRecording] = useState(false);
+  const [feedbackTranscribing, setFeedbackTranscribing] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const feedbackRecorderRef = useRef<MediaRecorder | null>(null);
+  const feedbackChunksRef = useRef<BlobPart[]>([]);
   const [tourState, setTourState] = useState<"idle" | "waiting" | "active">("idle");
   const [tourKey, setTourKey] = useState(0);
   const startGuidedTour = () => {
@@ -270,6 +281,63 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
       setDeliveryError(error instanceof Error ? error.message : "Unable to send the email.");
     } finally {
       setDeliverySending(false);
+    }
+  };
+  const startFeedbackRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream);
+      feedbackChunksRef.current = [];
+      r.ondataavailable = (e) => feedbackChunksRef.current.push(e.data);
+      r.start();
+      feedbackRecorderRef.current = r;
+      setFeedbackRecording(true);
+      setFeedbackError("");
+    } catch {
+      setFeedbackError("Microphone access is unavailable. Check your browser permission, or type your feedback instead.");
+    }
+  };
+  const finishFeedbackRecording = () => {
+    const r = feedbackRecorderRef.current;
+    if (!r) return;
+    r.onstop = async () => {
+      r.stream.getTracks().forEach((t) => t.stop());
+      setFeedbackRecording(false);
+      setFeedbackTranscribing(true);
+      const blob = new Blob(feedbackChunksRef.current, { type: r.mimeType || "audio/webm" });
+      try {
+        const form = new FormData();
+        form.append("file", blob, "feedback.webm");
+        form.append("model", config.transcriptionModel);
+        const response = await fetch("/api/transcribe", { method: "POST", body: form });
+        if (!response.ok) throw new Error();
+        const text = (await response.json()).text || "";
+        setFeedbackText(text);
+      } catch {
+        setFeedbackError("Transcription didn't come through — you can type your feedback instead.");
+      } finally {
+        setFeedbackTranscribing(false);
+      }
+    };
+    r.stop();
+  };
+  const submitFeedback = async () => {
+    const value = feedbackText.trim();
+    if (!value) return;
+    setFeedbackSubmitting(true); setFeedbackError("");
+    try {
+      await submitDiscoveryFeedback(
+        reviewName.trim() || discoveryIdentity?.name || "",
+        deliveryEmail.trim() || discoveryIdentity?.email || "",
+        value,
+        feedbackTab === "speak" ? "voice" : "typed",
+        feedbackConsent
+      );
+      setFeedbackSubmitted(true);
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : "Unable to send feedback.");
+    } finally {
+      setFeedbackSubmitting(false);
     }
   };
   const debugFillSampleTranscript = () => {
@@ -433,6 +501,76 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
               {pdfError && <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{pdfError}</span>}
               {deliveryRequested && <span style={{ fontSize: "0.8rem", color: "#16a34a" }}>Sent! Check {deliveryEmail} for your profile (PDF attached).</span>}
               {deliveryError && <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{deliveryError}</span>}
+
+              <div
+                style={{
+                  marginTop: "8px",
+                  paddingTop: "16px",
+                  borderTop: "1px solid rgba(148,163,184,0.18)",
+                  display: "grid",
+                  gap: "10px",
+                }}
+              >
+                <b style={{ fontSize: "0.95rem" }}>Before you go</b>
+                {feedbackSubmitted ? (
+                  <span style={{ fontSize: "0.85rem", color: "#16a34a" }}>
+                    Thank you — your feedback has been shared and will be reviewed before it's used anywhere.
+                  </span>
+                ) : (
+                  <>
+                    <span style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                      Would you share what this experience was like for you? Optional — speak it or type it, whichever's easier.
+                    </span>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button className={feedbackTab === "speak" ? "primary" : ""} onClick={() => setFeedbackTab("speak")}><Mic size={14} /> Speak</button>
+                      <button className={feedbackTab === "type" ? "primary" : ""} onClick={() => setFeedbackTab("type")}><FileText size={14} /> Type</button>
+                    </div>
+                    {feedbackTab === "speak" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <button
+                          className={`record-button ${feedbackRecording ? "recording" : ""}`}
+                          style={{ width: "40px", height: "40px" }}
+                          onClick={feedbackRecording ? finishFeedbackRecording : startFeedbackRecording}
+                          aria-label={feedbackRecording ? "Done speaking" : "Start recording feedback"}
+                        >
+                          {feedbackRecording ? <Square size={16} /> : <Mic size={16} />}
+                        </button>
+                        <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                          {feedbackRecording ? "Listening…" : feedbackTranscribing ? "Transcribing…" : "Tap to record, tap again when done"}
+                        </span>
+                      </div>
+                    )}
+                    <textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="What stood out, what felt off, anything at all…"
+                      style={{ minHeight: "70px", borderRadius: "8px", border: "1px solid rgba(148,163,184,0.3)", padding: "8px 10px", fontFamily: "inherit" }}
+                    />
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "8px",
+                        padding: "10px 12px",
+                        borderRadius: "10px",
+                        border: "1px solid rgba(234,179,8,0.4)",
+                        background: "rgba(234,179,8,0.1)",
+                      }}
+                    >
+                      <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.82rem", lineHeight: 1.5 }}>
+                        <input type="checkbox" checked={feedbackConsent} onChange={(e) => setFeedbackConsent(e.target.checked)} style={{ marginTop: "3px" }} />
+                        <span>🛡 May Lighthouse use this as a testimonial? It will be reviewed before it's ever shown anywhere, and this is entirely optional.</span>
+                      </label>
+                    </div>
+                    <div className="modal-actions">
+                      <button disabled={!feedbackText.trim() || feedbackSubmitting} className="primary" onClick={() => void submitFeedback()}>
+                        {feedbackSubmitting ? "Sending…" : "Share feedback"}
+                      </button>
+                    </div>
+                    {feedbackError && <span style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{feedbackError}</span>}
+                  </>
+                )}
+              </div>
+
               <button onClick={() => setModal(null)}>Back to conversation</button>
             </div>
           )}
