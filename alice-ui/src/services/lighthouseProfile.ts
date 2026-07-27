@@ -35,6 +35,8 @@ export type LighthouseProfile = {
   generatedProfile?: string;
   profilePdfUrl?: string;
   emailSentAt?: string;
+  requestedDeliveryFormat?: string;
+  requestedDeliveryNote?: string;
   discoverySummary: string;
   workMotivators: string;
   workFrustrators: string;
@@ -65,7 +67,7 @@ export type AIMessage = {
 
 const PROFILE_STORE_KEY = "alice.lighthouse.profiles";
 
-const DISCOVERY_FIELD_KEYS = [
+export const DISCOVERY_FIELD_KEYS = [
   "workMotivators",
   "workFrustrators",
   "learningCharacteristics",
@@ -83,6 +85,8 @@ const DISCOVERY_FIELD_KEYS = [
   "emergentDiscoveries",
   "notYetDiscovered",
 ] as const;
+
+export type DiscoveryFieldKey = (typeof DISCOVERY_FIELD_KEYS)[number];
 
 function safeParse<T>(raw: string | null): T | null {
   if (!raw) return null;

@@ -2,6 +2,7 @@ import {
   startRealtimeVoiceSession,
   type RealtimeVoiceClient,
   type RealtimeVoiceHandlers,
+  type RealtimeVoiceSessionOptions,
 } from "../engine/runtime";
 
 export type { RealtimeSessionConfig as RealtimeDiscoverySession } from "../engine/runtime";
@@ -12,6 +13,7 @@ export type {
   RealtimeStartupTraceStage,
   RealtimeVoiceClient,
   RealtimeVoiceHandlers,
+  RealtimeVoiceSessionOptions,
 } from "../engine/runtime";
 
 function isMockRealtimeSession(
@@ -56,6 +58,13 @@ function startMockRealtimeVoiceDiscovery(
       handlers.onStatus?.(muted ? "Mock microphone muted." : "Mock microphone unmuted.");
       handlers.onDiagnosticLog?.(`DEBUG: Mock microphone muted=${String(muted)}.`);
     },
+    setOutputModality: (modality) => {
+      handlers.onDiagnosticLog?.(`DEBUG: Mock output modality set to ${modality}.`);
+    },
+    speakScriptedLine: (text) => {
+      handlers.onAssistantText?.(text);
+      handlers.onDiagnosticLog?.(`DEBUG: Mock scripted line spoken: ${text}`);
+    },
     stop: async () => {
       stopped = true;
       timers.forEach((timerId) => window.clearTimeout(timerId));
@@ -79,19 +88,24 @@ function toDiscoveryStatus(message: string) {
 
 export async function startRealtimeVoiceDiscovery(
   realtimeSession: import("../engine/runtime").RealtimeSessionConfig,
-  handlers: RealtimeVoiceHandlers
+  handlers: RealtimeVoiceHandlers,
+  options: RealtimeVoiceSessionOptions = {}
 ): Promise<RealtimeVoiceClient> {
   if (isMockRealtimeSession(realtimeSession)) {
     return startMockRealtimeVoiceDiscovery(handlers);
   }
 
-  return startRealtimeVoiceSession(realtimeSession, {
-    ...handlers,
-    onStatus: handlers.onStatus
-      ? (message) => handlers.onStatus?.(toDiscoveryStatus(message))
-      : undefined,
-    onDiagnosticLog: handlers.onDiagnosticLog
-      ? (message) => handlers.onDiagnosticLog?.(toDiscoveryStatus(message))
-      : undefined,
-  });
+  return startRealtimeVoiceSession(
+    realtimeSession,
+    {
+      ...handlers,
+      onStatus: handlers.onStatus
+        ? (message) => handlers.onStatus?.(toDiscoveryStatus(message))
+        : undefined,
+      onDiagnosticLog: handlers.onDiagnosticLog
+        ? (message) => handlers.onDiagnosticLog?.(toDiscoveryStatus(message))
+        : undefined,
+    },
+    options
+  );
 }

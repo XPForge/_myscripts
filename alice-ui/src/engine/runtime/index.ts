@@ -10,4 +10,5 @@ export {
   type RealtimeStartupTraceStage,
   type RealtimeVoiceClient,
   type RealtimeVoiceHandlers,
+  type RealtimeVoiceSessionOptions,
 } from "./realtimeVoiceClient";

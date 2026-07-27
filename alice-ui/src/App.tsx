@@ -30,6 +30,7 @@ import type {
 } from "./engine/discoveryState";
 import "./styles/global.css";
 import DiscoveryPage from "./components/discovery/DiscoveryPage";
+import DiscoveryEmailGatePage from "./pages/DiscoveryEmailGatePage";
 
 function LighthouseCockpit() {
   const [session, setSession] = useState<DiscoverySession>(() => loadDiscoverySession());
@@ -98,16 +99,16 @@ function AppContent() {
     setHasOnboarded(true);
   };
 
+  if (!auth.user) {
+    return auth.authMode === "signup" ? <SignupPage /> : <LoginPage />;
+  }
+
   if (!discoveryComplete) {
     return (
       <AppShell onViewProfile={() => setShowProfile(true)}>
         <LighthouseDiscovery onComplete={() => setDiscoveryComplete(true)} />
       </AppShell>
     );
-  }
-
-  if (!auth.user) {
-    return auth.authMode === "signup" ? <SignupPage /> : <LoginPage />;
   }
 
   if (showProfile) {
@@ -134,6 +135,14 @@ function AppContent() {
   }
 
   return <AppShell onViewProfile={() => setShowProfile(true)} />;
+}
+
+function DiscoveryEntry() {
+  const [entered, setEntered] = useState(false);
+  if (!entered) {
+    return <DiscoveryEmailGatePage onEnter={() => setEntered(true)} />;
+  }
+  return <DiscoveryPage onRestart={() => setEntered(false)} />;
 }
 
 export default function App() {
@@ -163,5 +172,5 @@ export default function App() {
     return <LighthouseCockpit />;
   }
 
-  return <DiscoveryPage />;
+  return <DiscoveryEntry />;
 }

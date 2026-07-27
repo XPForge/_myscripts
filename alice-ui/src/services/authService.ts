@@ -1,3 +1,5 @@
+import { notifyNewLead } from "./leadAlerts";
+
 export type AuthMember = {
   id: string;
   name: string;
@@ -90,6 +92,7 @@ export function createMember(
   const members = loadMembers();
   persistMembers([...members, member]);
   persistSession({ userId: member.id });
+  notifyNewLead(member.name, member.email);
   return member;
 }
 

@@ -9,7 +9,7 @@ export const lighthouseDiscoveryConfig = {
     "Speak warmly, naturally, and at a lively conversational pace. Sound upbeat, friendly, encouraging, and genuinely engaged without becoming overly cheerful, rushed, corporate, robotic, or theatrical.",
   responseFormat: "mp3",
   playbackRate: 1.08,
-  defaultAlicePromptProfileId: "bare-signal",
+  defaultAlicePromptProfileId: "weighted-synthesis",
   defaultVoiceOn: true,
   defaultQuietMode: false,
   animation: { listening: 1800, speaking: 650, thinking: 2200, loading: 900 },

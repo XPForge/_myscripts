@@ -32,3 +32,6 @@ Downloads/
 ALICE_TO_CODEX_TASK.md
 CODEX_REPORT.md
 tools/clipboard-bridge/config.local.json
+
+# Locally-saved generated profiles (real user data — never commit this)
+backend/data/

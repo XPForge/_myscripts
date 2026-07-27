@@ -1,3 +1,5 @@
+import { pickRandomOpeningQuestion } from "../../services/discoveryOpeningQuestions";
+
 export type RealtimeSessionConfig = {
   sessionId: string;
   provider?: string;
@@ -71,6 +73,8 @@ export type RealtimeVoiceClient = {
   stop: () => Promise<void>;
   sendText: (text: string) => void;
   setMicrophoneMuted: (muted: boolean) => void;
+  setOutputModality: (modality: RealtimeOutputModality) => void;
+  speakScriptedLine: (text: string) => void;
 };
 
 type SpeechRecognitionLike = {
@@ -463,14 +467,38 @@ function createResponseEvent(outputModality: RealtimeOutputModality, instruction
   };
 }
 
+// Caps a single assistant turn (audio output is billed per token and was
+// otherwise unbounded, letting one rambling response run up cost with no ceiling).
+const REALTIME_MAX_RESPONSE_OUTPUT_TOKENS = 800;
+
 const REALTIME_DISCOVERY_STARTUP_GUIDANCE =
   "Conduct Discovery naturally. Ask one question at a time. Let each answer shape the next question. Preserve participant authority: the participant may correct, reject, refine, or redirect. Do not score, rank, diagnose, assess, classify, or treat profile readiness as the end of Discovery. Keep the tone human, curious, non-clinical, and non-corporate.";
 
-function createStartupResponseEvent(outputModality: RealtimeOutputModality) {
+// Covered in Alice's own natural words at the start of every session — not read
+// verbatim — so participants know who she is, what this is, and what to expect
+// before she asks anything.
+const REALTIME_DISCOVERY_SELF_INTRODUCTION =
+  "Introduce yourself as Alice. Explain that this is Project Lighthouse Discovery, and that you're here to help understand how the participant thinks, learns, solves problems, communicates, creates, adapts, and what kinds of environments help them thrive. Make clear this is not a test, evaluation, diagnosis, personality assessment, score, or job interview. Explain the participant's role: answer naturally, think out loud, and correct or redirect you whenever something doesn't fit — there's no need for perfect wording. Explain the process: you'll ask one question at a time and let each answer shape where the conversation goes next, and you may reflect observations along the way but won't treat them as confirmed unless the participant confirms them. Explain the end result: later, once enough meaningful understanding has been gathered, Lighthouse can help create a Human Clarity Profile-style draft that represents what traditional resumes and profiles often miss. Keep this warm, brief, and conversational — not a long recitation.";
+
+function createStartupResponseEvent(outputModality: RealtimeOutputModality, skipIntro: boolean) {
+  const openingQuestion = pickRandomOpeningQuestion();
+  if (skipIntro) {
+    return createResponseEvent(
+      outputModality,
+      `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} Skip any self-introduction. Begin the conversation by asking exactly this question, word for word, and nothing else: "${openingQuestion}"`
+    );
+  }
   return createResponseEvent(
     outputModality,
-    `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} Begin the conversation by asking exactly this question and nothing else: "When you look back on your life so far across all the different things you've done, what's the one thread you'd say has always been there, even when everything else changed?"`
+    `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} ${REALTIME_DISCOVERY_SELF_INTRODUCTION} After that introduction, ask exactly this question, word for word, and nothing else: "${openingQuestion}"`
   );
+}
+
+// Used for fixed, pre-scripted announcements (e.g. the finish/continue
+// checkpoint) that must come from the application, not the model's own
+// judgment — the text is dictated verbatim rather than generated.
+function createScriptedResponseEvent(outputModality: RealtimeOutputModality, text: string) {
+  return createResponseEvent(outputModality, `Say exactly this and nothing else: "${text}"`);
 }
 
 async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
@@ -496,12 +524,20 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection) {
   });
 }
 
+export type RealtimeVoiceSessionOptions = {
+  // Debug-only: skips Alice's spoken self-introduction and goes straight to
+  // the opening question. Never gate this to end users.
+  skipIntro?: boolean;
+};
+
 export async function startRealtimeVoiceSession(
   realtimeSession: RealtimeSessionConfig,
-  handlers: RealtimeVoiceHandlers
+  handlers: RealtimeVoiceHandlers,
+  options: RealtimeVoiceSessionOptions = {}
 ): Promise<RealtimeVoiceClient> {
   const outputModality = realtimeSession.outputModality ?? "audio";
   const isAudioMode = outputModality === "audio";
+  let currentOutputModality: RealtimeOutputModality = outputModality;
 
   if (isAudioMode && !navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone capture is not supported by this browser.");
@@ -624,6 +660,24 @@ export async function startRealtimeVoiceSession(
   let sessionCreated = false;
   let startupResponseSent = false;
   let startupRetryTimer: number | null = null;
+  let sessionConfigSent = false;
+  const trySendSessionConfig = (source: string) => {
+    if (sessionConfigSent) return;
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      diagnostic(`session.update waiting for open data channel from ${source}.`);
+      return;
+    }
+    const sent = sendRealtimeEvent(
+      dataChannel,
+      {
+        event_id: `session_update_${Date.now()}`,
+        type: "session.update",
+        session: { max_response_output_tokens: REALTIME_MAX_RESPONSE_OUTPUT_TOKENS },
+      },
+      diagnostic
+    );
+    sessionConfigSent = sent;
+  };
   const trySendStartupResponse = (source: string) => {
     if (startupResponseSent) {
       diagnostic(`Startup response.create already sent; skipped ${source}.`);
@@ -642,7 +696,7 @@ export async function startRealtimeVoiceSession(
       return;
     }
 
-    const event = createStartupResponseEvent(outputModality);
+    const event = createStartupResponseEvent(outputModality, Boolean(options.skipIntro));
     diagnostic("Startup response.create payload prepared.");
     const sent = sendRealtimeEvent(dataChannel, event, diagnostic);
     startupResponseSent = sent;
@@ -704,6 +758,7 @@ export async function startRealtimeVoiceSession(
     status("Realtime data channel is open.");
     diagnostic("Realtime data channel opened.");
     trace("rtc.dataChannel.open", true);
+    trySendSessionConfig("dataChannel.onopen");
     trySendStartupResponse("dataChannel.onopen");
   };
 
@@ -749,12 +804,14 @@ export async function startRealtimeVoiceSession(
     if (eventType === "session.created") {
       sessionCreated = true;
       trace("realtime.session.created", true);
+      trySendSessionConfig("session.created");
       trySendStartupResponse("session.created");
       scheduleStartupRetry("session.created");
     }
     if (eventType === "session.updated") {
       sessionCreated = true;
       trace("realtime.session.created", true);
+      trySendSessionConfig("session.updated");
       trySendStartupResponse("session.updated");
       scheduleStartupRetry("session.updated");
     }
@@ -775,6 +832,13 @@ export async function startRealtimeVoiceSession(
         new RealtimeSafeError("Realtime server emitted an error event.", errorDiagnostic)
       );
       errorHandler(new RealtimeSafeError(normalized.message, normalized.diagnostic));
+    }
+    if (eventType === "response.done" || eventType === "response.completed") {
+      const responseRecord = toProviderErrorRecord(parsed.response);
+      const usage = responseRecord?.usage;
+      if (usage && typeof usage === "object") {
+        diagnostic(`Realtime turn usage: ${JSON.stringify(usage)}`);
+      }
     }
 
     const extracted = extractTextFromEvent(parsed);
@@ -850,6 +914,7 @@ export async function startRealtimeVoiceSession(
     await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     remoteDescriptionSet = true;
     trace("rtc.remoteDescription.set", true);
+    trySendSessionConfig("setRemoteDescription");
     trySendStartupResponse("setRemoteDescription");
     scheduleStartupRetry("setRemoteDescription");
   } catch (error) {
@@ -912,7 +977,22 @@ export async function startRealtimeVoiceSession(
       },
       diagnostic
     );
-    sendRealtimeEvent(dataChannel, createResponseEvent(outputModality), diagnostic);
+    sendRealtimeEvent(dataChannel, createResponseEvent(currentOutputModality), diagnostic);
+  };
+
+  const setOutputModality = (modality: RealtimeOutputModality) => {
+    currentOutputModality = modality;
+    diagnostic(`Output modality set to ${modality}.`);
+  };
+
+  const speakScriptedLine = (text: string) => {
+    const normalized = text.trim();
+    if (!normalized) return;
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      diagnostic("Skipped scripted line: data channel is not open.");
+      return;
+    }
+    sendRealtimeEvent(dataChannel, createScriptedResponseEvent(currentOutputModality, normalized), diagnostic);
   };
 
   const setMicrophoneMuted = (muted: boolean) => {
@@ -974,5 +1054,5 @@ export async function startRealtimeVoiceSession(
     status("Realtime voice session stopped.");
   };
 
-  return { stop, sendText, setMicrophoneMuted };
+  return { stop, sendText, setMicrophoneMuted, setOutputModality, speakScriptedLine };
 }

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   createLighthouseProfile,
   deleteLighthouseProfile,
@@ -28,12 +28,43 @@ import {
   type RealtimeStartupTraceStage,
   type RealtimeVoiceClient,
 } from "../ai/realtimeVoiceDiscoveryClient";
+import {
+  computeSchemaCoverage,
+  DISCOVERY_FIELD_LABELS,
+  type SchemaCoverageReport,
+} from "../services/discoverySchemaTracker";
+import { authorLighthouseProfile, type AuthorProfileResult } from "../services/profileAuthoringClient";
+import { useAuth } from "../context/AuthContext";
+import { ConcentricProgressRings } from "./shared/ConcentricProgressRings";
+
+// Debug tooling below is gated to this single account and must never be
+// exposed to participants.
+const DEBUG_TOOLS_ACCOUNT_EMAIL = "humancapabilityprofile@gmail.com";
+
+const SAMPLE_TEST_TRANSCRIPT =
+  "Assistant: What motivates you in your work? You: What motivates me most is solving something nobody else has cracked yet — I'm deeply motivated when I can see the impact of what I built. On the other hand, I get frustrated by unclear priorities, and it frustrates me when decisions keep changing. I learn best by building something small and breaking it, that's my learning style. When I hit a hard bug I try to figure out the smallest reproduction, then troubleshoot from there. I try to explain things simply to others, and I make sure I listen before I respond. I've had to lead a small team before, and I mentor a couple of junior engineers now. I do my best work as a team, and I love how collaborative a good sprint can feel. I thrive when the goals are clear and I'm energized by fast feedback loops. I struggle when I'm micromanaged, and I get drained by constant context switching. I adapt fairly fast when things change, even when a project pivots halfway through. Under pressure, especially near a deadline, I get very focused. There's an opportunity I'd like to explore in more technical leadership. One thing that's often overlooked about me is how much of the groundwork I do that nobody sees — it's a bit of a hidden strength. For example, last quarter I quietly rebuilt our deploy pipeline; for instance, that cut release time in half. Somewhere in this conversation I realized I care more about enabling others than I first said, and I noticed that pattern repeating.";
+
+const debugButtonStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: "10px",
+  border: "1px solid rgba(251,191,36,0.28)",
+  background: "rgba(120,53,15,0.22)",
+  color: "#fde68a",
+  fontWeight: 700,
+  fontSize: "0.8rem",
+  cursor: "pointer",
+};
 
 type LighthouseDiscoveryProps = {
   onComplete: () => void;
 };
 
-type Step = "capture" | "launching" | "discovering";
+type Step = "capture" | "launching" | "discovering" | "reviewing";
+type ReviewPhase = "decide" | "authoring" | "authored" | "error";
+type ExportFormat = "pdf" | "docx" | "text" | "other";
+
+const CHECKPOINT_ANNOUNCEMENT_TEXT =
+  "We've covered a lot of good ground so far. You're welcome to keep going if there's more you'd like to share, or we can wrap up here whenever you're ready — that's entirely your call.";
 
 const VOICE_STORAGE_KEY = "alice.lighthouse.realtimeVoice";
 const DEFAULT_REALTIME_VOICE: RealtimeVoiceId = "cedar";
@@ -107,8 +138,6 @@ const PARTICIPANT_RESPONSE_GUIDANCE = [
 ] as const;
 
 const SECURITY_STATUS_ITEMS = [
-  ["Provider", "openai"],
-  ["Discovery mode", "native-discovery-realtime2-v0.1"],
   ["Credential source", "server-issued temporary credential"],
   ["Secrets exposed", "no"],
   ["Transcript storage", "local/user-controlled"],
@@ -118,8 +147,9 @@ const SECURITY_STATUS_ITEMS = [
 function redactSensitiveDiagnostic(value: string) {
   return value
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]")
     .replace(
-      /\b(token|authorization|bearer|api[_-]?key|client[_-]?secret|secret|credential|key)\b\s*[:=]\s*["']?[^"',\s}]+/gi,
+      /\b(secret|token|authorization|bearer|api[_-]?key|client[_-]?secret|credential|key)\b\s*[:=]\s*["']?[^"',\s}]+/gi,
       "$1=[redacted]"
     );
 }
@@ -156,7 +186,58 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   });
 }
 
+function CollapsiblePanel({
+  title,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        padding: "14px",
+        borderRadius: "18px",
+        background: "rgba(15,23,42,0.9)",
+        border: "1px solid rgba(59,130,246,0.18)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "none",
+          border: "none",
+          color: "#e2e8f0",
+          fontSize: "0.86rem",
+          fontWeight: 800,
+          letterSpacing: "0.02em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        <span>{title}</span>
+        <span style={{ color: "#94a3b8", fontSize: "1rem" }}>{collapsed ? "+" : "−"}</span>
+      </button>
+      {!collapsed && <div style={{ marginTop: "12px" }}>{children}</div>}
+    </div>
+  );
+}
+
 export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryProps) {
+  const auth = useAuth();
+  const isDebugAccount = auth.user?.email === DEBUG_TOOLS_ACCOUNT_EMAIL;
+  const [debugBypassIntro, setDebugBypassIntro] = useState(false);
   const [step, setStep] = useState<Step>("capture");
   const [profile, setProfile] = useState<LighthouseProfile | null>(null);
   const [session, setSession] = useState<LighthouseSession | null>(null);
@@ -173,6 +254,12 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [transcriptCount, setTranscriptCount] = useState(0);
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [startupTrace, setStartupTrace] = useState(emptyStartupTrace);
+  const [securityStatus, setSecurityStatus] = useState({
+    provider: "openai",
+    discoveryModeId: "native-discovery-realtime2-v0.1",
+    credentialIssued: false,
+    credentialExpiresAt: null as number | string | null,
+  });
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState<RealtimeOutputModality>("audio");
   const [realtimeVoice, setRealtimeVoice] = useState<RealtimeVoiceId>(() => loadSavedRealtimeVoice());
@@ -180,9 +267,37 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const [modeSwitching, setModeSwitching] = useState(false);
   const [startInProgress, setStartInProgress] = useState(false);
   const [microphoneMuted, setMicrophoneMuted] = useState(false);
+  const [checkpointAnnounced, setCheckpointAnnounced] = useState(false);
+  const [reviewPhase, setReviewPhase] = useState<ReviewPhase>("decide");
+  const [authoredProfile, setAuthoredProfile] = useState<AuthorProfileResult | null>(null);
+  const [authoringError, setAuthoringError] = useState("");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("text");
+  const [otherFormatDescription, setOtherFormatDescription] = useState("");
+  const [deliveryEmail, setDeliveryEmail] = useState("");
+  const [deliveryRequested, setDeliveryRequested] = useState(false);
+  const [allowDevelopmentCopy, setAllowDevelopmentCopy] = useState(false);
+  const [progressPanelCollapsed, setProgressPanelCollapsed] = useState(false);
+  const [sessionInfoPanelCollapsed, setSessionInfoPanelCollapsed] = useState(false);
+  const [quickActionsPanelCollapsed, setQuickActionsPanelCollapsed] = useState(false);
   const profileRef = useRef<LighthouseProfile | null>(null);
   const sessionRef = useRef<LighthouseSession | null>(null);
   const startInProgressRef = useRef(false);
+
+  const participantTurnCount = session?.conversationHistory.filter((message) => message.role === "user").length ?? 0;
+  const schemaCoverage: SchemaCoverageReport = useMemo(
+    () => computeSchemaCoverage(session?.transcript ?? "", participantTurnCount),
+    [session?.transcript, participantTurnCount]
+  );
+
+  useEffect(() => {
+    if (!voiceClient || discoveryMode !== "audio") return;
+    if (checkpointAnnounced) return;
+    if (schemaCoverage.profileReadinessPercentage < 100) return;
+    voiceClient.speakScriptedLine(CHECKPOINT_ANNOUNCEMENT_TEXT);
+    setCheckpointAnnounced(true);
+    addDiagnosticLog("Checkpoint announcement spoken: schema readiness reached 100%.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceClient, discoveryMode, checkpointAnnounced, schemaCoverage.profileReadinessPercentage]);
 
   useEffect(() => {
     const storedSession = loadLighthouseSession();
@@ -420,6 +535,20 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
   const isMockRealtimeSession = (realtime: { endpoint?: string }) =>
     realtime.endpoint === "mock://realtime-discovery";
 
+  const recordCredentialStatus = (realtime: {
+    provider?: string;
+    discoveryModeId?: string;
+    credentialIssued?: boolean;
+    credentialExpiresAt?: number | string | null;
+  }) => {
+    setSecurityStatus({
+      provider: realtime.provider ?? "openai",
+      discoveryModeId: realtime.discoveryModeId ?? "native-discovery-realtime2-v0.1",
+      credentialIssued: realtime.credentialIssued === true,
+      credentialExpiresAt: realtime.credentialExpiresAt ?? null,
+    });
+  };
+
   const createRealtimeHandlers = () => ({
     onStatus: (message: string) => {
       setStatusMessage(message);
@@ -456,38 +585,57 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setModeSwitching(true);
     setErrorMessage("");
     setStatusMessage(mode === "audio" ? "Switching to voice..." : "Switching to text...");
-    setMicrophoneStatus(mode === "audio" ? "pending" : "not required");
-    setAudioStatus(mode === "audio" ? "pending" : "text mode");
-    setDataChannelStatus("pending");
-    setConnectionState("");
-    resetStartupTrace();
 
     try {
       if (voiceClient) {
-        await voiceClient.stop();
-        setVoiceClient(null);
-      }
-      setMicrophoneMuted(false);
+        // Reuse the live realtime connection instead of tearing it down and
+        // reconnecting: a fresh session pays full, uncached audio-context
+        // cost again and throws away everything the conversation built up.
+        voiceClient.setOutputModality(mode);
+        voiceClient.setMicrophoneMuted(mode === "text");
+        setMicrophoneMuted(mode === "text");
+        setMicrophoneStatus(mode === "audio" ? "granted" : "not required");
+        setAudioStatus(mode === "audio" ? "pending" : "text mode");
+        setDiscoveryMode(mode);
+        saveSession({
+          metadata: {
+            ...currentSession.metadata,
+            outputModality: mode,
+            realtimeVoice,
+          },
+        });
+        setStatusMessage(mode === "audio" ? "Voice mode is active." : "Text mode is active.");
+      } else {
+        setMicrophoneStatus(mode === "audio" ? "pending" : "not required");
+        setAudioStatus(mode === "audio" ? "pending" : "text mode");
+        setDataChannelStatus("pending");
+        setConnectionState("");
+        resetStartupTrace();
+        setMicrophoneMuted(false);
 
-      setDiscoveryMode(mode);
-      const nextSession = saveSession({
-        metadata: {
-          ...currentSession.metadata,
-          outputModality: mode,
-          realtimeVoice,
-        },
-      }) ?? currentSession;
-      const realtime = await requestRealtimeDiscoverySession(
-        currentProfile,
-        nextSession.sessionId,
-        mode,
-        realtimeVoice
-      );
-      addDiagnosticLog(`Token request succeeded for ${mode} mode.`);
-      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
-      setVoiceClient(client);
-      setMicrophoneMuted(false);
-      setStatusMessage(mode === "audio" ? "Voice mode is active." : "Text mode is active.");
+        setDiscoveryMode(mode);
+        const nextSession = saveSession({
+          metadata: {
+            ...currentSession.metadata,
+            outputModality: mode,
+            realtimeVoice,
+          },
+        }) ?? currentSession;
+        const realtime = await requestRealtimeDiscoverySession(
+          currentProfile,
+          nextSession.sessionId,
+          mode,
+          realtimeVoice
+        );
+        recordCredentialStatus(realtime);
+        addDiagnosticLog(`Token request succeeded for ${mode} mode.`);
+        const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers(), {
+        skipIntro: isDebugAccount && debugBypassIntro,
+      });
+        setVoiceClient(client);
+        setMicrophoneMuted(false);
+        setStatusMessage(mode === "audio" ? "Voice mode is active." : "Text mode is active.");
+      }
     } catch (error) {
       const message = getRealtimeFailureMessage(error, `Unable to switch to ${mode} mode.`);
       setErrorMessage(message);
@@ -525,6 +673,12 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
 
     startInProgressRef.current = true;
     setStartInProgress(true);
+    setCheckpointAnnounced(false);
+    setReviewPhase("decide");
+    setAuthoredProfile(null);
+    setAuthoringError("");
+    setDeliveryRequested(false);
+    setAllowDevelopmentCopy(false);
     const initialMode: RealtimeOutputModality = "audio";
     setDiscoveryMode(initialMode);
     const createdProfile = createLighthouseProfile(name, email);
@@ -565,6 +719,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         initialMode,
         realtimeVoice
       );
+      recordCredentialStatus(realtime);
       setTokenStatus("success");
       addDiagnosticLog(
         isMockRealtimeSession(realtime)
@@ -581,7 +736,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         "Connecting your microphone and starting the conversation..."
       );
 
-      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
+      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers(), {
+        skipIntro: isDebugAccount && debugBypassIntro,
+      });
 
       setVoiceClient(client);
       setMicrophoneMuted(false);
@@ -628,6 +785,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         mode,
         realtimeVoice
       );
+      recordCredentialStatus(realtime);
       setTokenStatus("success");
       addDiagnosticLog(
         isMockRealtimeSession(realtime)
@@ -642,7 +800,9 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
       setStep("discovering");
       setResumeAvailable(false);
 
-      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers());
+      const client = await startRealtimeVoiceDiscovery(realtime, createRealtimeHandlers(), {
+        skipIntro: isDebugAccount && debugBypassIntro,
+      });
 
       setVoiceClient(client);
       setMicrophoneMuted(false);
@@ -675,6 +835,81 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setStatusMessage("Realtime discovery stopped. You can restart when ready.");
   };
 
+  const openReviewScreen = () => {
+    setReviewPhase("decide");
+    setAuthoringError("");
+    setStep("reviewing");
+  };
+
+  const continueDiscoveryFromReview = () => {
+    setStep("discovering");
+  };
+
+  const generateProfileFromReview = async () => {
+    const currentProfile = profileRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProfile || !currentSession) return;
+
+    setReviewPhase("authoring");
+    setAuthoringError("");
+
+    try {
+      const result = await authorLighthouseProfile(currentSession.transcript, currentProfile.name, currentProfile.email, allowDevelopmentCopy);
+      setAuthoredProfile(result);
+      const updatedProfile = updateLighthouseProfile(currentProfile.id, {
+        ...result.fields,
+        generatedProfile: result.fields.generatedProfile,
+      });
+      if (updatedProfile) {
+        profileRef.current = updatedProfile;
+        setProfile(updatedProfile);
+      }
+      setDeliveryEmail(currentProfile.email);
+      setReviewPhase("authored");
+      addDiagnosticLog(`Profile authored by flagship model: ${result.model}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to generate the profile.";
+      setAuthoringError(message);
+      setReviewPhase("error");
+      addDiagnosticLog(`Profile authoring failed: ${message}`);
+    }
+  };
+
+  const downloadPlainTextProfile = () => {
+    const text = authoredProfile?.fields.generatedProfile;
+    if (!text) return;
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${profileRef.current?.lpId ?? "lighthouse-profile"}.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const requestProfileDelivery = () => {
+    const currentProfile = profileRef.current;
+    if (!currentProfile) return;
+    const formatNote =
+      exportFormat === "other" ? otherFormatDescription.trim() || "unspecified format" : exportFormat;
+    const updatedProfile = updateLighthouseProfile(currentProfile.id, {
+      requestedDeliveryFormat: formatNote,
+      requestedDeliveryNote: `Requested delivery to ${deliveryEmail || currentProfile.email} — email delivery is not yet connected; this request has been recorded.`,
+    });
+    if (updatedProfile) {
+      profileRef.current = updatedProfile;
+      setProfile(updatedProfile);
+    }
+    setDeliveryRequested(true);
+    addDiagnosticLog(`Delivery requested: format=${formatNote}, email=${deliveryEmail || currentProfile.email} (stubbed — not actually sent).`);
+  };
+
+  const debugFillSampleTranscript = () => {
+    if (!isDebugAccount) return;
+    saveSession({ transcript: SAMPLE_TEST_TRANSCRIPT });
+    addDiagnosticLog("DEBUG: sample transcript injected to preview schema coverage states.");
+  };
+
   const resetDiscoverySession = async () => {
     if (voiceClient) {
       await voiceClient.stop();
@@ -701,9 +936,24 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
     setTranscriptCount(0);
     setDiagnosticLogs([]);
     resetStartupTrace();
+    setSecurityStatus({
+      provider: "openai",
+      discoveryModeId: "native-discovery-realtime2-v0.1",
+      credentialIssued: false,
+      credentialExpiresAt: null,
+    });
     setTypedParticipantText("");
     setModeSwitching(false);
     setDiscoveryMode("audio");
+    setCheckpointAnnounced(false);
+    setReviewPhase("decide");
+    setAuthoredProfile(null);
+    setAuthoringError("");
+    setExportFormat("text");
+    setOtherFormatDescription("");
+    setDeliveryEmail("");
+    setDeliveryRequested(false);
+    setAllowDevelopmentCopy(false);
     setStatusMessage("Previous discovery session cleared. Start a new session when ready.");
   };
 
@@ -781,6 +1031,10 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
         <div><strong>Audio Playback:</strong> {audioStatus}</div>
         <div><strong>Data Channel:</strong> {dataChannelStatus}</div>
         <div><strong>Transcript Count:</strong> {transcriptCount}</div>
+        <div><strong>Provider:</strong> {securityStatus.provider}</div>
+        <div><strong>Discovery mode:</strong> {securityStatus.discoveryModeId}</div>
+        <div><strong>Credential issued:</strong> {String(securityStatus.credentialIssued)}</div>
+        <div><strong>Credential expires:</strong> {securityStatus.credentialExpiresAt ?? "not stored"}</div>
         {SECURITY_STATUS_ITEMS.map(([label, value]) => (
           <div key={label}><strong>{label}:</strong> {value}</div>
         ))}
@@ -923,6 +1177,78 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
           )}
         </div>
 
+        {isDebugAccount &&
+          renderCard(
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div style={{ fontWeight: 800, color: "#fbbf24" }}>
+                Developer Tools (visible only to this account)
+              </div>
+              <label style={{ display: "flex", gap: "8px", alignItems: "center", color: "#cbd5e1", fontSize: "0.86rem" }}>
+                <input
+                  type="checkbox"
+                  checked={debugBypassIntro}
+                  onChange={(event) => setDebugBypassIntro(event.target.checked)}
+                />
+                Bypass Alice's intro on next start (goes straight to the opening question)
+              </label>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => void resetDiscoverySession()} style={debugButtonStyle}>
+                  Reset Discovery
+                </button>
+                <button
+                  type="button"
+                  onClick={debugFillSampleTranscript}
+                  disabled={!session}
+                  style={{ ...debugButtonStyle, opacity: session ? 1 : 0.5 }}
+                >
+                  Fill Sample Transcript
+                </button>
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Jump to step:</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {(["capture", "launching", "discovering", "reviewing"] as Step[]).map((debugStep) => (
+                  <button
+                    key={debugStep}
+                    type="button"
+                    onClick={() => setStep(debugStep)}
+                    disabled={debugStep !== "capture" && (!profile || !session)}
+                    aria-pressed={step === debugStep}
+                    style={{
+                      ...debugButtonStyle,
+                      opacity: debugStep !== "capture" && (!profile || !session) ? 0.5 : 1,
+                      border: step === debugStep ? "1px solid rgba(251,191,36,0.6)" : debugButtonStyle.border,
+                    }}
+                  >
+                    {debugStep}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Jump to review phase:</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {(["decide", "authoring", "authored", "error"] as ReviewPhase[]).map((debugPhase) => (
+                  <button
+                    key={debugPhase}
+                    type="button"
+                    onClick={() => {
+                      setReviewPhase(debugPhase);
+                      setStep("reviewing");
+                    }}
+                    aria-pressed={reviewPhase === debugPhase && step === "reviewing"}
+                    style={{
+                      ...debugButtonStyle,
+                      border:
+                        reviewPhase === debugPhase && step === "reviewing"
+                          ? "1px solid rgba(251,191,36,0.6)"
+                          : debugButtonStyle.border,
+                    }}
+                  >
+                    {debugPhase}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
         {step === "capture" &&
           renderCard(
             <>
@@ -1029,7 +1355,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                 </button>
               </div>
               {renderMessage()}
-              {renderDiagnosticsPanel()}
+              {isDebugAccount && renderDiagnosticsPanel()}
             </>
           )}
 
@@ -1055,7 +1381,7 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
               >
                 {statusMessage || "Preparing your realtime voice session..."}
               </div>
-              {renderDiagnosticsPanel()}
+              {isDebugAccount && renderDiagnosticsPanel()}
               {renderMessage()}
             </>
           )}
@@ -1125,121 +1451,152 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                     ))}
                   </select>
                 </div>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={toggleMicrophoneMuted}
-                    disabled={!voiceClient || discoveryMode !== "audio"}
-                    aria-pressed={microphoneMuted}
-                    aria-label={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-                    title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
-                    style={{
-                      padding: "12px 16px",
-                      borderRadius: "14px",
-                      border: microphoneMuted
-                        ? "1px solid rgba(248,113,113,0.45)"
-                        : "1px solid rgba(148,163,184,0.24)",
-                      background: microphoneMuted
-                        ? "rgba(127,29,29,0.24)"
-                        : "rgba(30,41,59,0.55)",
-                      color: microphoneMuted ? "#fecaca" : "#dbeafe",
-                      fontWeight: 800,
-                      cursor: !voiceClient || discoveryMode !== "audio" ? "not-allowed" : "pointer",
-                      opacity: !voiceClient || discoveryMode !== "audio" ? 0.55 : 1,
-                    }}
-                  >
-                    {microphoneMuted ? "MUTED" : "MIC"}
-                  </button>
-                  {resumeAvailable && !voiceClient ? (
-                    <button
-                      type="button"
-                      onClick={resumeDiscovery}
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "14px",
-                        border: "1px solid rgba(59,130,246,0.45)",
-                        background: "rgba(59,130,246,0.22)",
-                        color: "#eef2ff",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Resume discovery
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={stopDiscovery}
-                        style={{
-                          padding: "12px 16px",
-                          borderRadius: "14px",
-                          border: "1px solid rgba(59,130,246,0.45)",
-                          background: "rgba(59,130,246,0.22)",
-                          color: "#eef2ff",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Stop discovery
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await stopDiscovery();
-                          onComplete();
-                        }}
-                        style={{
-                          padding: "12px 16px",
-                          borderRadius: "14px",
-                          border: "1px solid rgba(148,163,184,0.18)",
-                          background: "rgba(255,255,255,0.04)",
-                          color: "#e2e8f0",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Finish discovery
-                      </button>
-                    </>
-                  )}
-                </div>
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(150px, 0.34fr) minmax(0, 1fr)",
+                    gridTemplateColumns: "minmax(220px, 0.4fr) minmax(0, 1fr)",
                     gap: "14px",
                     alignItems: "start",
                   }}
                 >
-                <div
-                  style={{
-                    padding: "14px",
-                    borderRadius: "18px",
-                    background: "rgba(15,23,42,0.9)",
-                    border: "1px solid rgba(59,130,246,0.18)",
-                    color: "#cbd5e1",
-                    fontSize: "0.86rem",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  <strong>Name:</strong> {profile.name}
-                  <br />
-                  <strong>Email:</strong> {profile.email}
-                  <br />
-                  <strong>LP ID:</strong> {profile.lpId}
-                  <br />
-                  <strong>Session:</strong> {session.status}
-                  <br />
-                  <strong>Method:</strong> {profile.discoveryMethod}
-                  <br />
-                  <strong>Mode:</strong> {discoveryMode}
-                  <br />
-                  <strong>Voice:</strong> {realtimeVoice}
-                  <br />
-                  <strong>Mic:</strong> {microphoneMuted ? "muted" : "live"}
-                  <br />
-                  <strong>Realtime connection:</strong> {connectionState || "pending"}
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <CollapsiblePanel
+                    title="Discovery Progress"
+                    collapsed={progressPanelCollapsed}
+                    onToggle={() => setProgressPanelCollapsed((value) => !value)}
+                  >
+                    <div style={{ display: "grid", justifyItems: "center", gap: "10px" }}>
+                      <ConcentricProgressRings
+                        outerPercentage={schemaCoverage.coveragePercentage}
+                        innerPercentage={schemaCoverage.profileReadinessPercentage}
+                      />
+                      <div style={{ display: "grid", gap: "4px", justifyItems: "center", fontSize: "0.78rem", color: "#94a3b8" }}>
+                        <span><span style={{ color: "#38bdf8" }}>●</span> Outer: schema coverage</span>
+                        <span><span style={{ color: "#a78bfa" }}>●</span> Inner: ready to build profile</span>
+                      </div>
+                    </div>
+                  </CollapsiblePanel>
+                  <CollapsiblePanel
+                    title="Session Info"
+                    collapsed={sessionInfoPanelCollapsed}
+                    onToggle={() => setSessionInfoPanelCollapsed((value) => !value)}
+                  >
+                    <div style={{ color: "#cbd5e1", fontSize: "0.86rem", lineHeight: 1.55 }}>
+                      <strong>Name:</strong> {profile.name}
+                      <br />
+                      <strong>Email:</strong> {profile.email}
+                      <br />
+                      <strong>LP ID:</strong> {profile.lpId}
+                      <br />
+                      <strong>Session:</strong> {session.status}
+                      <br />
+                      <strong>Method:</strong> {profile.discoveryMethod}
+                      <br />
+                      <strong>Mode:</strong> {discoveryMode}
+                      <br />
+                      <strong>Voice:</strong> {realtimeVoice}
+                      <br />
+                      <strong>Mic:</strong> {microphoneMuted ? "muted" : "live"}
+                      <br />
+                      <strong>Realtime connection:</strong> {connectionState || "pending"}
+                    </div>
+                  </CollapsiblePanel>
+                  <CollapsiblePanel
+                    title="Quick Actions"
+                    collapsed={quickActionsPanelCollapsed}
+                    onToggle={() => setQuickActionsPanelCollapsed((value) => !value)}
+                  >
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={toggleMicrophoneMuted}
+                        disabled={!voiceClient || discoveryMode !== "audio"}
+                        aria-pressed={microphoneMuted}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: microphoneMuted
+                            ? "1px solid rgba(248,113,113,0.45)"
+                            : "1px solid rgba(148,163,184,0.24)",
+                          background: microphoneMuted ? "rgba(127,29,29,0.24)" : "rgba(30,41,59,0.55)",
+                          color: microphoneMuted ? "#fecaca" : "#dbeafe",
+                          fontWeight: 800,
+                          cursor: !voiceClient || discoveryMode !== "audio" ? "not-allowed" : "pointer",
+                          opacity: !voiceClient || discoveryMode !== "audio" ? 0.55 : 1,
+                        }}
+                      >
+                        {microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openReviewScreen}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(167,139,250,0.5)",
+                          background: "rgba(124,58,237,0.22)",
+                          color: "#ede9fe",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Review &amp; Generate Profile
+                      </button>
+                      {resumeAvailable && !voiceClient ? (
+                        <button
+                          type="button"
+                          onClick={resumeDiscovery}
+                          style={{
+                            padding: "10px 14px",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(59,130,246,0.45)",
+                            background: "rgba(59,130,246,0.22)",
+                            color: "#eef2ff",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Resume discovery
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={stopDiscovery}
+                            style={{
+                              padding: "10px 14px",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(59,130,246,0.45)",
+                              background: "rgba(59,130,246,0.22)",
+                              color: "#eef2ff",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Stop discovery
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await stopDiscovery();
+                              onComplete();
+                            }}
+                            style={{
+                              padding: "10px 14px",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(148,163,184,0.18)",
+                              background: "rgba(255,255,255,0.04)",
+                              color: "#e2e8f0",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Finish discovery
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </CollapsiblePanel>
                 </div>
                 <div
                   style={{
@@ -1348,7 +1705,337 @@ export default function LighthouseDiscovery({ onComplete }: LighthouseDiscoveryP
                   </div>
                 </div>
                 {renderMessage()}
-                {renderDiagnosticsPanel()}
+                {isDebugAccount && renderDiagnosticsPanel()}
+              </div>
+            </>
+          )}
+
+        {step === "reviewing" && profile && session &&
+          renderCard(
+            <>
+              <div style={{ display: "grid", gap: "16px" }}>
+                <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#f8fafc" }}>
+                  Review Discovery before generating a profile
+                </div>
+                <div style={{ color: "rgba(226,232,240,0.9)", lineHeight: 1.8 }}>
+                  This is your call. You can keep talking with Alice, or generate a profile now from what's
+                  been discovered so far. The diagram below shows how much of the schema each area of the
+                  conversation has touched — it's a rough guide, not a requirement.
+                </div>
+
+                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
+                  <ConcentricProgressRings
+                    outerPercentage={schemaCoverage.coveragePercentage}
+                    innerPercentage={schemaCoverage.profileReadinessPercentage}
+                  />
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: "8px",
+                      flex: 1,
+                      minWidth: "260px",
+                    }}
+                  >
+                    {schemaCoverage.fields.map((entry) => (
+                      <div
+                        key={entry.field}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          padding: "8px 12px",
+                          borderRadius: "10px",
+                          background: "rgba(255,255,255,0.025)",
+                          border: "1px solid rgba(148,163,184,0.1)",
+                          fontSize: "0.82rem",
+                        }}
+                      >
+                        <span style={{ color: "#cbd5e1" }}>{DISCOVERY_FIELD_LABELS[entry.field]}</span>
+                        <span
+                          style={{
+                            color:
+                              entry.status === "filled" ? "#4ade80" : entry.status === "touched" ? "#facc15" : "#64748b",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {entry.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {reviewPhase === "decide" && (
+                  <div style={{ display: "grid", gap: "14px" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "8px",
+                        padding: "14px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(250,204,21,0.4)",
+                        background: "rgba(250,204,21,0.1)",
+                      }}
+                    >
+                      <strong style={{ fontSize: "0.8rem", letterSpacing: "0.04em", textTransform: "uppercase", color: "#facc15" }}>
+                        🛡 Participant Authority
+                      </strong>
+                      <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", fontSize: "0.88rem", lineHeight: 1.5, color: "#cbd5e1" }}>
+                        <input
+                          type="checkbox"
+                          checked={allowDevelopmentCopy}
+                          onChange={(event) => setAllowDevelopmentCopy(event.target.checked)}
+                          style={{ marginTop: "3px" }}
+                        />
+                        <span>
+                          May Lighthouse keep a copy of this generated profile for development purposes? It will be
+                          removed once that work is done. This is entirely optional — declining does not affect
+                          your profile, your session, or anything else.
+                        </span>
+                      </label>
+                    </div>
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={continueDiscoveryFromReview}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(148,163,184,0.24)",
+                        background: "rgba(255,255,255,0.04)",
+                        color: "#e2e8f0",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Continue Discovery
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void generateProfileFromReview()}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(167,139,250,0.5)",
+                        background: "rgba(124,58,237,0.24)",
+                        color: "#ede9fe",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Finish &amp; Generate Profile
+                    </button>
+                    </div>
+                  </div>
+                )}
+
+                {reviewPhase === "authoring" && (
+                  <div style={{ color: "#cbd5e1" }}>Authoring your profile with the flagship model…</div>
+                )}
+
+                {reviewPhase === "error" && (
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: "16px",
+                      background: "rgba(153,27,27,0.12)",
+                      border: "1px solid rgba(248,113,113,0.25)",
+                      color: "#fee2e2",
+                    }}
+                  >
+                    {authoringError}
+                    <div style={{ marginTop: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={() => void generateProfileFromReview()}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(248,113,113,0.35)",
+                          background: "rgba(127,29,29,0.24)",
+                          color: "#fecaca",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {reviewPhase === "authored" && authoredProfile && (
+                  <div style={{ display: "grid", gap: "14px" }}>
+                    <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                      Authored by <strong style={{ color: "#e2e8f0" }}>{authoredProfile.model}</strong> (flagship
+                      text model — never the realtime voice model).
+                    </div>
+                    <div
+                      style={{
+                        padding: "16px",
+                        borderRadius: "16px",
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(148,163,184,0.14)",
+                        color: "#e2e8f0",
+                        maxHeight: "34vh",
+                        overflowY: "auto",
+                        whiteSpace: "pre-wrap",
+                        fontSize: "0.92rem",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {authoredProfile.fields.generatedProfile}
+                    </div>
+
+                    <div
+                      style={{
+                        padding: "14px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(59,130,246,0.3)",
+                        background: "rgba(59,130,246,0.1)",
+                        color: "#dbeafe",
+                        fontSize: "0.85rem",
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      📬 When Lighthouse officially launches, we'll notify you by email. When you return, all you'll
+                      need to do is upload this profile artifact to have your permanent professional profile filled
+                      in automatically from today's session — no need to start over.
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "12px",
+                        padding: "14px",
+                        borderRadius: "16px",
+                        background: "rgba(15,23,42,0.72)",
+                        border: "1px solid rgba(148,163,184,0.14)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, color: "#e2e8f0" }}>Choose a format for your emailed document</div>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                        {(["pdf", "docx", "text", "other"] as ExportFormat[]).map((format) => (
+                          <button
+                            key={format}
+                            type="button"
+                            onClick={() => setExportFormat(format)}
+                            aria-pressed={exportFormat === format}
+                            style={{
+                              padding: "8px 14px",
+                              borderRadius: "10px",
+                              border: exportFormat === format
+                                ? "1px solid rgba(167,139,250,0.6)"
+                                : "1px solid rgba(148,163,184,0.18)",
+                              background: exportFormat === format ? "rgba(124,58,237,0.28)" : "rgba(255,255,255,0.03)",
+                              color: exportFormat === format ? "#ede9fe" : "#cbd5e1",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              textTransform: "uppercase",
+                              fontSize: "0.78rem",
+                            }}
+                          >
+                            {format === "pdf" ? "PDF" : format === "docx" ? "Word (.docx)" : format === "text" ? "Plain text" : "Other"}
+                          </button>
+                        ))}
+                      </div>
+                      {exportFormat === "other" && (
+                        <input
+                          value={otherFormatDescription}
+                          onChange={(event) => setOtherFormatDescription(event.target.value)}
+                          placeholder="Describe the format you'd like"
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid rgba(148,163,184,0.18)",
+                            background: "rgba(255,255,255,0.03)",
+                            color: "#eef2ff",
+                          }}
+                        />
+                      )}
+                      {(exportFormat === "pdf" || exportFormat === "docx") && (
+                        <div style={{ fontSize: "0.78rem", color: "#facc15" }}>
+                          {exportFormat === "pdf" ? "PDF" : "Word (.docx)"} generation isn't built yet — your request
+                          will be recorded, and plain text is available to download right now.
+                        </div>
+                      )}
+                      <label style={{ display: "grid", gap: "6px", fontSize: "0.85rem", color: "#cbd5e1" }}>
+                        Email address to send the finished profile to
+                        <input
+                          type="email"
+                          value={deliveryEmail}
+                          onChange={(event) => setDeliveryEmail(event.target.value)}
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid rgba(148,163,184,0.18)",
+                            background: "rgba(255,255,255,0.03)",
+                            color: "#eef2ff",
+                          }}
+                        />
+                      </label>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={downloadPlainTextProfile}
+                          style={{
+                            padding: "10px 14px",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(148,163,184,0.24)",
+                            background: "rgba(255,255,255,0.04)",
+                            color: "#e2e8f0",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Download plain text now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={requestProfileDelivery}
+                          disabled={!deliveryEmail.trim()}
+                          style={{
+                            padding: "10px 14px",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(167,139,250,0.5)",
+                            background: "rgba(124,58,237,0.24)",
+                            color: "#ede9fe",
+                            fontWeight: 800,
+                            cursor: deliveryEmail.trim() ? "pointer" : "not-allowed",
+                            opacity: deliveryEmail.trim() ? 1 : 0.55,
+                          }}
+                        >
+                          Request email delivery
+                        </button>
+                      </div>
+                      {deliveryRequested && (
+                        <div style={{ fontSize: "0.85rem", color: "#4ade80" }}>
+                          Request recorded. Email sending isn't connected yet, so nothing has actually been sent —
+                          use the download button above to get your document now.
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={continueDiscoveryFromReview}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(148,163,184,0.24)",
+                          background: "rgba(255,255,255,0.04)",
+                          color: "#e2e8f0",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Back to conversation
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
