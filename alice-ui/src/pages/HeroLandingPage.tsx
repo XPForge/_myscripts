@@ -4,6 +4,7 @@
 // the image is stored locally in public/ so this page has no runtime
 // dependency on Framer's hosting.
 import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   clearDiscoveryIdentity,
   clearSavedDiscoverySession,
@@ -58,6 +59,7 @@ function DiscoveryCapture() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -181,15 +183,36 @@ function DiscoveryCapture() {
       </label>
       <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
         Password
-        <input
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          type="password"
-          required
-          minLength={8}
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          style={inputStyle}
-        />
+        <div style={{ position: "relative" }}>
+          <input
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={8}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            style={{ ...inputStyle, paddingRight: "40px" }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            style={{
+              position: "absolute",
+              right: "10px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "rgba(255,255,255,0.6)",
+              display: "flex",
+            }}
+          >
+            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        </div>
       </label>
       {error && <div style={{ fontSize: "0.82rem", color: "#fca5a5" }}>{error}</div>}
       <button
