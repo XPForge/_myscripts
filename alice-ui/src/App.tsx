@@ -30,7 +30,8 @@ import type {
 } from "./engine/discoveryState";
 import "./styles/global.css";
 import DiscoveryPage from "./components/discovery/DiscoveryPage";
-import DiscoveryEmailGatePage from "./pages/DiscoveryEmailGatePage";
+import HeroLandingPage from "./pages/HeroLandingPage";
+import { loadDiscoveryIdentity } from "./services/discoveryIdentity";
 
 function LighthouseCockpit() {
   const [session, setSession] = useState<DiscoverySession>(() => loadDiscoverySession());
@@ -138,11 +139,14 @@ function AppContent() {
 }
 
 function DiscoveryEntry() {
-  const [entered, setEntered] = useState(false);
-  if (!entered) {
-    return <DiscoveryEmailGatePage onEnter={() => setEntered(true)} />;
+  // Name/email capture now happens inline on the hero page (/) — this route
+  // just trusts that identity is already set. If someone lands here directly
+  // without it (bookmark, shared link), send them back to capture first.
+  if (!loadDiscoveryIdentity()) {
+    window.location.href = "/";
+    return null;
   }
-  return <DiscoveryPage onRestart={() => setEntered(false)} />;
+  return <DiscoveryPage onRestart={() => { window.location.href = "/"; }} />;
 }
 
 export default function App() {
@@ -172,5 +176,9 @@ export default function App() {
     return <LighthouseCockpit />;
   }
 
-  return <DiscoveryEntry />;
+  if (window.location.pathname === "/discovery") {
+    return <DiscoveryEntry />;
+  }
+
+  return <HeroLandingPage />;
 }

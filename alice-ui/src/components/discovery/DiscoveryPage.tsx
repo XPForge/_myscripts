@@ -7,7 +7,6 @@ import { captureOzDiscovery, clearOzDiscoveryCaptures } from "../../oz/ozDiscove
 import { ConcentricProgressRings, SingleProgressRing } from "../shared/ConcentricProgressRings";
 import { computeSchemaCoverage, DISCOVERY_FIELD_LABELS, type SchemaCoverageReport } from "../../services/discoverySchemaTracker";
 import { authorLighthouseProfile, type AuthorProfileResult } from "../../services/profileAuthoringClient";
-import { pickRandomOpeningQuestion } from "../../services/discoveryOpeningQuestions";
 import { clearDiscoveryIdentity, loadDiscoveryIdentity } from "../../services/discoveryIdentity";
 import { GuidedTour, GuidedTourWaitingOverlay } from "./GuidedTour";
 import "./discovery.css";
@@ -100,11 +99,11 @@ function useAliceSession(systemPrompt: string) {
   const isBrandNewSession = () => !resumedSessionRef.current;
   const sendOpeningIntroduction = async () => {
     setStatus("thinking");
-    const openingQuestion = pickRandomOpeningQuestion();
+    const discoveryCategories = Object.values(DISCOVERY_FIELD_LABELS).join(", ");
     let reply = seed[0].text;
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        system: `${systemPrompt}\n\nThis is the very first message of a brand-new Discovery session. Introduce yourself in your own natural words: say that you're Alice and that this is Lighthouse Discovery, and briefly what it's for (understanding how the participant thinks, works, and thrives — not a test, not scored, not an evaluation) and how it works (one question at a time, and they can redirect you anytime). Keep it warm, brief, and conversational — not a long recitation. Then ask exactly this question, word for word, and nothing else: "${openingQuestion}"`,
+        system: `${systemPrompt}\n\nYou are Alice, the frontline AI for Project Lighthouse. Your job is to discover the following through casual, guided conversation: ${discoveryCategories}. This is the very first message of a brand-new Discovery session. Introduce yourself in your own natural words: say that you're Alice and that this is Lighthouse Discovery, and briefly what it's for (understanding how the participant thinks, works, and thrives — not a test, not scored, not an evaluation) and how it works (one question at a time, and they can redirect you anytime). Keep it warm, brief, and conversational — not a long recitation. Then ask exactly one open question to begin, based on your own judgment of what would open the conversation well.`,
         messages: [{ role: "user", content: "Please begin." }],
       }) });
       if (response.ok) reply = (await response.json()).reply || reply;

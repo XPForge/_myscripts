@@ -37,19 +37,11 @@ export function buildRealtimeSessionPayload(
   outputModality: RealtimeOutputModality = "audio",
   voice?: string
 ) {
+  void profile;
   return {
     model: OPENAI_REALTIME_MODEL,
     outputModality,
     voice,
-    profileMetadata: {
-      id: profile.id,
-      lpId: profile.lpId,
-      name: profile.name,
-      email: profile.email,
-      profileType: profile.profileType,
-      profileVersion: profile.profileVersion,
-      discoveryMethod: profile.discoveryMethod,
-    },
     sessionMetadata: {
       sessionId,
     },
@@ -71,6 +63,9 @@ export async function requestRealtimeDiscoverySession(
       status: "active",
       endpoint: "mock://realtime-discovery",
       outputModality,
+      discoveryModeId: "native-discovery-realtime2-v0.1",
+      credentialIssued: false,
+      credentialExpiresAt: null,
       createdAt: new Date().toISOString(),
     };
   }
@@ -118,6 +113,8 @@ export async function requestRealtimeDiscoverySession(
     endpoint?: string;
     outputModality?: RealtimeOutputModality;
     discoveryModeId?: string;
+    credentialIssued?: boolean;
+    expiresAt?: number | string | null;
   };
 
   return {
@@ -129,6 +126,8 @@ export async function requestRealtimeDiscoverySession(
     endpoint: payload.endpoint,
     outputModality: payload.outputModality ?? outputModality,
     discoveryModeId: payload.discoveryModeId,
+    credentialIssued: payload.credentialIssued === true,
+    credentialExpiresAt: payload.expiresAt ?? null,
     createdAt: new Date().toISOString(),
   };
 }

@@ -1,10 +1,37 @@
-const OPENAI_API_BASE = (process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
+export const config = { api: { bodyParser: false } };
+
+function sanitizeSecret(value) {
+  if (!value) return value;
+  return value
+    .split("")
+    .filter((ch) => ch.charCodeAt(0) !== 0xfeff)
+    .join("")
+    .trim();
+}
+
+const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
+const OPENAI_MODEL = sanitizeSecret(process.env.OPENAI_MODEL) || "gpt-5.6-sol";
+const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
+}
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw.length) return {};
+  return JSON.parse(raw.toString("utf8"));
 }
 
 function extractText(payload) {
@@ -22,20 +49,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!OPENAI_API_KEY) {
     sendJson(res, 500, { error: "OPENAI_API_KEY is not configured" });
     return;
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const body = await readJsonBody(req);
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const system = typeof body.system === "string" ? body.system : "";
 
     const response = await fetch(`${OPENAI_API_BASE}/v1/responses`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -46,6 +73,8 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error("chat OpenAI error:", response.status, errText);
       sendJson(res, 502, { error: "OpenAI request failed" });
       return;
     }
@@ -53,7 +82,8 @@ export default async function handler(req, res) {
     const payload = await response.json();
     const reply = extractText(payload);
     sendJson(res, 200, { reply: reply || "What feels important to add next?" });
-  } catch {
+  } catch (err) {
+    console.error("chat handler error:", err);
     sendJson(res, 400, { error: "Invalid chat request" });
   }
 }

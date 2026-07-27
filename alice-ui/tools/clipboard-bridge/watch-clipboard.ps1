@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 
 $DefaultConfig = [ordered]@{
     repoPath = "."
+    appPath = "alice-ui"
     pollIntervalMs = 1000
     taskOutputFile = "ALICE_TO_CODEX_TASK.md"
     runtimeFolder = ".codex-bridge"
@@ -16,6 +17,7 @@ $DefaultConfig = [ordered]@{
     executionEnabled = $true
     codexExePath = ""
     codexSandbox = "workspace-write"
+    codexWritableRoots = @()
     codexAskForApproval = "never"
     copyReportToClipboard = $true
     reportTimeoutSeconds = 900
@@ -98,6 +100,68 @@ function ConvertTo-SafeStatusErrorKind {
     return $null
 }
 
+function Get-StatusProperty {
+    param(
+        $Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        $Default = $null
+    )
+
+    if ($null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name) {
+        return $Object.$Name
+    }
+
+    return $Default
+}
+
+function ConvertTo-SafeStatusLabel {
+    param(
+        $Value,
+        [int]$MaxLength = 128
+    )
+
+    if ($null -eq $Value) { return $null }
+
+    $label = ([string]$Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($label)) { return $null }
+
+    $label = ($label -replace '[\r\n\t]', ' ')
+    if ($label.Length -gt $MaxLength) {
+        $label = $label.Substring(0, $MaxLength)
+    }
+
+    if ($label -match '^[A-Za-z0-9_.: -]+$') { return $label }
+    return $null
+}
+
+function ConvertTo-SafeStatusPath {
+    param($Value)
+
+    if ($null -eq $Value) { return $null }
+
+    $pathValue = ([string]$Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($pathValue)) { return $null }
+    if ($pathValue.Length -gt 260) { return $pathValue.Substring(0, 260) }
+    return $pathValue
+}
+
+function ConvertTo-SafeStatusSummary {
+    param($Value)
+
+    if ($null -eq $Value) { return $null }
+
+    $summary = ([string]$Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($summary)) { return $null }
+
+    $summary = ($summary -replace '[\r\n\t]+', ' ')
+    if ($summary.Length -gt 300) {
+        $summary = $summary.Substring(0, 300)
+    }
+
+    return $summary
+}
+
 function Write-BridgeDisplayStatus {
     param(
         [Parameter(Mandatory = $true)]
@@ -108,6 +172,13 @@ function Write-BridgeDisplayStatus {
         [Parameter(Mandatory = $true)]
         [ValidateSet("capture-only", "execution-enabled", "unknown")]
         [string]$Mode,
+        [string]$TaskId = "",
+        $CodexPid = $null,
+        [string]$TaskStartedAt = "",
+        [string]$TaskCompletedAt = "",
+        [string]$OutputPath = "",
+        [string]$LastTaskStatus = "",
+        [string]$ErrorSummary = "",
         [string]$EventTimeField = "",
         [string]$ErrorKind = ""
     )
@@ -123,11 +194,129 @@ function Write-BridgeDisplayStatus {
     }
 
     $now = (Get-Date).ToUniversalTime().ToString("o")
+    $safeTaskId = ConvertTo-SafeStatusLabel -Value $TaskId
+    $safeTaskStartedAt = ConvertTo-SafeStatusTimestamp $TaskStartedAt
+    $safeTaskCompletedAt = ConvertTo-SafeStatusTimestamp $TaskCompletedAt
+    $safeOutputPath = ConvertTo-SafeStatusPath $OutputPath
+    $safeTaskStatus = ConvertTo-SafeStatusLabel -Value $LastTaskStatus -MaxLength 64
+    $safeErrorSummary = ConvertTo-SafeStatusSummary $ErrorSummary
+    $safeCodexPid = $null
+    if ($null -ne $CodexPid -and [string]$CodexPid -match '^\d+$') {
+        $safeCodexPid = [int]$CodexPid
+    }
+
+    $previousCurrentTaskId = ConvertTo-SafeStatusLabel -Value (Get-StatusProperty -Object $existing -Name "currentTaskId")
+    $previousCurrentTaskStartedAt = ConvertTo-SafeStatusTimestamp (Get-StatusProperty -Object $existing -Name "currentTaskStartedAt")
+    $previousCurrentOutputPath = ConvertTo-SafeStatusPath (Get-StatusProperty -Object $existing -Name "currentOutputPath")
+    $previousCurrentCodexPid = Get-StatusProperty -Object $existing -Name "currentCodexPid"
+    if ($null -ne $previousCurrentCodexPid -and [string]$previousCurrentCodexPid -notmatch '^\d+$') {
+        $previousCurrentCodexPid = $null
+    }
+    elseif ($null -ne $previousCurrentCodexPid) {
+        $previousCurrentCodexPid = [int]$previousCurrentCodexPid
+    }
+
+    $previousLastTaskId = ConvertTo-SafeStatusLabel -Value (Get-StatusProperty -Object $existing -Name "lastTaskId")
+    $previousLastTaskStatus = ConvertTo-SafeStatusLabel -Value (Get-StatusProperty -Object $existing -Name "lastTaskStatus") -MaxLength 64
+    $previousLastTaskStartedAt = ConvertTo-SafeStatusTimestamp (Get-StatusProperty -Object $existing -Name "lastTaskStartedAt")
+    $previousLastTaskCompletedAt = ConvertTo-SafeStatusTimestamp (Get-StatusProperty -Object $existing -Name "lastTaskCompletedAt")
+    $previousLastOutputPath = ConvertTo-SafeStatusPath (Get-StatusProperty -Object $existing -Name "lastOutputPath")
+    $previousLastErrorSummary = ConvertTo-SafeStatusSummary (Get-StatusProperty -Object $existing -Name "lastErrorSummary")
+
+    $currentTaskId = $previousCurrentTaskId
+    $currentTaskStartedAt = $previousCurrentTaskStartedAt
+    $currentOutputPath = $previousCurrentOutputPath
+    $currentCodexPid = $previousCurrentCodexPid
+    $lastTaskId = $previousLastTaskId
+    $lastTaskStatus = $previousLastTaskStatus
+    $lastTaskStartedAt = $previousLastTaskStartedAt
+    $lastTaskCompletedAt = $previousLastTaskCompletedAt
+    $lastOutputPath = $previousLastOutputPath
+    $lastErrorSummary = $previousLastErrorSummary
+
+    switch ($State) {
+        "task-captured" {
+            $currentTaskId = if ($safeTaskId) { $safeTaskId } else { $previousCurrentTaskId }
+            $currentTaskStartedAt = if ($safeTaskStartedAt) { $safeTaskStartedAt } else { $now }
+            $currentOutputPath = if ($safeOutputPath) { $safeOutputPath } else { $previousCurrentOutputPath }
+            $currentCodexPid = $null
+            $lastTaskId = $currentTaskId
+            $lastTaskStatus = if ($safeTaskStatus) { $safeTaskStatus } else { "task-detected" }
+            $lastTaskStartedAt = $currentTaskStartedAt
+            $lastOutputPath = $currentOutputPath
+            $lastErrorSummary = $null
+        }
+        "codex-running" {
+            $currentTaskId = if ($safeTaskId) { $safeTaskId } else { $previousCurrentTaskId }
+            $currentTaskStartedAt = if ($safeTaskStartedAt) { $safeTaskStartedAt } else { $previousCurrentTaskStartedAt }
+            $currentOutputPath = if ($safeOutputPath) { $safeOutputPath } else { $previousCurrentOutputPath }
+            $currentCodexPid = if ($null -ne $safeCodexPid) { $safeCodexPid } else { $previousCurrentCodexPid }
+            $lastTaskId = $currentTaskId
+            $lastTaskStatus = if ($safeTaskStatus) { $safeTaskStatus } else { "codex-running" }
+            $lastTaskStartedAt = $currentTaskStartedAt
+            $lastOutputPath = $currentOutputPath
+            $lastErrorSummary = $null
+        }
+        "codex-finished" {
+            $completedTaskId = if ($safeTaskId) { $safeTaskId } else { $previousCurrentTaskId }
+            $lastTaskId = if ($completedTaskId) { $completedTaskId } else { $previousLastTaskId }
+            $lastTaskStatus = if ($safeTaskStatus) { $safeTaskStatus } else { "codex-completed" }
+            $lastTaskStartedAt = if ($safeTaskStartedAt) { $safeTaskStartedAt } else { $previousCurrentTaskStartedAt }
+            $lastTaskCompletedAt = if ($safeTaskCompletedAt) { $safeTaskCompletedAt } else { $now }
+            $lastOutputPath = if ($safeOutputPath) { $safeOutputPath } else { $previousCurrentOutputPath }
+            $lastErrorSummary = $null
+            $currentTaskId = $null
+            $currentTaskStartedAt = $null
+            $currentOutputPath = $null
+            $currentCodexPid = $null
+        }
+        "codex-failed" {
+            $failedTaskId = if ($safeTaskId) { $safeTaskId } else { $previousCurrentTaskId }
+            $lastTaskId = if ($failedTaskId) { $failedTaskId } else { $previousLastTaskId }
+            $lastTaskStatus = if ($safeTaskStatus) { $safeTaskStatus } else { "codex-failed" }
+            $lastTaskStartedAt = if ($safeTaskStartedAt) { $safeTaskStartedAt } else { $previousCurrentTaskStartedAt }
+            $lastTaskCompletedAt = if ($safeTaskCompletedAt) { $safeTaskCompletedAt } else { $now }
+            $lastOutputPath = if ($safeOutputPath) { $safeOutputPath } else { $previousCurrentOutputPath }
+            $lastErrorSummary = $safeErrorSummary
+            $currentTaskId = $null
+            $currentTaskStartedAt = $null
+            $currentOutputPath = $null
+            $currentCodexPid = $null
+        }
+        "stopped" {
+            $currentTaskId = $null
+            $currentTaskStartedAt = $null
+            $currentOutputPath = $null
+            $currentCodexPid = $null
+        }
+        default {
+            if ($State -in @("capture-only-idle", "execution-idle")) {
+                $currentTaskId = $null
+                $currentTaskStartedAt = $null
+                $currentOutputPath = $null
+                $currentCodexPid = $null
+            }
+        }
+    }
+
     $status = [ordered]@{
         schemaVersion = 1
+        source = "watcher"
         state = $State
         mode = $Mode
+        executionMode = $Mode
         updatedAt = $now
+        watcherPid = $PID
+        currentTaskId = $currentTaskId
+        currentCodexPid = $currentCodexPid
+        currentTaskStartedAt = $currentTaskStartedAt
+        currentOutputPath = $currentOutputPath
+        lastTaskId = $lastTaskId
+        lastTaskStatus = $lastTaskStatus
+        lastTaskStartedAt = $lastTaskStartedAt
+        lastTaskCompletedAt = $lastTaskCompletedAt
+        lastOutputPath = $lastOutputPath
+        lastErrorSummary = $lastErrorSummary
         lastTaskAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastTaskAt") { ConvertTo-SafeStatusTimestamp $existing.lastTaskAt } else { $null }
         lastReportAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastReportAt") { ConvertTo-SafeStatusTimestamp $existing.lastReportAt } else { $null }
         lastErrorAt = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains "lastErrorAt") { ConvertTo-SafeStatusTimestamp $existing.lastErrorAt } else { $null }
@@ -206,6 +395,29 @@ function Get-CodexBlock {
     }
 
     return $null
+}
+
+function Get-CodexTaskId {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [string]$Hash
+    )
+
+    $match = [System.Text.RegularExpressions.Regex]::Match($Text, '(?im)^\s*task_id\s*:\s*(?<id>[^\r\n]+)\s*$')
+    if ($match.Success) {
+        $safeTaskId = ConvertTo-SafeStatusLabel -Value $match.Groups["id"].Value
+        if ($safeTaskId) {
+            return $safeTaskId
+        }
+    }
+
+    if ($Hash.Length -ge 12) {
+        return "hash:$($Hash.Substring(0, 12))"
+    }
+
+    return "hash:$Hash"
 }
 
 function Write-BridgeLog {
@@ -372,6 +584,46 @@ function Resolve-CodexExecutable {
     throw "Codex executable not found. Set codexExePath in config.local.json."
 }
 
+function Resolve-CodexWritableRoots {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Config,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath
+    )
+
+    $roots = New-Object System.Collections.Generic.List[string]
+    $configuredRoots = @($Config.codexWritableRoots)
+
+    if ($configuredRoots.Count -eq 0) {
+        $roots.Add($RepoPath)
+    }
+    else {
+        foreach ($root in $configuredRoots) {
+            if ($null -eq $root -or [string]::IsNullOrWhiteSpace([string]$root)) {
+                continue
+            }
+            $roots.Add((Resolve-BridgePath -BasePath $RepoPath -PathValue ([string]$root)))
+        }
+    }
+
+    $dedupedRoots = New-Object System.Collections.Generic.List[string]
+    $seenRoots = @{}
+    foreach ($root in $roots) {
+        $fullRoot = [System.IO.Path]::GetFullPath($root)
+        if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) {
+            throw "Codex writable root does not exist: $fullRoot"
+        }
+        $key = $fullRoot.ToLowerInvariant()
+        if (-not $seenRoots.ContainsKey($key)) {
+            $seenRoots[$key] = $true
+            $dedupedRoots.Add($fullRoot)
+        }
+    }
+
+    return $dedupedRoots.ToArray()
+}
+
 function Invoke-CodexCli {
     param(
         [Parameter(Mandatory = $true)]
@@ -383,7 +635,16 @@ function Invoke-CodexCli {
         [Parameter(Mandatory = $true)]
         [string]$ReportPath,
         [Parameter(Mandatory = $true)]
-        [string]$LogDirectory
+        [string]$LogDirectory,
+        [Parameter(Mandatory = $true)]
+        [string]$StatusPath,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("capture-only", "execution-enabled", "unknown")]
+        [string]$BridgeMode,
+        [Parameter(Mandatory = $true)]
+        [string]$TaskId,
+        [Parameter(Mandatory = $true)]
+        [string]$TaskStartedAt
     )
 
     try {
@@ -400,11 +661,32 @@ function Invoke-CodexCli {
         }
     }
 
+    try {
+        $codexWritableRoots = Resolve-CodexWritableRoots -Config $Config -RepoPath $RepoPath
+    }
+    catch {
+        $failureMessage = $_.Exception.Message
+        Write-BridgeLog -LogDirectory $LogDirectory -Message "codex writable root resolution failed error=$failureMessage"
+        return [pscustomobject]@{
+            Success = $false
+            ExitCode = $null
+            ReportText = $null
+            FailureMessage = $failureMessage
+        }
+    }
+
     $arguments = @(
         "--ask-for-approval", ([string]$Config.codexAskForApproval),
         "exec",
         "--cd", $RepoPath,
-        "--sandbox", ([string]$Config.codexSandbox),
+        "--sandbox", ([string]$Config.codexSandbox)
+    )
+
+    foreach ($root in $codexWritableRoots) {
+        $arguments += @("--add-dir", $root)
+    }
+
+    $arguments += @(
         "--output-last-message", $ReportPath,
         "-"
     )
@@ -429,6 +711,7 @@ function Invoke-CodexCli {
 
     try {
         [void]$process.Start()
+        Write-BridgeDisplayStatus -StatusPath $StatusPath -State "codex-running" -Mode $BridgeMode -TaskId $TaskId -CodexPid $process.Id -TaskStartedAt $TaskStartedAt -OutputPath $ReportPath -LastTaskStatus "codex-running"
         $process.StandardInput.Write($TaskText)
         $process.StandardInput.Close()
 
@@ -524,6 +807,11 @@ if (-not (Test-Path -LiteralPath $repoPath)) {
     throw "repoPath does not exist: $repoPath"
 }
 
+$appPath = Resolve-BridgePath -BasePath $repoPath -PathValue ([string]$config.appPath)
+if (-not (Test-Path -LiteralPath $appPath)) {
+    throw "appPath does not exist: $appPath"
+}
+
 $taskOutputPath = Resolve-BridgePath -BasePath $repoPath -PathValue ([string]$config.taskOutputFile)
 $runtimePath = Resolve-BridgePath -BasePath $repoPath -PathValue ([string]$config.runtimeFolder)
 $tasksPath = Join-Path $runtimePath "tasks"
@@ -539,18 +827,21 @@ if (-not (Test-Path -LiteralPath $seenHashesPath)) {
 }
 
 if ($config.executionEnabled) {
-    Write-Host "Lighthouse Clipboard Bridge running with Codex execution enabled."
+Write-Host "Lighthouse Clipboard Bridge running with Codex execution enabled."
 }
 else {
     Write-Host "Lighthouse Clipboard Bridge running in capture-only mode."
 }
 Write-Host "Repo: $repoPath"
+Write-Host "App: $appPath"
 Write-Host "Press Ctrl+C to stop."
 
 $suppressedClipboardHashes = @{}
 $executionInProgress = $false
 $bridgeMode = if ($config.executionEnabled) { "execution-enabled" } else { "capture-only" }
 $idleState = if ($config.executionEnabled) { "execution-idle" } else { "capture-only-idle" }
+$lastIgnoredClipboardHash = $null
+$lastProcessedClipboardHash = $null
 Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State $idleState -Mode $bridgeMode
 
 try {
@@ -559,35 +850,55 @@ do {
     $clipboardHash = if ($null -ne $clipboardText) { Get-Sha256 -Text $clipboardText } else { $null }
 
     if ($null -ne $clipboardHash -and $suppressedClipboardHashes.ContainsKey($clipboardHash)) {
-        Write-BridgeLog -LogDirectory $logsPath -Message "ignored suppressed clipboard content hash=$clipboardHash reason=$($suppressedClipboardHashes[$clipboardHash])"
+        if ($lastIgnoredClipboardHash -ne $clipboardHash) {
+            Write-BridgeLog -LogDirectory $logsPath -Message "ignored suppressed clipboard content hash=$clipboardHash reason=$($suppressedClipboardHashes[$clipboardHash])"
+        }
+        $lastIgnoredClipboardHash = $clipboardHash
         $codexBlock = $null
     }
     elseif ($executionInProgress) {
-        Write-BridgeLog -LogDirectory $logsPath -Message "ignored clipboard content while codex execution in progress hash=$clipboardHash"
+        if ($lastIgnoredClipboardHash -ne $clipboardHash) {
+            Write-BridgeLog -LogDirectory $logsPath -Message "ignored clipboard content while codex execution in progress hash=$clipboardHash"
+        }
+        $lastIgnoredClipboardHash = $clipboardHash
         $codexBlock = $null
     }
     elseif ($null -ne $clipboardText) {
+        if ($lastProcessedClipboardHash -ne $clipboardHash -and $lastIgnoredClipboardHash -ne $null) {
+            Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State $idleState -Mode $bridgeMode
+        }
+        $lastIgnoredClipboardHash = $null
         $codexBlock = Get-CodexBlock -Text $clipboardText
     }
     else {
+        if ($lastIgnoredClipboardHash -ne $null) {
+            Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State $idleState -Mode $bridgeMode
+        }
+        $lastIgnoredClipboardHash = $null
         $codexBlock = $null
     }
+    $lastProcessedClipboardHash = $clipboardHash
 
     if ($null -ne $codexBlock) {
         $hash = Get-Sha256 -Text $codexBlock
         $seenHashes = Get-SeenHashes -Path $seenHashesPath
 
         if ($seenHashes.ContainsKey($hash)) {
-            Write-BridgeLog -LogDirectory $logsPath -Message "duplicate task skipped hash=$hash"
+            if ($lastIgnoredClipboardHash -ne $hash) {
+                Write-BridgeLog -LogDirectory $logsPath -Message "duplicate task skipped hash=$hash"
+            }
+            $lastIgnoredClipboardHash = $hash
         }
         else {
             $archivePath = Get-TimestampedPath -Directory $tasksPath -Suffix "task.md"
+            $taskId = Get-CodexTaskId -Text $codexBlock -Hash $hash
+            $taskStartedAt = (Get-Date).ToUniversalTime().ToString("o")
 
             Write-Utf8File -Path $taskOutputPath -Content $codexBlock
             Write-Utf8File -Path $archivePath -Content $codexBlock
             Add-SeenHash -Path $seenHashesPath -Hash $hash
             Write-BridgeLog -LogDirectory $logsPath -Message "task captured hash=$hash output=$taskOutputPath archive=$archivePath"
-            Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "task-captured" -Mode $bridgeMode -EventTimeField "lastTaskAt"
+            Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "task-captured" -Mode $bridgeMode -TaskId $taskId -TaskStartedAt $taskStartedAt -OutputPath $taskOutputPath -LastTaskStatus "task-detected" -EventTimeField "lastTaskAt"
             Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: task captured"
 
             if ($config.copyConfirmationToClipboard) {
@@ -600,9 +911,9 @@ do {
                 $reportPath = Get-TimestampedPath -Directory $reportsPath -Suffix "report.md"
                 Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex executing..."
                 $executionInProgress = $true
-                Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-running" -Mode $bridgeMode
+                Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-running" -Mode $bridgeMode -TaskId $taskId -TaskStartedAt $taskStartedAt -OutputPath $reportPath -LastTaskStatus "codex-starting"
                 try {
-                    $codexResult = Invoke-CodexCli -Config $config -RepoPath $repoPath -TaskText $codexBlock -ReportPath $reportPath -LogDirectory $logsPath
+                    $codexResult = Invoke-CodexCli -Config $config -RepoPath $repoPath -TaskText $codexBlock -ReportPath $reportPath -LogDirectory $logsPath -StatusPath $displayStatusPath -BridgeMode $bridgeMode -TaskId $taskId -TaskStartedAt $taskStartedAt
                 }
                 finally {
                     $executionInProgress = $false
@@ -617,7 +928,7 @@ do {
                 }
 
                 if ($codexResult.Success) {
-                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-finished" -Mode $bridgeMode -EventTimeField "lastReportAt"
+                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-finished" -Mode $bridgeMode -TaskId $taskId -TaskStartedAt $taskStartedAt -OutputPath $reportPath -LastTaskStatus "codex-completed" -EventTimeField "lastReportAt"
                     Write-Host "Codex report written: $reportPath"
                     if ($config.copyReportToClipboard) {
                         Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.ReportText -Reason "codex-report" -LogDirectory $logsPath
@@ -625,7 +936,7 @@ do {
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex finished. Report copied to clipboard."
                 }
                 else {
-                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-failed" -Mode $bridgeMode -EventTimeField "lastErrorAt" -ErrorKind "codex-execution-failed"
+                    Write-BridgeDisplayStatus -StatusPath $displayStatusPath -State "codex-failed" -Mode $bridgeMode -TaskId $taskId -TaskStartedAt $taskStartedAt -OutputPath $reportPath -LastTaskStatus "codex-failed" -ErrorSummary $codexResult.FailureMessage -EventTimeField "lastErrorAt" -ErrorKind "codex-execution-failed"
                     Write-Host $codexResult.FailureMessage
                     Set-BridgeClipboard -SuppressedHashes $suppressedClipboardHashes -Text $codexResult.FailureMessage -Reason "codex-failure" -LogDirectory $logsPath
                     Show-BridgeNotification -Config $config -Message "Lighthouse Bridge: Codex failed. See log."

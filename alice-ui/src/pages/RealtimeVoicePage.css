@@ -1,0 +1,322 @@
+.realtime-page {
+  min-height: 100dvh;
+  overflow: auto;
+  color: #17212f;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(239, 243, 247, 0.98)),
+    url("/visuals/ALICE-title-screen.png") center top / cover fixed;
+}
+
+.realtime-shell {
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.realtime-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+  padding: 18px 0 22px;
+}
+
+.realtime-kicker {
+  margin: 0 0 7px;
+  color: #526177;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.realtime-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1;
+}
+
+.realtime-header p:last-child {
+  max-width: 780px;
+  margin: 12px 0 0;
+  color: #46546a;
+  line-height: 1.6;
+}
+
+.status-pill {
+  min-width: 162px;
+  padding: 9px 12px;
+  border: 1px solid #c7d0dc;
+  border-radius: 8px;
+  color: #344054;
+  background: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.status-pill.connected,
+.status-pill.speaking-listening {
+  color: #0f5132;
+  border-color: #9fc8b3;
+  background: #effaf3;
+}
+
+.status-pill.failed {
+  color: #842323;
+  border-color: #e3b2b2;
+  background: #fff0f0;
+}
+
+.realtime-controls,
+.realtime-session-meta,
+.realtime-diagnostics,
+.realtime-transcript {
+  border: 1px solid #d7dde7;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 48px rgba(29, 38, 54, 0.08);
+}
+
+.realtime-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 14px;
+}
+
+.voice-select {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+}
+
+.voice-select span {
+  color: #647187;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.voice-select select {
+  min-height: 40px;
+  padding: 8px 36px 8px 10px;
+  border: 1px solid #cbd3df;
+  border-radius: 8px;
+  color: #17212f;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.voice-select select:disabled {
+  opacity: 0.62;
+}
+
+.realtime-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid #2362b8;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #2362b8;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.realtime-button.secondary {
+  color: #842323;
+  border-color: #e3b2b2;
+  background: #ffffff;
+}
+
+.realtime-button.ghost {
+  color: #425068;
+  border-color: #cbd3df;
+  background: #ffffff;
+}
+
+.realtime-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.remote-audio {
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.realtime-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #842323;
+  background: #fff0f0;
+  line-height: 1.45;
+}
+
+.realtime-session-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 16px;
+  background: #d7dde7;
+}
+
+.realtime-session-meta div {
+  min-width: 0;
+  padding: 13px;
+  background: #ffffff;
+}
+
+.realtime-session-meta span,
+.realtime-session-meta strong {
+  display: block;
+}
+
+.realtime-session-meta span {
+  margin-bottom: 5px;
+  color: #647187;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.realtime-session-meta strong {
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+
+.realtime-diagnostics {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 12px 13px;
+}
+
+.realtime-diagnostics span {
+  color: #647187;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.realtime-diagnostics strong {
+  overflow-wrap: anywhere;
+  color: #2e3a4d;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.realtime-transcript {
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.transcript-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e1e6ee;
+}
+
+.transcript-title-row h2,
+.transcript-title-row p {
+  margin: 0;
+}
+
+.transcript-title-row h2 {
+  font-size: 1.05rem;
+}
+
+.transcript-title-row p {
+  color: #637084;
+  font-size: 0.88rem;
+}
+
+.realtime-event-list {
+  display: grid;
+  gap: 12px;
+  max-height: 68dvh;
+  overflow: auto;
+  padding: 18px;
+}
+
+.empty-realtime-transcript {
+  margin: 0;
+  color: #5d6879;
+  line-height: 1.6;
+}
+
+.realtime-event {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.realtime-event.assistant {
+  border-color: #c7d8ef;
+  background: #f6f9fe;
+}
+
+.realtime-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: #647187;
+  font-size: 0.82rem;
+}
+
+.role-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #2a3445;
+  font-weight: 800;
+}
+
+.realtime-event.assistant .role-chip {
+  background: #2362b8;
+}
+
+.realtime-event p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .realtime-shell {
+    padding: 18px;
+  }
+
+  .realtime-header,
+  .realtime-session-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .status-pill {
+    min-width: 0;
+    justify-self: start;
+  }
+
+  .transcript-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

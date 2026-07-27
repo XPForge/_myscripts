@@ -1,6 +1,9 @@
 import { DISCOVERY_FIELD_KEYS, type DiscoveryFieldKey } from "./lighthouseProfile";
 
-const PROFILE_AUTHORING_API_URL = "http://localhost:3001/api/profile/author";
+// Relative path — served by api/profile-author.js locally (via the Vite dev
+// plugin) and on Vercel (as a real serverless function), so it works the same
+// way in both places instead of pointing at a hardcoded localhost port.
+const PROFILE_AUTHORING_API_URL = "/api/profile-author";
 
 export type AuthoredProfileFields = Record<DiscoveryFieldKey, string> & {
   discoverySummary: string;

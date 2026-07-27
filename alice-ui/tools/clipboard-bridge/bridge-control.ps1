@@ -1,25 +1,110 @@
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet("start", "stop", "restart", "status")]
+    [ValidateSet("start", "stop", "restart", "status", "monitor", "monitor-window")]
     [string]$Command,
 
     [string]$ConfigPath = "",
 
-    [switch]$CaptureOnly
+    [switch]$CaptureOnly,
+
+    [ValidateRange(1, 60)]
+    [int]$MonitorIntervalSeconds = 2,
+
+    [switch]$Once
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
 $RuntimePath = Join-Path $RepoRoot ".codex-bridge"
 $LogsPath = Join-Path $RuntimePath "logs"
 $PidPath = Join-Path $RuntimePath "bridge.pid"
 $StatusPath = Join-Path $RuntimePath "bridge-status.json"
 $DisplayStatusPath = Join-Path $RuntimePath "status.json"
 $WatcherPath = Join-Path $PSScriptRoot "watch-clipboard.ps1"
+$StatusLightPath = Join-Path $PSScriptRoot "bridge-status-light.ps1"
+$StatusLightPidPath = Join-Path $RuntimePath "bridge-status-light.pid"
 $DefaultExecutionConfigPath = Join-Path $PSScriptRoot "config.local.json"
 $LaunchVerifyDelayMs = 1500
+
+if (-not ("BridgeNativeProcess" -as [type])) {
+    Add-Type @"
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class BridgeNativeProcess {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct STARTUPINFO {
+        public UInt32 cb;
+        public string lpReserved;
+        public string lpDesktop;
+        public string lpTitle;
+        public UInt32 dwX;
+        public UInt32 dwY;
+        public UInt32 dwXSize;
+        public UInt32 dwYSize;
+        public UInt32 dwXCountChars;
+        public UInt32 dwYCountChars;
+        public UInt32 dwFillAttribute;
+        public UInt32 dwFlags;
+        public UInt16 wShowWindow;
+        public UInt16 cbReserved2;
+        public IntPtr lpReserved2;
+        public IntPtr hStdInput;
+        public IntPtr hStdOutput;
+        public IntPtr hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_INFORMATION {
+        public IntPtr hProcess;
+        public IntPtr hThread;
+        public UInt32 dwProcessId;
+        public UInt32 dwThreadId;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CreateProcess(
+        string lpApplicationName,
+        StringBuilder lpCommandLine,
+        IntPtr lpProcessAttributes,
+        IntPtr lpThreadAttributes,
+        bool bInheritHandles,
+        UInt32 dwCreationFlags,
+        IntPtr lpEnvironment,
+        string lpCurrentDirectory,
+        ref STARTUPINFO lpStartupInfo,
+        out PROCESS_INFORMATION lpProcessInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    public static int Start(string commandLine, string workingDirectory) {
+        const UInt32 DETACHED_PROCESS = 0x00000008;
+        const UInt32 CREATE_NEW_PROCESS_GROUP = 0x00000200;
+        const UInt32 CREATE_BREAKAWAY_FROM_JOB = 0x01000000;
+
+        STARTUPINFO startupInfo = new STARTUPINFO();
+        startupInfo.cb = (UInt32)Marshal.SizeOf(typeof(STARTUPINFO));
+        PROCESS_INFORMATION processInfo;
+        StringBuilder mutableCommandLine = new StringBuilder(commandLine);
+        UInt32 flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB;
+
+        bool ok = CreateProcess(null, mutableCommandLine, IntPtr.Zero, IntPtr.Zero, false, flags, IntPtr.Zero, workingDirectory, ref startupInfo, out processInfo);
+        if (!ok) {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        CloseHandle(processInfo.hThread);
+        CloseHandle(processInfo.hProcess);
+        return (int)processInfo.dwProcessId;
+    }
+}
+"@
+}
 
 function Initialize-ControlPaths {
     New-Item -ItemType Directory -Force -Path $RuntimePath, $LogsPath | Out-Null
@@ -129,6 +214,61 @@ function Get-BridgeProcess {
     return $null
 }
 
+function Read-StatusLightPid {
+    if (-not (Test-Path -LiteralPath $StatusLightPidPath)) {
+        return $null
+    }
+
+    $rawPid = (Get-Content -LiteralPath $StatusLightPidPath -Raw).Trim()
+    if ($rawPid -notmatch '^\d+$') {
+        return $null
+    }
+
+    return [int]$rawPid
+}
+
+function Get-StatusLightProcess {
+    param([Parameter(Mandatory = $true)][int]$ProcessIdValue)
+
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessIdValue" -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+        $fallbackProcess = Get-Process -Id $ProcessIdValue -ErrorAction SilentlyContinue
+        if ($null -ne $fallbackProcess -and $fallbackProcess.ProcessName -in @("powershell", "pwsh")) {
+            return $fallbackProcess
+        }
+        return $null
+    }
+
+    $normalizedStatusLightPath = $StatusLightPath.ToLowerInvariant()
+    $commandLine = if ($process.CommandLine) { $process.CommandLine.ToLowerInvariant() } else { "" }
+
+    if ($commandLine.Contains($normalizedStatusLightPath)) {
+        return $process
+    }
+
+    return $null
+}
+
+function Get-StatusLightStatus {
+    $pidValue = Read-StatusLightPid
+    if ($null -eq $pidValue) {
+        return [pscustomobject]@{
+            PidFileExists = (Test-Path -LiteralPath $StatusLightPidPath)
+            Pid = $null
+            IsRunning = $false
+            Process = $null
+        }
+    }
+
+    $process = Get-StatusLightProcess -ProcessIdValue $pidValue
+    return [pscustomobject]@{
+        PidFileExists = $true
+        Pid = $pidValue
+        IsRunning = ($null -ne $process)
+        Process = $process
+    }
+}
+
 function Get-BridgeStatus {
     $pidValue = Read-BridgePid
     if ($null -eq $pidValue) {
@@ -147,6 +287,173 @@ function Get-BridgeStatus {
         IsRunning = ($null -ne $process)
         Process = $process
     }
+}
+
+function Start-StatusLight {
+    param([AllowEmptyString()][string]$ResolvedConfigPath)
+
+    Initialize-ControlPaths
+
+    $status = Get-StatusLightStatus
+    if ($status.IsRunning) {
+        Write-ControlLog "status-light start skipped already-running pid=$($status.Pid)"
+        return
+    }
+
+    if ($status.PidFileExists) {
+        Remove-Item -LiteralPath $StatusLightPidPath -Force -ErrorAction SilentlyContinue
+        Write-ControlLog "status-light stale pid cleared pid=$($status.Pid)"
+    }
+
+    $resolvedDisplayStatusPath = Resolve-DisplayStatusPath -ResolvedConfigPath $ResolvedConfigPath
+
+    $launchErrorPath = Join-Path $LogsPath "status-light-error.log"
+    $arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-STA",
+        "-File", $StatusLightPath,
+        "-StatusPath", $resolvedDisplayStatusPath,
+        "-LogPath", $launchErrorPath,
+        "-PidPath", $StatusLightPidPath
+    )
+    if ($ResolvedConfigPath) {
+        $arguments += @("-ControlConfigPath", $ResolvedConfigPath)
+    }
+
+    $launchScriptPath = Join-Path $RuntimePath "start-status-light.ps1"
+    $statusLightLaunchArguments = @(
+        "-StatusPath '$($resolvedDisplayStatusPath.Replace("'", "''"))'",
+        "-LogPath '$($launchErrorPath.Replace("'", "''"))'",
+        "-PidPath '$($StatusLightPidPath.Replace("'", "''"))'"
+    )
+    if ($ResolvedConfigPath) {
+        $statusLightLaunchArguments += "-ControlConfigPath '$($ResolvedConfigPath.Replace("'", "''"))'"
+    }
+    $launchLines = @(
+        '$ErrorActionPreference = "Stop"',
+        "Set-Location -LiteralPath '$($RepoRoot.Replace("'", "''"))'",
+        'try {',
+        "    & '$($StatusLightPath.Replace("'", "''"))' $($statusLightLaunchArguments -join ' ')",
+        '}',
+        'catch {',
+        "    Add-Content -LiteralPath '$($launchErrorPath.Replace("'", "''"))' -Value (`"[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] `$(`$_.Exception.ToString())`")",
+        '    throw',
+        '}'
+    )
+    Set-Content -LiteralPath $launchScriptPath -Value $launchLines
+
+    $taskName = "LighthouseBridgeStatusLight"
+    $powerShellExePath = Join-Path $PSHOME "powershell.exe"
+    $taskArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", $launchScriptPath)
+    $taskCommand = (Quote-Argument -Value $powerShellExePath) + " " + (($taskArguments | ForEach-Object { Quote-Argument -Value ([string]$_) }) -join " ")
+    $taskCreated = $false
+    $launchedBy = ""
+
+    try {
+        $nativePid = [BridgeNativeProcess]::Start($taskCommand, $RepoRoot)
+        $launchedBy = "native-breakaway"
+        Write-ControlLog "status-light native launch attempted pid=$nativePid statusPath=$resolvedDisplayStatusPath"
+    }
+    catch {
+        Write-ControlLog "status-light native launch failed error=$($_.Exception.Message)"
+    }
+
+    $scheduleTime = (Get-Date).AddMinutes(1).ToString("HH:mm")
+    $createArgs = @("/Create", "/TN", $taskName, "/SC", "ONCE", "/ST", $scheduleTime, "/TR", $taskCommand, "/F", "/RL", "LIMITED", "/IT")
+    if (-not $launchedBy) {
+        $createResult = Invoke-NativeCommand -FilePath "schtasks.exe" -ArgumentList $createArgs
+        if ($createResult.ExitCode -ne 0) {
+            Write-ControlLog "status-light scheduled-task interactive create failed exit=$($createResult.ExitCode) output=$($createResult.Output)"
+            $createArgs = @("/Create", "/TN", $taskName, "/SC", "ONCE", "/ST", $scheduleTime, "/TR", $taskCommand, "/F", "/RL", "LIMITED")
+            $createResult = Invoke-NativeCommand -FilePath "schtasks.exe" -ArgumentList $createArgs
+            if ($createResult.ExitCode -ne 0) {
+                Write-ControlLog "status-light scheduled-task create failed exit=$($createResult.ExitCode) output=$($createResult.Output)"
+            }
+            else {
+                $taskCreated = $true
+            }
+        }
+        else {
+            $taskCreated = $true
+        }
+    }
+
+    if ($taskCreated) {
+        $runResult = Invoke-NativeCommand -FilePath "schtasks.exe" -ArgumentList @("/Run", "/TN", $taskName)
+        if ($runResult.ExitCode -eq 0) {
+            $launchedBy = "scheduled-task"
+        }
+        else {
+            Write-ControlLog "status-light scheduled-task run failed exit=$($runResult.ExitCode) output=$($runResult.Output)"
+        }
+    }
+
+    if (-not $launchedBy) {
+        try {
+            $shortcutPath = Join-Path $RuntimePath "LighthouseBridgeStatusLight.lnk"
+            $shortcutArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", $launchScriptPath)
+            $shortcutShell = New-Object -ComObject WScript.Shell
+            $shortcut = $shortcutShell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = $powerShellExePath
+            $shortcut.Arguments = (($shortcutArguments | ForEach-Object { Quote-Argument -Value ([string]$_) }) -join " ")
+            $shortcut.WorkingDirectory = $RepoRoot
+            $shortcut.WindowStyle = 7
+            $shortcut.Description = "Lighthouse Bridge Status Light"
+            $shortcut.Save()
+            $cmdStartArguments = "/c start """" $(Quote-Argument -Value $shortcutPath)"
+            Start-Process -FilePath "cmd.exe" -ArgumentList $cmdStartArguments -WindowStyle Hidden
+            $launchedBy = "shortcut-start"
+            Write-ControlLog "status-light shortcut start launch attempted statusPath=$resolvedDisplayStatusPath"
+        }
+        catch {
+            Write-ControlLog "status-light shortcut start launch failed error=$($_.Exception.Message)"
+            return
+        }
+    }
+
+    $startedPid = $null
+    $verifiedProcess = $null
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        $startedPid = Read-StatusLightPid
+        if ($null -ne $startedPid) {
+            $verifiedProcess = Get-StatusLightProcess -ProcessIdValue $startedPid
+            if ($null -ne $verifiedProcess) {
+                break
+            }
+        }
+    }
+
+    if ($taskCreated) {
+        [void](Invoke-NativeCommand -FilePath "schtasks.exe" -ArgumentList @("/Delete", "/TN", $taskName, "/F"))
+    }
+
+    if ($null -eq $startedPid -or $null -eq $verifiedProcess) {
+        Remove-Item -LiteralPath $StatusLightPidPath -Force -ErrorAction SilentlyContinue
+        Write-ControlLog "status-light start failed launchMethod=$launchedBy pid=$startedPid aliveAfterLaunch=false statusPath=$resolvedDisplayStatusPath"
+        return
+    }
+
+    Write-ControlLog "status-light start verified launchMethod=$launchedBy pid=$startedPid aliveAfterLaunch=true statusPath=$resolvedDisplayStatusPath"
+}
+
+function Stop-StatusLight {
+    Initialize-ControlPaths
+
+    $status = Get-StatusLightStatus
+    if (-not $status.IsRunning) {
+        if ($status.PidFileExists) {
+            Remove-Item -LiteralPath $StatusLightPidPath -Force -ErrorAction SilentlyContinue
+            Write-ControlLog "status-light stale pid cleared pid=$($status.Pid)"
+        }
+        return
+    }
+
+    Stop-Process -Id $status.Pid -Force
+    Start-Sleep -Milliseconds 250
+    Remove-Item -LiteralPath $StatusLightPidPath -Force -ErrorAction SilentlyContinue
+    Write-ControlLog "status-light stopped pid=$($status.Pid)"
 }
 
 function Clear-StaleBridgeState {
@@ -173,6 +480,30 @@ function Resolve-ConfigPath {
     }
 
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
+}
+
+function Resolve-DisplayStatusPath {
+    param([AllowEmptyString()][string]$ResolvedConfigPath)
+
+    $displayRepoPath = $RepoRoot
+    if ($ResolvedConfigPath -and (Test-Path -LiteralPath $ResolvedConfigPath)) {
+        try {
+            $rawConfig = Get-Content -LiteralPath $ResolvedConfigPath -Raw | ConvertFrom-Json
+            if ($rawConfig.PSObject.Properties.Name -contains "repoPath" -and -not [string]::IsNullOrWhiteSpace([string]$rawConfig.repoPath)) {
+                if ([System.IO.Path]::IsPathRooted([string]$rawConfig.repoPath)) {
+                    $displayRepoPath = [System.IO.Path]::GetFullPath([string]$rawConfig.repoPath)
+                }
+                else {
+                    $displayRepoPath = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ([string]$rawConfig.repoPath)))
+                }
+            }
+        }
+        catch {
+            Write-ControlLog "status-light display status path fallback reason=config-read-failed"
+        }
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $displayRepoPath ".codex-bridge\status.json"))
 }
 
 function Resolve-StartConfigPath {
@@ -232,6 +563,34 @@ function Read-BridgeStatusFile {
     }
 }
 
+function Read-DisplayStatusFile {
+    if (-not (Test-Path -LiteralPath $DisplayStatusPath)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -LiteralPath $DisplayStatusPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-DisplayStatusValue {
+    param(
+        $DisplayStatus,
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [string]$Default = "-"
+    )
+
+    if ($null -ne $DisplayStatus -and $DisplayStatus.PSObject.Properties.Name -contains $Name -and $null -ne $DisplayStatus.$Name -and -not [string]::IsNullOrWhiteSpace([string]$DisplayStatus.$Name)) {
+        return [string]$DisplayStatus.$Name
+    }
+
+    return $Default
+}
+
 function Write-BridgeStatusFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -281,6 +640,26 @@ function Quote-Argument {
     }
 
     return '"' + ($Value -replace '"', '\"') + '"'
+}
+
+function Invoke-NativeCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$ArgumentList
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & $FilePath @ArgumentList 2>&1
+        return [pscustomobject]@{
+            ExitCode = $LASTEXITCODE
+            Output = ($output -join " ")
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 function Start-Bridge {
@@ -364,6 +743,7 @@ function Stop-Bridge {
         if ($status.PidFileExists) {
             Clear-StaleBridgeState -Reason "stale-during-stop"
         }
+        Stop-StatusLight
         Write-Host "Lighthouse Clipboard Bridge is not running"
         Update-BridgeStoppedStatus -Reason "already-stopped"
         Write-ControlLog "stop skipped not-running"
@@ -381,6 +761,7 @@ function Stop-Bridge {
 
     Remove-Item -LiteralPath $PidPath -Force -ErrorAction SilentlyContinue
     Update-BridgeStoppedStatus -Reason "stopped-by-control"
+    Stop-StatusLight
 
     Write-Host "Lighthouse Clipboard Bridge stopped"
     Write-ControlLog "stopped pid=$($status.Pid)"
@@ -391,20 +772,47 @@ function Show-BridgeStatus {
 
     $status = Get-BridgeStatus
     $statusFile = Read-BridgeStatusFile
+    $displayStatus = Read-DisplayStatusFile
     $statusConfigPath = if ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "configPath") { [string]$statusFile.configPath } else { "" }
-    $statusMode = if ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "executionMode") { [string]$statusFile.executionMode } else { "unknown" }
+    $statusMode = if ($null -ne $displayStatus -and $displayStatus.PSObject.Properties.Name -contains "executionMode") {
+        [string]$displayStatus.executionMode
+    }
+    elseif ($null -ne $displayStatus -and $displayStatus.PSObject.Properties.Name -contains "mode") {
+        [string]$displayStatus.mode
+    }
+    elseif ($null -ne $statusFile -and $statusFile.PSObject.Properties.Name -contains "executionMode") {
+        [string]$statusFile.executionMode
+    }
+    else {
+        "unknown"
+    }
+    $resolvedStatusPath = Resolve-DisplayStatusPath -ResolvedConfigPath $statusConfigPath
 
     if ($status.IsRunning) {
         Write-Host "Lighthouse Clipboard Bridge running"
+        Write-Host "Bridge running: yes"
         Write-Host "PID: $($status.Pid)"
         Write-Host "PID file exists: $($status.PidFileExists)"
         Write-Host "Config path: $(if ($statusConfigPath) { $statusConfigPath } else { '(default)' })"
         Write-Host "Execution mode: $statusMode"
+        Write-Host "Status source path: $resolvedStatusPath"
+        Write-Host "Status source: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'source' -Default 'watcher/root-status')"
+        Write-Host "State: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'state')"
+        Write-Host "currentTaskId: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'currentTaskId')"
+        Write-Host "currentCodexPid: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'currentCodexPid')"
+        Write-Host "lastTaskId: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskId')"
+        Write-Host "lastTaskStatus: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskStatus')"
+        Write-Host "lastTaskStartedAt: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskStartedAt' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskAt'))"
+        Write-Host "lastTaskCompletedAt: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskCompletedAt' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastReportAt'))"
+        Write-Host "lastOutputPath: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastOutputPath')"
+        Write-Host "lastErrorSummary: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastErrorSummary' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastErrorKind'))"
+        Write-Host "Status light required for bridge visibility: no"
         Write-ControlLog "status running pid=$($status.Pid) mode=$statusMode pidFileExists=$($status.PidFileExists)"
         return
     }
 
     Write-Host "Lighthouse Clipboard Bridge not running"
+    Write-Host "Bridge running: no"
     if ($null -ne $status.Pid) {
         Write-Host "PID file exists: $($status.PidFileExists)"
         Write-Host "Stale PID: $($status.Pid)"
@@ -415,7 +823,54 @@ function Show-BridgeStatus {
     }
     Write-Host "Config path: $(if ($statusConfigPath) { $statusConfigPath } else { '(unknown)' })"
     Write-Host "Execution mode: $statusMode"
+    Write-Host "Status source path: $resolvedStatusPath"
+    Write-Host "Status source: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'source' -Default 'watcher/root-status')"
+    Write-Host "State: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'state')"
+    Write-Host "currentTaskId: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'currentTaskId')"
+    Write-Host "currentCodexPid: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'currentCodexPid')"
+    Write-Host "lastTaskId: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskId')"
+    Write-Host "lastTaskStatus: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskStatus')"
+    Write-Host "lastTaskStartedAt: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskStartedAt' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskAt'))"
+    Write-Host "lastTaskCompletedAt: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastTaskCompletedAt' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastReportAt'))"
+    Write-Host "lastOutputPath: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastOutputPath')"
+    Write-Host "lastErrorSummary: $(Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastErrorSummary' -Default (Get-DisplayStatusValue -DisplayStatus $displayStatus -Name 'lastErrorKind'))"
+    Write-Host "Status light required for bridge visibility: no"
     Write-ControlLog "status not-running mode=$statusMode pidFileExists=$($status.PidFileExists)"
+}
+
+function Start-BridgeMonitor {
+    Initialize-ControlPaths
+
+    do {
+        Clear-Host
+        Write-Host "Lighthouse Bridge Monitor"
+        Write-Host "Updated: $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))"
+        Write-Host ""
+        Show-BridgeStatus
+
+        if ($Once) {
+            break
+        }
+
+        Start-Sleep -Seconds $MonitorIntervalSeconds
+    } while ($true)
+}
+
+function Start-BridgeMonitorWindow {
+    Initialize-ControlPaths
+
+    $powerShellExePath = Join-Path $PSHOME "powershell.exe"
+    $monitorCommand = "`$Host.UI.RawUI.WindowTitle = 'Lighthouse Bridge Monitor'; & '$($PSCommandPath.Replace("'", "''"))' monitor -MonitorIntervalSeconds $MonitorIntervalSeconds"
+    $monitorArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-NoExit",
+        "-Command",
+        $monitorCommand
+    )
+
+    Start-Process -FilePath $powerShellExePath -ArgumentList $monitorArguments -WorkingDirectory $RepoRoot
+    Write-Host "Lighthouse Bridge Monitor window opened"
 }
 
 switch ($Command) {
@@ -431,5 +886,11 @@ switch ($Command) {
     }
     "status" {
         Show-BridgeStatus
+    }
+    "monitor" {
+        Start-BridgeMonitor
+    }
+    "monitor-window" {
+        Start-BridgeMonitorWindow
     }
 }

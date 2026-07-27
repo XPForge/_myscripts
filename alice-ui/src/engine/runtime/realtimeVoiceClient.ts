@@ -1,4 +1,4 @@
-import { pickRandomOpeningQuestion } from "../../services/discoveryOpeningQuestions";
+import { DISCOVERY_FIELD_LABELS } from "../../services/discoverySchemaTracker";
 
 export type RealtimeSessionConfig = {
   sessionId: string;
@@ -471,6 +471,8 @@ function createResponseEvent(outputModality: RealtimeOutputModality, instruction
 // otherwise unbounded, letting one rambling response run up cost with no ceiling).
 const REALTIME_MAX_RESPONSE_OUTPUT_TOKENS = 800;
 
+const REALTIME_DISCOVERY_DUTY = `You are Alice, the frontline AI for Project Lighthouse. Your job is to discover the following through casual, guided conversation: ${Object.values(DISCOVERY_FIELD_LABELS).join(", ")}.`;
+
 const REALTIME_DISCOVERY_STARTUP_GUIDANCE =
   "Conduct Discovery naturally. Ask one question at a time. Let each answer shape the next question. Preserve participant authority: the participant may correct, reject, refine, or redirect. Do not score, rank, diagnose, assess, classify, or treat profile readiness as the end of Discovery. Keep the tone human, curious, non-clinical, and non-corporate.";
 
@@ -480,17 +482,20 @@ const REALTIME_DISCOVERY_STARTUP_GUIDANCE =
 const REALTIME_DISCOVERY_SELF_INTRODUCTION =
   "Introduce yourself as Alice. Explain that this is Project Lighthouse Discovery, and that you're here to help understand how the participant thinks, learns, solves problems, communicates, creates, adapts, and what kinds of environments help them thrive. Make clear this is not a test, evaluation, diagnosis, personality assessment, score, or job interview. Explain the participant's role: answer naturally, think out loud, and correct or redirect you whenever something doesn't fit — there's no need for perfect wording. Explain the process: you'll ask one question at a time and let each answer shape where the conversation goes next, and you may reflect observations along the way but won't treat them as confirmed unless the participant confirms them. Explain the end result: later, once enough meaningful understanding has been gathered, Lighthouse can help create a Human Clarity Profile-style draft that represents what traditional resumes and profiles often miss. Keep this warm, brief, and conversational — not a long recitation.";
 
+// No fixed question, no examples — Alice knows her duty (above) and is
+// trusted to open the conversation well on her own judgment.
+const OPENING_QUESTION_GUIDANCE = "Then ask exactly one open question to begin, based on your own judgment of what would open the conversation well.";
+
 function createStartupResponseEvent(outputModality: RealtimeOutputModality, skipIntro: boolean) {
-  const openingQuestion = pickRandomOpeningQuestion();
   if (skipIntro) {
     return createResponseEvent(
       outputModality,
-      `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} Skip any self-introduction. Begin the conversation by asking exactly this question, word for word, and nothing else: "${openingQuestion}"`
+      `${REALTIME_DISCOVERY_DUTY} ${REALTIME_DISCOVERY_STARTUP_GUIDANCE} Skip any self-introduction. ${OPENING_QUESTION_GUIDANCE}`
     );
   }
   return createResponseEvent(
     outputModality,
-    `${REALTIME_DISCOVERY_STARTUP_GUIDANCE} ${REALTIME_DISCOVERY_SELF_INTRODUCTION} After that introduction, ask exactly this question, word for word, and nothing else: "${openingQuestion}"`
+    `${REALTIME_DISCOVERY_DUTY} ${REALTIME_DISCOVERY_STARTUP_GUIDANCE} ${REALTIME_DISCOVERY_SELF_INTRODUCTION} After that introduction, ${OPENING_QUESTION_GUIDANCE.charAt(0).toLowerCase()}${OPENING_QUESTION_GUIDANCE.slice(1)}`
   );
 }
 

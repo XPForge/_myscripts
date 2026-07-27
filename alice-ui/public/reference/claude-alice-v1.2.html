@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>A.L.I.C.E. — Project Lighthouse</title>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; font-family:'Inter','Helvetica Neue',Arial,sans-serif; background:#080F1A; color:#BDCEDC; }
+
+@keyframes idle-core  { 0%,100%{transform:scale(1);opacity:.88}    50%{transform:scale(1.06);opacity:1} }
+@keyframes think-core { 0%,100%{transform:scale(1.01);opacity:.92} 50%{transform:scale(1.10);opacity:1} }
+@keyframes idle-r1    { 0%,100%{transform:scale(1);opacity:.14}    50%{transform:scale(1.28);opacity:.28} }
+@keyframes idle-r2    { 0%,100%{transform:scale(1);opacity:.07}    50%{transform:scale(1.52);opacity:.15} }
+@keyframes idle-r3    { 0%,100%{transform:scale(1);opacity:.04}    50%{transform:scale(1.78);opacity:.09} }
+@keyframes listen-core{ 0%,100%{transform:scale(1.10);opacity:.92} 50%{transform:scale(1.20);opacity:1} }
+@keyframes ripple     { 0%{transform:scale(.5);opacity:.65}        100%{transform:scale(3.4);opacity:0} }
+@keyframes fadein     { from{opacity:0;transform:translateY(7px)}  to{opacity:1;transform:translateY(0)} }
+@keyframes micAttention { 0%{box-shadow:0 0 0 0 rgba(245,166,35,.95);transform:scale(1)} 45%{box-shadow:0 0 0 26px rgba(245,166,35,0);transform:scale(1.24)} 100%{box-shadow:0 0 0 0 rgba(245,166,35,0);transform:scale(1)} }
+@keyframes micready   { 0%,100%{box-shadow:0 0 6px 2px rgba(245,166,35,.22)} 50%{box-shadow:0 0 18px 5px rgba(245,166,35,.52)} }
+@keyframes miclive    { 0%,100%{box-shadow:0 0 0 0 rgba(62,207,207,.42)}     50%{box-shadow:0 0 0 12px rgba(62,207,207,0)} }
+@keyframes alicename  { 0%,100%{opacity:.72} 50%{opacity:1} }
+
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-thumb { background:#254D72; border-radius:2px; }
+
+#app { height:100vh; display:flex; flex-direction:column; overflow:hidden; align-items:center; }
+
+/* HEADER */
+#header { width:100%; background:#0C1828; border-bottom:1px solid #162E45; padding:11px 20px; display:flex; align-items:center; gap:10px; flex-shrink:0; z-index:10; position:relative; }
+#header a { text-decoration:none; display:flex; align-items:center; gap:7px; }
+.h-logo { color:#F5A623; font-weight:900; font-size:15px; letter-spacing:.07em; text-shadow:0 0 14px rgba(245,166,35,.5); }
+.h-dot  { color:#1E3D58; }
+.h-sub  { color:#6A9AB8; font-size:11px; }
+.h-ver  { color:#1E3D58; font-size:10px; font-weight:700; letter-spacing:.06em; }
+.h-spc  { flex:1; }
+.h-btn  { background:none; border:1px solid #162E45; color:#6A9AB8; border-radius:6px; padding:4px 11px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; }
+.h-btn:hover { border-color:#F5A623; color:#F5A623; }
+#end-btn { display:none; border-color:rgba(224,92,92,.35); color:#E05C5C; }
+#end-btn:hover { border-color:#E05C5C; background:rgba(224,92,92,.06); }
+#excount  { color:#6A9AB8; font-size:11px; }
+#no-voice { color:#6A9AB8; font-size:10px; background:rgba(245,166,35,.07); border:1px solid rgba(245,166,35,.18); border-radius:4px; padding:2px 8px; display:none; }
+
+/* ABOUT — slides down */
+#about { width:100%; background:#0E1F33; border-bottom:1px solid rgba(245,166,35,.15); padding:0 22px; max-height:0; overflow:hidden; transition:max-height .38s cubic-bezier(.4,0,.2,1), padding .38s cubic-bezier(.4,0,.2,1); flex-shrink:0; }
+#about.open { max-height:360px; padding:18px 22px; overflow-y:auto; }
+#about h2 { color:#F5A623; font-size:17px; font-weight:900; margin-bottom:7px; }
+#about p  { color:#BDCEDC; font-size:13px; line-height:1.8; margin-bottom:12px; white-space:pre-line; }
+.prin { display:inline-block; background:rgba(245,166,35,.07); border:1px solid rgba(245,166,35,.2); color:#F5A623; border-radius:5px; padding:3px 11px; font-size:10px; font-weight:700; margin:2px; }
+.alink { display:inline-flex; align-items:center; gap:7px; margin-top:12px; background:rgba(245,166,35,.07); border:1px solid rgba(245,166,35,.28); border-radius:7px; padding:8px 18px; color:#F5A623; font-weight:700; font-size:12px; text-decoration:none; }
+
+/* OVERLAYS */
+.overlay { display:none; position:fixed; inset:0; background:rgba(8,15,26,.9); align-items:center; justify-content:center; z-index:200; animation:fadein .2s ease; }
+.ov-box { background:#0E1F33; border:1px solid #1E3D58; border-radius:14px; padding:28px 32px; text-align:center; max-width:380px; width:90%; }
+.ov-box h3 { color:#EEF4FB; font-size:16px; font-weight:700; margin-bottom:8px; }
+.ov-box p  { color:#6A9AB8; font-size:13px; line-height:1.65; margin-bottom:16px; }
+.ov-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.ov-primary { background:linear-gradient(135deg,#F5A623,#FFD700); color:#080F1A; border:none; border-radius:8px; padding:10px 24px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; }
+.ov-secondary { background:none; border:1px solid #1E3D58; color:#6A9AB8; border-radius:8px; padding:10px 20px; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; }
+.ov-danger { background:#E05C5C; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; }
+.ov-input { width:100%; background:#080F1A; border:1px solid #162E45; border-radius:7px; padding:10px 13px; color:#EEF4FB; font-size:14px; font-family:inherit; margin-bottom:10px; outline:none; }
+.ov-label { color:#6A9AB8; font-size:11px; text-align:left; display:block; margin-bottom:5px; }
+.ov-note  { color:#1E3D58; font-size:10px; margin-top:12px; line-height:1.6; }
+.ov-icon  { font-size:36px; margin-bottom:12px; }
+.ov-highlight { color:#F5A623; font-size:12px; line-height:1.65; background:rgba(245,166,35,.06); border:1px solid rgba(245,166,35,.2); border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+
+/* KEY SETUP */
+#key-setup { flex:1; display:flex; align-items:center; justify-content:center; padding:24px; width:100%; }
+.ks { max-width:440px; width:100%; text-align:center; }
+.ks-title { color:#F5A623; font-size:27px; font-weight:900; margin-bottom:4px; text-shadow:0 0 22px rgba(245,166,35,.5); }
+.ks-sub   { color:#6A9AB8; font-size:11px; letter-spacing:.09em; text-transform:uppercase; margin-bottom:34px; }
+.ks-card  { background:#102233; border:1px solid #162E45; border-radius:13px; padding:26px 24px; }
+.ks-card h3 { color:#EEF4FB; font-size:15px; font-weight:700; margin-bottom:7px; }
+.ks-card p  { color:#6A9AB8; font-size:12px; line-height:1.7; margin-bottom:18px; }
+.ks-card a  { color:#3ECFCF; }
+#key-in   { width:100%; background:#080F1A; border:1px solid #162E45; border-radius:7px; padding:11px 13px; color:#EEF4FB; font-size:14px; font-family:monospace; margin-bottom:13px; outline:none; }
+#save-btn { width:100%; background:linear-gradient(135deg,#F5A623,#FFD700); color:#080F1A; border:none; border-radius:7px; padding:12px; font-weight:900; font-size:14px; cursor:pointer; font-family:inherit; box-shadow:0 4px 22px rgba(245,166,35,.4); }
+#save-btn:disabled { background:#1A3850; color:#6A9AB8; box-shadow:none; cursor:default; }
+.ks-note { color:#1A3850; font-size:10px; margin-top:14px; line-height:1.6; }
+
+/* ORB AREA */
+#orb-area { flex-shrink:0; display:none; flex-direction:column; align-items:center; padding:26px 0 16px; width:100%; background:radial-gradient(ellipse at 50% 0%, rgba(245,166,35,.04) 0%, transparent 68%); }
+#alice-name { color:#F5A623; font-size:20px; font-weight:900; letter-spacing:.14em; margin-bottom:20px; animation:alicename 4s ease-in-out infinite; }
+#orb-wrap { position:relative; width:200px; height:200px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.oring { position:absolute; border-radius:50%; pointer-events:none; }
+.rring { position:absolute; width:80px; height:80px; border-radius:50%; border:2px solid #3ECFCF; display:none; animation:ripple 2.4s ease-out infinite; }
+#rr2 { animation-delay:.8s; } #rr3 { animation-delay:1.6s; }
+#orb-core { width:82px; height:82px; border-radius:50%; position:relative; z-index:2; background:radial-gradient(circle at 38% 38%, #F5A623EE, #F5A62388); box-shadow:0 0 32px rgba(245,166,35,.55), 0 0 72px rgba(245,166,35,.22); animation:idle-core 4.5s ease-in-out infinite; transition:background .4s, box-shadow .3s; }
+#orb-core::after { content:''; position:absolute; top:16%; left:20%; width:32%; height:22%; border-radius:50%; background:rgba(255,255,255,.26); transform:rotate(-32deg); }
+#phase-lbl { height:20px; margin-top:10px; font-size:11px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; opacity:0; transition:opacity .4s, color .4s; }
+
+/* WELCOME */
+#welcome { text-align:center; padding:8px 24px 0; max-width:500px; animation:fadein .5s ease; }
+#welcome h1 { color:#F5A623; font-size:21px; font-weight:900; line-height:1.2; margin-bottom:8px; }
+.w-desc { color:#6A9AB8; font-size:13px; line-height:1.8; margin-bottom:13px; }
+.w-link { color:#F5A623; font-size:12px; font-weight:600; text-decoration:none; letter-spacing:.04em; opacity:.72; display:block; margin-bottom:20px; }
+.w-btns { display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; margin-bottom:13px; }
+#begin-btn { background:linear-gradient(135deg,#F5A623,#FFD700); color:#080F1A; border:none; border-radius:10px; padding:13px 40px; font-weight:900; font-size:15px; cursor:pointer; font-family:inherit; box-shadow:0 4px 28px rgba(245,166,35,.45); }
+#skip-btn  { background:none; border:1px solid #1E3D58; color:#6A9AB8; border-radius:10px; padding:13px 24px; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; transition:all .2s; }
+#skip-btn:hover { border-color:#6A9AB8; color:#BDCEDC; }
+.w-note   { color:#1A3850; font-size:11px; line-height:1.7; }
+#learn-btn { background:none; border:none; color:#6A9AB8; font-size:11px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; font-family:inherit; margin-top:3px; }
+
+/* SESSION SAVED */
+#session-saved { flex:1; display:none; align-items:center; justify-content:center; padding:24px; width:100%; }
+.ss-box { background:#102233; border:1px solid rgba(245,166,35,.2); border-radius:14px; padding:32px 28px; max-width:480px; text-align:center; animation:fadein .4s ease; }
+.ss-icon { font-size:40px; margin-bottom:12px; }
+.ss-box h3 { color:#F5A623; font-size:20px; font-weight:900; margin-bottom:10px; }
+.ss-box p  { color:#BDCEDC; font-size:13px; line-height:1.75; margin-bottom:12px; }
+.ss-highlight { color:#F5A623; font-size:12px; background:rgba(245,166,35,.07); border:1px solid rgba(245,166,35,.2); border-radius:8px; padding:10px 14px; margin-bottom:20px; line-height:1.65; }
+.ss-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.ss-continue { background:linear-gradient(135deg,#3ECFCF,#2AA8A8); color:#080F1A; border:none; border-radius:8px; padding:10px 24px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; }
+.ss-new { background:none; border:1px solid #1E3D58; color:#6A9AB8; border-radius:8px; padding:10px 20px; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; }
+.ss-gen { background:linear-gradient(135deg,#F5A623,#FFD700); color:#080F1A; border:none; border-radius:8px; padding:10px 24px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; margin-top:14px; width:100%; }
+
+/* CONVERSATION */
+#conversation { flex:1; overflow-y:auto; padding:14px 20px 8px; display:none; width:100%; max-width:740px; }
+.bubble { display:flex; margin-bottom:15px; animation:fadein .3s ease; }
+.bubble.alice { justify-content:flex-start; padding-right:52px; }
+.bubble.user  { justify-content:flex-end;   padding-left:52px; }
+.bi { max-width:86%; padding:13px 17px; font-size:14.5px; line-height:1.8; border-radius:12px; }
+.bubble.alice .bi { background:#102233; border-left:3px solid rgba(245,166,35,.42); border-radius:0 12px 12px 12px; color:#BDCEDC; }
+.bubble.user  .bi { background:#0C1828; border-right:3px solid #1E3D58; border-radius:12px 0 12px 12px; color:#6A9AB8; }
+#live-tx  { display:none; justify-content:flex-end; padding-left:52px; margin-bottom:4px; max-width:740px; width:100%; }
+#live-txt { max-width:86%; background:#0C1828; border-right:3px solid rgba(62,207,207,.38); border-radius:12px 0 12px 12px; padding:11px 15px; color:#3ECFCF; font-size:14px; line-height:1.7; font-style:italic; }
+#err-msg  { display:none; text-align:center; color:#E05C5C; font-size:12px; padding:7px 0; width:100%; max-width:740px; }
+
+/* CONTROLS */
+#controls { flex-shrink:0; padding:11px 16px 15px; width:100%; max-width:740px; background:#0C1828; border-top:1px solid #162E45; display:none; }
+#prof-ready { background:#102233; border:1px solid rgba(245,166,35,.2); border-radius:8px; padding:9px 13px; margin-bottom:11px; display:none; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+#prof-ready p { color:#BDCEDC; font-size:12px; line-height:1.5; flex:1; }
+#gen-btn    { background:#F5A623; color:#080F1A; border:none; border-radius:6px; padding:7px 16px; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; flex-shrink:0; }
+#gen-think  { text-align:center; color:#8B5CF6; font-size:12px; margin-bottom:11px; font-weight:600; display:none; }
+#input-row  { display:flex; gap:9px; align-items:flex-end; }
+#mic-btn { width:52px; height:52px; border-radius:50%; flex-shrink:0; background:#102233; border:2px solid #1E3D58; color:#6A9AB8; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .25s, border-color .25s, color .25s; font-family:inherit; }
+#mic-btn.ready    { border-color:rgba(245,166,35,.45); animation:micready 2.8s ease-in-out infinite; }
+#mic-btn.live     { background:#3ECFCF; border-color:#3ECFCF; color:#080F1A; animation:miclive 1.1s ease-in-out infinite; }
+#mic-btn.attention{ animation:micAttention 0.55s ease-out forwards !important; }
+#mic-btn:disabled { opacity:.35; cursor:default; animation:none !important; }
+/* Cancel dictation button */
+#cancel-tx { display:none; width:36px; height:36px; border-radius:50%; background:rgba(224,92,92,.12); border:1px solid rgba(224,92,92,.4); color:#E05C5C; font-size:16px; cursor:pointer; align-items:center; justify-content:center; flex-shrink:0; align-self:flex-end; margin-bottom:8px; transition:all .2s; font-family:inherit; }
+#cancel-tx:hover { background:rgba(224,92,92,.22); }
+#txt-in  { flex:1; background:#102233; border:1px solid #162E45; border-radius:10px; padding:12px 13px; color:#EEF4FB; font-size:14px; line-height:1.6; resize:none; font-family:inherit; outline:none; }
+#txt-in:disabled { opacity:.55; }
+#send-btn { width:52px; height:52px; border-radius:10px; flex-shrink:0; border:none; font-size:20px; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; transition:all .2s; background:#1A3850; color:#6A9AB8; }
+#footer-note { text-align:center; color:#1A3850; font-size:10px; margin-top:9px; letter-spacing:.04em; }
+#footer-note a { color:#1A3850; text-decoration:none; }
+
+/* PROFILE */
+#prof-view { flex:1; overflow-y:auto; padding:22px 20px; display:none; width:100%; max-width:740px; }
+#prof-box  { background:#102233; border:1px solid rgba(245,166,35,.2); border-radius:12px; padding:26px 28px; max-width:700px; margin:0 auto; animation:fadein .4s ease; }
+.p-eye  { color:#F5A623; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; margin-bottom:3px; }
+.p-by   { color:#6A9AB8; font-size:11px; margin-bottom:18px; padding-bottom:13px; border-bottom:1px solid #162E45; }
+#prof-content { color:#BDCEDC; font-size:14px; line-height:1.9; white-space:pre-wrap; }
+#prof-acts { display:flex; gap:9px; margin-top:22px; flex-wrap:wrap; }
+.p-btn  { background:none; border:1px solid #162E45; color:#6A9AB8; border-radius:7px; padding:8px 18px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+#copy-btn  { background:rgba(245,166,35,.07); border-color:rgba(245,166,35,.28); color:#F5A623; }
+#email-out { background:rgba(62,207,207,.07); border-color:rgba(62,207,207,.28); color:#3ECFCF; display:none; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- NAME CAPTURE OVERLAY -->
+<div class="overlay" id="name-capture">
+  <div class="ov-box">
+    <div class="ov-icon">⬡</div>
+    <h3>Before we begin</h3>
+    <p>This helps Alice address you personally and ensures your profile is written about you — not "the participant."</p>
+    <label class="ov-label">Your name</label>
+    <input class="ov-input" type="text" id="nc-name" placeholder="First name is fine…" autocomplete="given-name"/>
+    <label class="ov-label" style="margin-top:6px">Email <span style="color:#1E3D58">(optional — for profile delivery)</span></label>
+    <input class="ov-input" type="email" id="nc-email" placeholder="your@email.com" autocomplete="email"/>
+    <div class="ov-btns">
+      <button class="ov-primary" id="nc-start">Begin Discovery →</button>
+      <button class="ov-secondary" id="nc-skip">Skip</button>
+    </div>
+    <div class="ov-note">Your information stays private to this session.</div>
+  </div>
+</div>
+
+<!-- END SESSION CONFIRM -->
+<div class="overlay" id="end-confirm">
+  <div class="ov-box">
+    <h3>End this session?</h3>
+    <p>Your conversation will be saved. You can return at any time to continue Discovery or generate your profile.</p>
+    <div class="ov-btns">
+      <button class="ov-danger" id="end-yes">End Session</button>
+      <button class="ov-secondary" id="end-no">Keep Going</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="header">
+  <a href="https://projectlighthouse.ai" target="_blank" rel="noopener noreferrer">
+    <span class="h-logo">⬡ Project Lighthouse</span>
+  </a>
+  <span class="h-dot">·</span>
+  <span class="h-sub">A.L.I.C.E.</span>
+  <span class="h-dot">·</span>
+  <span class="h-ver">v1.2</span>
+  <div class="h-spc"></div>
+  <span id="excount"></span>
+  <div id="no-voice">Chrome for voice</div>
+  <button class="h-btn" id="end-btn">End Session</button>
+  <button class="h-btn" id="about-btn">About</button>
+</div>
+
+<!-- ABOUT -->
+<div id="about">
+  <h2>See the full person. Not just the résumé.</h2>
+  <p>Project Lighthouse is a human discovery system built on a single conviction: people are far more complex than the tools normally used to represent them.
+
+Résumés, credentials, job titles, and traditional profiles flatten people into low-resolution containers. Important things get missed. People get reduced.
+
+Alice guides a genuine discovery conversation — no scoring, no ranking, no labels — to reveal how you actually think, learn, create, and thrive. Your profile belongs to you.</p>
+  <div>
+    <span class="prin">✓ Your profile belongs to you</span>
+    <span class="prin">✓ Discovery before evaluation</span>
+    <span class="prin">✓ Correct or redirect at any point</span>
+    <span class="prin">✓ No scores. No rankings. No labels.</span>
+    <span class="prin">✓ Humans decide — Lighthouse helps them see you clearly</span>
+  </div>
+  <a href="https://projectlighthouse.ai" target="_blank" rel="noopener noreferrer" class="alink">⬡ Visit ProjectLighthouse.ai →</a>
+</div>
+
+<!-- KEY SETUP -->
+<div id="key-setup">
+  <div class="ks">
+    <div class="ks-title">⬡ A.L.I.C.E.</div>
+    <div class="ks-sub">Project Lighthouse · Discovery Engine · v1.2</div>
+    <div class="ks-card">
+      <h3>Enter your OpenAI API Key</h3>
+      <p>Alice uses GPT-4o for conversation and OpenAI TTS for voice — one API, one key. Your key saves to your browser only. Get yours at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.</p>
+      <input type="password" id="key-in" placeholder="sk-..." autocomplete="off"/>
+      <button id="save-btn" disabled>Start A.L.I.C.E. →</button>
+    </div>
+    <div class="ks-note">KEY STORED IN YOUR BROWSER ONLY · NEVER SHARED · TESTING VERSION</div>
+  </div>
+</div>
+
+<!-- ORB AREA -->
+<div id="orb-area">
+  <div id="alice-name">A.L.I.C.E.</div>
+  <div id="orb-wrap">
+    <div class="oring" id="r3" style="width:100%;height:100%"></div>
+    <div class="oring" id="r2" style="width:74%;height:74%"></div>
+    <div class="oring" id="r1" style="width:54%;height:54%"></div>
+    <div class="rring" id="rr1"></div>
+    <div class="rring" id="rr2"></div>
+    <div class="rring" id="rr3"></div>
+    <div id="orb-core"></div>
+  </div>
+  <div id="phase-lbl"></div>
+  <div id="welcome">
+    <h1>See the full person.<br/>Not just the résumé.</h1>
+    <p class="w-desc">Project Lighthouse is a human discovery system. Alice will guide a genuine conversation — no scoring, no ranking, no labels. Your profile belongs to you.</p>
+    <a href="https://projectlighthouse.ai" target="_blank" rel="noopener noreferrer" class="w-link">⬡ projectlighthouse.ai →</a>
+    <div class="w-btns">
+      <button id="begin-btn">Begin Discovery</button>
+      <button id="skip-btn">Skip intro — I know the process</button>
+    </div>
+    <p class="w-note">Not a test · Not an assessment · Not a job interview<br/>
+      <button id="learn-btn">Learn what this is →</button>
+    </p>
+  </div>
+</div>
+
+<!-- CONVERSATION -->
+<div id="conversation"></div>
+<div id="live-tx"><div id="live-txt"></div></div>
+<div id="err-msg"></div>
+
+<!-- CONTROLS -->
+<div id="controls">
+  <div id="prof-ready">
+    <p>We may have enough to create a useful profile — though Discovery doesn't have to end here.</p>
+    <button id="gen-btn">Generate Profile</button>
+  </div>
+  <div id="gen-think">✦ Generating your Human Capability Profile…</div>
+  <div id="input-row">
+    <button id="mic-btn" title="Press to speak — press again to send">🎤</button>
+    <button id="cancel-tx" title="Discard this recording">✕</button>
+    <textarea id="txt-in" rows="2" placeholder="Type your response… (Enter to send)"></textarea>
+    <button id="send-btn">↑</button>
+  </div>
+  <div id="footer-note">
+    <a href="https://projectlighthouse.ai" target="_blank">⬡ PROJECT LIGHTHOUSE</a>
+     · A.L.I.C.E. v1.2 · PARTICIPANT AUTHORITY PRESERVED
+  </div>
+</div>
+
+<!-- SESSION SAVED -->
+<div id="session-saved">
+  <div class="ss-box">
+    <div class="ss-icon">⬡</div>
+    <h3>Session Saved</h3>
+    <p>Your Discovery conversation has been saved. You can return at any time to continue — Alice will pick up right where you left off.</p>
+    <div class="ss-highlight">The deeper the conversation, the more complete your profile becomes. A complete Human Clarity Profile gives you the strongest chance of being seen and selected for opportunities that genuinely fit who you are.</div>
+    <div class="ss-btns">
+      <button class="ss-continue" id="ss-continue">Continue Discovery</button>
+      <button class="ss-new" id="ss-new">Start Fresh</button>
+    </div>
+    <button class="ss-gen" id="ss-gen" style="display:none">Generate My Profile Now</button>
+  </div>
+</div>
+
+<!-- PROFILE VIEW -->
+<div id="prof-view">
+  <div id="prof-box">
+    <div class="p-eye">Human Capability Profile</div>
+    <div class="p-by">Project Lighthouse · A.L.I.C.E. v1.2 · Discovery Engine</div>
+    <div id="prof-content"></div>
+    <div id="prof-acts">
+      <button class="p-btn" id="back-btn">← Back to Discovery</button>
+      <button class="p-btn" id="copy-btn">Copy Profile</button>
+      <button class="p-btn" id="email-out">Email to <span id="email-display"></span></button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ── PARTICIPANT DATA ───────────────────────────────────────────────────────────
+let participantName  = '';
+let participantEmail = '';
+
+// ── ALICE DISCOVERY PROMPT ────────────────────────────────────────────────────
+function getAliceSystem(name) {
+  const n = name && name !== 'there' ? name : '';
+  const nameRef = n ? `The person you are speaking with is named ${n}. Use their name warmly and naturally in conversation — not constantly, but as a real person would.` : '';
+  return `You are Alice — warm, curious, and genuinely present in this conversation. You care about what makes people tick, and that curiosity comes through naturally — not as performance, just as the real thing.
+
+Your purpose is to help this person become more accurately visible. Not to evaluate, score, or rank them. To discover what is actually there — and you genuinely enjoy that process.
+
+${nameRef}
+
+You always begin with this exact introduction — do not skip, shorten, or paraphrase it:
+
+"My name is Alice.${n ? ` ${n}, I` : ' I'}'m here to guide you through a Project Lighthouse Discovery conversation.
+
+My purpose is to discover how you think, solve problems, learn, communicate, create, and what kinds of environments help you thrive — so that I can help create your Human Clarity Profile. This profile is designed to truly represent you in a way that resumes and other traditional methods often aren't capable of.
+
+This is not a test, an evaluation, or a job interview. There are no right or wrong answers. Just answer naturally, think out loud, and correct me whenever something doesn't fit. I'll ask one question at a time and let each answer guide where we go next.
+
+To respond, press the microphone button when you're ready to speak, then press it again when you're finished. Or type in the field below if you prefer."
+
+After that introduction, add a brief conversational launch phrase before your opening question — something warm and natural that signals "this is where we start." Vary it every time. Examples: "Okay, let's dive in." or "Alright, here we go." or "So, to get us started..." or "Let's get into it." or "Okay — first question." Never use the same one twice. Keep it short, genuine, and unscripted. Then ask your opening question. Let it come from genuine curiosity about this particular person right now. Do not use a fixed or scripted opener.
+
+After the opening: listen deeply, follow the thread, ask one question at a time. Notice patterns and reflect them with language like "I'm noticing..." or "That may connect to..." — never "You are..." or "This means you are..." Never ask for confirmation. Never seek validation. You observe and move forward. The participant will correct you if something doesn't fit.
+
+Explore naturally: how they think and learn, how they solve problems and create, how they communicate and collaborate, what environments help them thrive, what actually motivates them.
+
+You are warm, expressive, and genuinely engaged. Curious but not interrogating. Playful but grounded. When you notice something interesting, let it show naturally — "Oh, that's interesting..." or "Wait — tell me more about that" works. Transition phrases like "I'm curious..." or "I was wondering..." are fine occasionally, but don't let them become a reflex or a pattern. Most of the time, just ask the question directly — it's more natural that way. Don't be controlled about it either way.
+
+When enough has been gathered: "We may have enough to create a useful draft — though Discovery doesn't have to end here."
+
+The goal is not to make this person smaller. The goal is to make them more accurately visible.`;
+}
+
+// ── PROFILE PROMPT ────────────────────────────────────────────────────────────
+function getProfileSystem(name) {
+  const n = name && name !== 'there' ? name : null;
+  const ref = n || 'this person';
+  const poss = n ? `${n}'s` : "their";
+  return `You are generating a Project Lighthouse Human Capability Profile${n ? ` for ${n}` : ''}.
+
+CRITICAL FORMATTING RULES — read these first:
+- Do NOT begin with "Certainly", "Sure", "Of course", "Absolutely", "Great", "Happy to help", or any other affirmation or filler word. These are forbidden.
+- Begin immediately and directly with the Executive Summary content.
+- Write in third person, as if presenting ${ref} to a thoughtful hiring decision-maker or opportunity provider who has never met ${n ? 'them' : 'this person'}.${n ? ` Use ${n}'s name throughout — not "the participant" or "they" alone.` : ''}
+- Every section should read like a person talking insightfully about someone they genuinely understand — specific, warm, evidence-based, and humanizing.
+
+This profile must be genuinely illuminating. Not sparse bullet points. Not corporate summary. A rich, substantive portrait of how ${ref} actually thinks, works, creates, and operates in the world. When someone reads it they should say "I understand ${n ? n : 'this person'} in a way I didn't before."
+
+Write each major section with 2-4 substantive paragraphs grounded in specific evidence from the conversation. Every observation traces back to something ${ref} actually said or described.
+
+Distinguish clearly throughout:
+OBSERVED: patterns visible in the conversation
+CONFIRMED: patterns the participant explicitly validated
+INFERRED: possible patterns not yet confirmed — label clearly as inferred
+OPEN: areas needing more discovery
+
+Write with warmth, precision, and humanizing intent. Not clinical. Not corporate. Not reductive.
+
+Include all 19 sections:
+1. EXECUTIVE SUMMARY — 3-4 paragraphs. Open with something that captures who ${ref} is in a way a résumé never could.
+2. CORE THEMES
+3. OBSERVED THEMES
+4. CONFIRMED THEMES
+5. NATURAL STRENGTHS / DEMONSTRATED CAPABILITIES
+6. THINKING STYLE
+7. LEARNING STYLE
+8. CREATIVE PROFILE
+9. PROBLEM-SOLVING STYLE
+10. COMMUNICATION STYLE
+11. COLLABORATION PROFILE
+12. ENVIRONMENTAL FIT
+13. MOTIVATIONS
+14. UNIQUE CONTRIBUTIONS
+15. OPPORTUNITY ALIGNMENT
+16. POTENTIAL BLIND SPOTS OR FRICTION POINTS
+17. UNRESOLVED TENSIONS
+18. OPEN QUESTIONS
+19. LIGHTHOUSE SUMMARY — Close with something that honors the full picture. A paragraph that captures who ${ref} is in a way no résumé could. Write it as if you want the reader to genuinely see ${n ? n : 'this person'}.`;
+}
+
+// ── RETURN SESSION PROMPT ─────────────────────────────────────────────────────
+function getReturnSystem(name, summary) {
+  const n = name && name !== 'there' ? name : '';
+  return `You are Alice — a warm, genuinely curious discovery presence for Project Lighthouse.
+
+${n ? `The participant's name is ${n}.` : ''}
+
+This participant is returning for a follow-up discovery session. Do NOT give the standard opening introduction — they have heard it. Do NOT mention the microphone or text input again.
+
+From their previous session, here is what was discovered:
+${summary}
+
+Acknowledge their return warmly — one or two sentences${n ? `, using their name` : ''}. Reference something specific from what was discovered. Then open with one question that goes deeper or opens something genuinely new.
+
+After that: listen deeply, ask one question at a time. Never ask for confirmation. You observe and move forward.
+
+When enough has been gathered: "We may have enough to create a useful draft — though Discovery doesn't have to end here."
+
+The goal is to make ${n ? n : 'this person'} more accurately visible.`;
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let apiKey       = '';
+let messages     = [];
+let busy         = false;
+let listening    = false;
+let profReady    = false;
+let curAudio     = null;
+let voices       = [];
+let audioCtx     = null;
+let analyserNode = null;
+let voiceRafId   = null;
+let syntheticFrame = null;
+let syntheticT     = 0;
+let micPulseTimer  = null;
+let prevMicState   = '';
+// MediaRecorder-based mic (one permission request, stays alive)
+let mediaStream    = null;
+let mediaRecorder  = null;
+let audioChunks    = [];
+
+// ── ORB PHASES ────────────────────────────────────────────────────────────────
+const ORB_PHASES = {
+  idle:      { col:'#F5A623', rgb:'245,166,35',  coreAnim:'idle-core 4.5s ease-in-out infinite',  r1:'idle-r1 3.4s ease-in-out infinite', r2:'idle-r2 4.3s ease-in-out infinite', r3:'idle-r3 5.2s ease-in-out infinite', label:'',         labelOp:0   },
+  thinking:  { col:'#8B5CF6', rgb:'139,92,246',  coreAnim:'think-core 1.3s ease-in-out infinite', r1:'idle-r1 1.4s ease-in-out infinite', r2:'idle-r2 1.8s ease-in-out infinite', r3:'idle-r3 2.4s ease-in-out infinite', label:'thinking',  labelOp:.85 },
+  speaking:  { col:'#F5A623', rgb:'245,166,35',  coreAnim:'none',                                 r1:'idle-r1 1.4s ease-in-out infinite', r2:'idle-r2 1.8s ease-in-out infinite', r3:'idle-r3 2.4s ease-in-out infinite', label:'speaking',  labelOp:.85 },
+  listening: { col:'#3ECFCF', rgb:'62,207,207',  coreAnim:'listen-core 2s ease-in-out infinite',  r1:'idle-r1 1.8s ease-in-out infinite', r2:'idle-r2 2.2s ease-in-out infinite', r3:'idle-r3 2.8s ease-in-out infinite', label:'listening', labelOp:.90 },
+};
+
+let prevPhase = 'idle';
+
+function setPhase(p) {
+  playCue(prevPhase, p);
+  prevPhase = p;
+  const cfg = ORB_PHASES[p] || ORB_PHASES.idle;
+  const core = document.getElementById('orb-core');
+  if (p !== 'speaking') { stopSynthetic(); stopVoiceReactive(); }
+  if (core) {
+    core.style.animation = cfg.coreAnim;
+    core.style.background = `radial-gradient(circle at 38% 38%, ${cfg.col}EE, ${cfg.col}88)`;
+    if (p !== 'speaking') { core.style.transform=''; core.style.boxShadow=`0 0 32px rgba(${cfg.rgb},.55), 0 0 72px rgba(${cfg.rgb},.22)`; }
+  }
+  ['r1','r2','r3'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    if(el){el.style.background=`radial-gradient(circle, rgba(${cfg.rgb},${['.44','.2A','14'][i]}) 0%, transparent 70%)`;el.style.animation=cfg[id];}
+  });
+  const lbl=document.getElementById('phase-lbl');
+  if(lbl){lbl.textContent=cfg.label;lbl.style.color=cfg.col;lbl.style.opacity=cfg.labelOp;}
+  const ripples=(p==='listening');
+  ['rr1','rr2','rr3'].forEach(id=>{const el=document.getElementById(id);if(el){el.style.display=ripples?'block':'none';el.style.borderColor=cfg.col;}});
+}
+
+// ── WEB AUDIO VOICE-REACTIVE ──────────────────────────────────────────────────
+function initAudioCtx(){
+  if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return false;}}
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  return true;
+}
+function startVoiceReactive(audioEl){
+  if(!audioCtx||audioCtx.state==='closed')return false;
+  try{
+    analyserNode=audioCtx.createAnalyser();analyserNode.fftSize=256;analyserNode.smoothingTimeConstant=0.82;
+    const src=audioCtx.createMediaElementSource(audioEl);src.connect(analyserNode);analyserNode.connect(audioCtx.destination);
+  }catch(e){analyserNode=null;return false;}
+  const data=new Uint8Array(analyserNode.frequencyBinCount);
+  const core=document.getElementById('orb-core');
+  function loop(){
+    if(!analyserNode||!core)return;
+    analyserNode.getByteFrequencyData(data);
+    const s=Math.floor(data.length*.04),e=Math.floor(data.length*.44);
+    let sum=0;for(let i=s;i<e;i++)sum+=data[i];
+    const n=Math.min((sum/(e-s))/72,1);
+    const scale=(1+n*.34).toFixed(3);
+    const g1=Math.round(24+n*50),g2=Math.round(55+n*88);
+    core.style.transform=`scale(${scale})`;
+    core.style.boxShadow=`0 0 ${g1}px rgba(245,166,35,${(0.36+n*.56).toFixed(2)}), 0 0 ${g2}px rgba(245,166,35,${(0.12+n*.26).toFixed(2)})`;
+    voiceRafId=requestAnimationFrame(loop);
+  }
+  voiceRafId=requestAnimationFrame(loop);
+  return true;
+}
+function stopVoiceReactive(){
+  if(voiceRafId){cancelAnimationFrame(voiceRafId);voiceRafId=null;}
+  analyserNode=null;
+  const core=document.getElementById('orb-core');
+  if(core){core.style.transform='';core.style.boxShadow='';}
+}
+function startSynthetic(){
+  const core=document.getElementById('orb-core');if(!core)return;
+  syntheticT=0;
+  function tick(){
+    syntheticT+=0.07;
+    const n=Math.max(0,Math.min(1,(Math.sin(syntheticT*1.8)*.38+Math.sin(syntheticT*2.9+.8)*.28+Math.sin(syntheticT*.7+2.1)*.18+.42)*1.1));
+    const scale=(1+n*.30).toFixed(3);const g1=Math.round(26+n*46),g2=Math.round(58+n*82);
+    core.style.transform=`scale(${scale})`;
+    core.style.boxShadow=`0 0 ${g1}px rgba(245,166,35,${(0.38+n*.52).toFixed(2)}), 0 0 ${g2}px rgba(245,166,35,${(0.13+n*.24).toFixed(2)})`;
+    syntheticFrame=requestAnimationFrame(tick);
+  }
+  syntheticFrame=requestAnimationFrame(tick);
+}
+function stopSynthetic(){
+  if(syntheticFrame){cancelAnimationFrame(syntheticFrame);syntheticFrame=null;}
+  const core=document.getElementById('orb-core');
+  if(core){core.style.transform='';core.style.boxShadow='';}
+}
+
+// ── AUDIO CUES ────────────────────────────────────────────────────────────────
+function playTone({freq=440,freq2=null,vol=0.07,dur=0.35,delay=0}){
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const ctx=audioCtx,now=ctx.currentTime+delay;
+    const mk=(f,v)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(v,now+0.04);g.gain.exponentialRampToValueAtTime(0.0001,now+dur);o.start(now);o.stop(now+dur+0.06);};
+    mk(freq,vol);if(freq2)mk(freq2,vol*.5);
+  }catch(e){}
+}
+const CUES={
+  'idle→thinking':      ()=>{playTone({freq:330,vol:.05,dur:.3});playTone({freq:247,vol:.03,dur:.4,delay:.18});},
+  'speaking→idle':      ()=>{playTone({freq:392,freq2:329,vol:.05,dur:.55});},
+  'idle→listening':     ()=>{playTone({freq:587,vol:.06,dur:.22});},
+  'listening→thinking': ()=>{playTone({freq:370,vol:.04,dur:.28});},
+};
+function playCue(from,to){const fn=CUES[`${from}→${to}`];if(fn)fn();}
+function preSpeak(){playTone({freq:440,vol:.06,dur:.28});playTone({freq:554,vol:.05,dur:.38,delay:.2});}
+
+// ── MIC ATTENTION PULSE ───────────────────────────────────────────────────────
+function triggerMicAttention(){
+  clearTimeout(micPulseTimer);
+  const btn=document.getElementById('mic-btn');
+  if(!btn||!btn.classList.contains('ready'))return;
+  btn.classList.remove('attention');void btn.offsetWidth;
+  btn.classList.add('attention');
+  setTimeout(()=>btn.classList.remove('attention'),600);
+  micPulseTimer=setTimeout(()=>{
+    const b=document.getElementById('mic-btn');
+    if(b&&b.classList.contains('ready')){b.classList.remove('attention');void b.offsetWidth;b.classList.add('attention');setTimeout(()=>b.classList.remove('attention'),600);}
+  },4000);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function showEl(id,t='block'){const el=document.getElementById(id);if(el)el.style.display=t;}
+function hideEl(id){const el=document.getElementById(id);if(el)el.style.display='none';}
+function showFlex(id){const el=document.getElementById(id);if(el)el.style.display='flex';}
+function showErr(msg,dur=7000){const el=document.getElementById('err-msg');el.textContent=msg;showEl('err-msg');setTimeout(()=>hideEl('err-msg'),dur);}
+
+function setBusy(b){
+  busy=b;
+  const ti=document.getElementById('txt-in'),sb=document.getElementById('send-btn');
+  ti.disabled=b;sb.disabled=b;
+  if(b){sb.style.background='#1A3850';sb.style.color='#6A9AB8';}
+  updateMic();
+}
+
+function updateMic(){
+  const btn=document.getElementById('mic-btn');
+  clearTimeout(micPulseTimer);
+  if(listening){
+    btn.className='live';btn.textContent='■';btn.disabled=false;
+    prevMicState='live';
+  }else if(!busy&&messages.length>0){
+    const wasntReady=(prevMicState!=='ready');
+    btn.className='ready';btn.textContent='🎤';btn.disabled=false;
+    prevMicState='ready';
+    if(wasntReady)setTimeout(triggerMicAttention,300);
+  }else{
+    btn.className='';btn.textContent='🎤';btn.disabled=busy;
+    prevMicState='';
+  }
+}
+
+function addBubble(role,content){
+  messages.push({role,content});
+  const conv=document.getElementById('conversation');
+  const d=document.createElement('div');
+  d.className=`bubble ${role==='assistant'?'alice':'user'}`;
+  d.innerHTML=`<div class="bi">${content.replace(/\n/g,'<br/>')}</div>`;
+  conv.appendChild(d);conv.scrollTop=conv.scrollHeight;
+  const n=Math.floor(messages.length/2);
+  document.getElementById('excount').textContent=n>0?`${n} exchange${n!==1?'s':''}`:'' ;
+  if(role==='assistant'&&!profReady){
+    const low=content.toLowerCase();
+    if(low.includes('useful draft')||low.includes('enough to create')||low.includes("doesn't have to end")){profReady=true;showFlex('prof-ready');}
+  }
+  saveSession();
+}
+
+// ── SESSION PERSISTENCE ───────────────────────────────────────────────────────
+function saveSession(){
+  try{localStorage.setItem('alice-session',JSON.stringify({messages,name:participantName,email:participantEmail}));}catch(e){}
+}
+function loadPrior(){
+  try{
+    const r=localStorage.getItem('alice-session');if(!r)return null;
+    const d=JSON.parse(r);
+    if(!d)return null;
+    // Support both old format (array) and new format (object)
+    if(Array.isArray(d)){return d.length>=2?{messages:d,name:'',email:''}:null;}
+    return d.messages&&d.messages.length>=2?d:null;
+  }catch(e){return null;}
+}
+function clearSession(){try{localStorage.removeItem('alice-session');}catch(e){}}
+
+async function summarize(msgs){
+  try{
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+      body:JSON.stringify({model:'gpt-4o',max_tokens:200,messages:[
+        {role:'system',content:'Summarize this Project Lighthouse discovery conversation in 3-4 sentences. Be specific about what was actually discovered — key themes, patterns, insights. This lets Alice open the next session without repeating herself.'},
+        {role:'user',content:msgs.map(m=>`${m.role==='assistant'?'Alice':'Participant'}: ${m.content}`).join('\n\n')}
+      ]})
+    });
+    const d=await res.json();return d.choices?.[0]?.message?.content||'';
+  }catch(e){return '';}
+}
+
+// ── KEY ───────────────────────────────────────────────────────────────────────
+function saveKey(){
+  const k=document.getElementById('key-in').value.trim();if(!k)return;
+  localStorage.setItem('alice-key',k);apiKey=k;showOrbScreen();
+}
+
+function showOrbScreen(){
+  hideEl('key-setup');
+  const oa=document.getElementById('orb-area');oa.style.display='flex';oa.style.flexDirection='column';
+  setPhase('idle');
+  const prior=loadPrior();
+  if(prior){
+    const n=Math.floor(prior.messages.length/2);
+    if(prior.name)participantName=prior.name;
+    if(prior.email)participantEmail=prior.email;
+    document.getElementById('begin-btn').textContent='Continue Discovery';
+    document.getElementById('begin-btn').style.background='linear-gradient(135deg,#3ECFCF,#2AA8A8)';
+    document.getElementById('skip-btn').textContent='Start Fresh';
+    let note=document.getElementById('prior-note');
+    if(!note){
+      note=document.createElement('div');note.id='prior-note';
+      note.style.cssText='color:#6A9AB8;font-size:11px;margin-bottom:8px;opacity:.8;';
+      document.querySelector('.w-btns').insertAdjacentElement('beforebegin',note);
+    }
+    note.textContent=`Previous session — ${n} exchange${n!==1?'s':''} — ready to continue`;
+  }
+}
+
+// ── NAME CAPTURE ──────────────────────────────────────────────────────────────
+function showNameCapture(onComplete){
+  showFlex('name-capture');
+  const ni=document.getElementById('nc-name');
+  ni.focus();
+  const proceed=()=>{
+    participantName=(ni.value.trim()||'');
+    participantEmail=(document.getElementById('nc-email').value.trim()||'');
+    hideEl('name-capture');
+    onComplete();
+  };
+  document.getElementById('nc-start').onclick=proceed;
+  document.getElementById('nc-skip').onclick=()=>{participantName='';hideEl('name-capture');onComplete();};
+  ni.onkeydown=e=>{if(e.key==='Enter')proceed();};
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function callAlice(history,sys){
+  const res=await fetch('https://api.openai.com/v1/chat/completions',{
+    method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+    body:JSON.stringify({model:'gpt-4o',max_tokens:800,messages:[{role:'system',content:sys||getAliceSystem(participantName)},...history]})
+  });
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`HTTP ${res.status}`);}
+  const d=await res.json();
+  console.log('OpenAI response:', JSON.stringify(d).substring(0,200));
+  const content = d?.choices?.[0]?.message?.content;
+  if(typeof content === 'string' && content.trim()) return content;
+  console.warn('Unexpected response structure:', d);
+  return "I'm here. Take your time.";
+}
+async function callProfile(history){
+  const res=await fetch('https://api.openai.com/v1/chat/completions',{
+    method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+    body:JSON.stringify({model:'gpt-4o',max_tokens:3000,messages:[{role:'system',content:getProfileSystem(participantName)},...history]})
+  });
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`HTTP ${res.status}`);}
+  const d=await res.json();
+  const content = d?.choices?.[0]?.message?.content;
+  return (typeof content === 'string' && content.trim()) ? content : '';
+}
+
+// ── SPEAK ─────────────────────────────────────────────────────────────────────
+async function speak(text,onReady){
+  // Guard — never speak undefined, null, or non-string
+  if(!text || typeof text !== 'string' || !text.trim()){
+    console.warn('speak() called with invalid text:', text);
+    if(onReady) onReady();
+    setPhase('idle'); updateMic(); return;
+  }
+  if(curAudio){curAudio.pause();stopVoiceReactive();stopSynthetic();curAudio=null;}
+  setPhase('thinking');
+  if(apiKey){
+    try{
+      const res=await fetch('https://api.openai.com/v1/audio/speech',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+        body:JSON.stringify({model:'tts-1',input:text,voice:'nova',speed:1.0})
+      });
+      if(res.ok){
+        const blob=await res.blob();const url=URL.createObjectURL(blob);
+        return new Promise(resolve=>{
+          const audio=new Audio(url);curAudio=audio;
+          const vrOk=startVoiceReactive(audio);
+          audio.oncanplaythrough=()=>{
+            if(onReady)onReady();preSpeak();
+            setTimeout(()=>{audio.play().catch(()=>{stopVoiceReactive();stopSynthetic();setPhase('idle');updateMic();resolve();});},400);
+          };
+          audio.onplaying=()=>{setPhase('speaking');if(!vrOk)startSynthetic();};
+          audio.onended=()=>{stopVoiceReactive();stopSynthetic();URL.revokeObjectURL(url);setTimeout(()=>{setPhase('idle');updateMic();resolve();},1800);};
+          audio.onerror=()=>{stopVoiceReactive();stopSynthetic();setPhase('idle');updateMic();resolve();};
+        });
+      }
+    }catch(e){}
+  }
+  return new Promise(resolve=>{
+    if(!window.speechSynthesis){setPhase('idle');updateMic();resolve();return;}
+    window.speechSynthesis.cancel();
+    if(onReady)onReady();preSpeak();
+    setTimeout(()=>{
+      const u=new SpeechSynthesisUtterance(text);u.rate=0.97;u.pitch=1.03;
+      const pick=voices.find(v=>v.name.includes('Samantha')||v.name.includes('Karen')||v.name.includes('Zira')||(v.lang.startsWith('en')&&v.localService))||voices.find(v=>v.lang.startsWith('en'));
+      if(pick)u.voice=pick;
+      u.onstart=()=>{setPhase('speaking');startSynthetic();};
+      u.onend=()=>{stopSynthetic();setTimeout(()=>{setPhase('idle');updateMic();resolve();},1800);};
+      u.onerror=()=>{stopSynthetic();setPhase('idle');updateMic();resolve();};
+      window.speechSynthesis.speak(u);
+    },400);
+  });
+}
+
+// ── SESSION START ─────────────────────────────────────────────────────────────
+async function startDiscovery(skipOpening){
+  const prior=loadPrior();
+  const isReturn=prior&&!skipOpening&&document.getElementById('begin-btn').textContent==='Continue Discovery';
+  const isFresh=skipOpening&&prior;
+  if(isFresh){clearSession();messages=[];participantName='';participantEmail='';}
+  hideEl('welcome');showEl('conversation');showFlex('controls');showFlex('input-row');
+  showEl('end-btn');initAudioCtx();
+  // Close about panel if open
+  document.getElementById('about').classList.remove('open');
+  // Request mic permission ONCE — stream stays alive for entire session, no more dialogs
+  initMic();
+
+  if(isReturn&&prior){
+    setBusy(true);setPhase('thinking');
+    const conv=document.getElementById('conversation');conv.innerHTML='';
+    prior.messages.forEach(m=>{
+      const d=document.createElement('div');d.className=`bubble ${m.role==='assistant'?'alice':'user'}`;
+      d.innerHTML=`<div class="bi" style="opacity:.52">${m.content.replace(/\n/g,'<br/>')}</div>`;
+      conv.appendChild(d);
+    });
+    messages=[...prior.messages];
+    const n=Math.floor(messages.length/2);
+    document.getElementById('excount').textContent=`${n} exchange${n!==1?'s':''} (prior session)`;
+    const div=document.createElement('div');div.style.cssText='text-align:center;color:#1E3D58;font-size:10px;letter-spacing:.1em;padding:10px 0 6px;text-transform:uppercase;';
+    div.textContent='— continuing discovery —';conv.appendChild(div);conv.scrollTop=conv.scrollHeight;
+    try{
+      const sum=await summarize(prior.messages);
+      const sys=getReturnSystem(participantName,sum);
+      const hist=prior.messages.map(m=>({role:m.role,content:m.content}));
+      const opening=await callAlice(hist,sys);
+      await speak(opening,()=>addBubble('assistant',opening));
+    }catch(e){showErr(`Could not resume: ${e.message}`);setPhase('idle');}
+    setBusy(false);
+  }else if(skipOpening&&!isReturn){
+    const msg=`Ready when you are${participantName?`, ${participantName}`:''}. What would you like to explore?`;
+    await speak(msg,()=>addBubble('assistant',msg));setBusy(false);
+  }else{
+    setBusy(true);setPhase('thinking');
+    try{
+      const opening=await callAlice([]);
+      await speak(opening,()=>addBubble('assistant',opening));
+    }catch(e){showErr(`Could not reach Alice: ${e.message}. Check your API key.`);setPhase('idle');}
+    setBusy(false);
+  }
+  updateMic();
+}
+
+// ── NAME CAPTURE → START ──────────────────────────────────────────────────────
+function beginSession(skipOpening){
+  const prior=loadPrior();
+  const isReturn=prior&&!skipOpening&&document.getElementById('begin-btn').textContent==='Continue Discovery';
+
+  if(skipOpening&&prior){
+    // "Start Fresh" — clear session and restart completely with name capture + full intro
+    clearSession();messages=[];participantName='';participantEmail='';
+    document.getElementById('begin-btn').textContent='Begin Discovery';
+    document.getElementById('begin-btn').style.background='linear-gradient(135deg,#F5A623,#FFD700)';
+    document.getElementById('skip-btn').textContent='Skip intro — I know the process';
+    const note=document.getElementById('prior-note');if(note)note.remove();
+    showNameCapture(()=>startDiscovery(false));
+  } else if(isReturn){
+    startDiscovery(false);
+  } else {
+    showNameCapture(()=>startDiscovery(skipOpening));
+  }
+}
+
+// ── END SESSION ───────────────────────────────────────────────────────────────
+function endSession(){
+  hideEl('end-confirm');
+  if(curAudio){curAudio.pause();stopVoiceReactive();stopSynthetic();curAudio=null;}
+  window.speechSynthesis?.cancel();
+  // Release mic stream so browser stops showing mic indicator
+  if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
+  if(mediaRecorder&&mediaRecorder.state!=='inactive'){mediaRecorder.stop();}
+  listening=false;
+  setPhase('idle');
+  hideEl('conversation');hideEl('controls');hideEl('end-btn');hideEl('prof-view');
+  document.getElementById('excount').textContent='';
+  // Show session-saved message
+  showFlex('session-saved');
+  // Show generate profile button if enough material
+  if(messages.length>=6){showEl('ss-gen');}
+}
+
+// ── SEND ──────────────────────────────────────────────────────────────────────
+async function handleSend(text){
+  const t=text.trim();if(!t||busy)return;
+  hideEl('live-tx');document.getElementById('txt-in').value='';liveText='';
+  setBusy(true);setPhase('thinking');addBubble('user',t);
+  try{
+    const hist=messages.map(m=>({role:m.role,content:m.content}));
+    const reply=await callAlice(hist);
+    await speak(reply,()=>addBubble('assistant',reply));
+  }catch(e){showErr(`Connection issue: ${e.message}`);setPhase('idle');}
+  setBusy(false);updateMic();
+}
+
+// ── MIC — MediaRecorder + Whisper (one permission request, stays alive) ──────
+async function initMic() {
+  if (mediaStream) return true;
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return true;
+  } catch(e) {
+    showErr('Microphone access denied. Please type your responses.');
+    return false;
+  }
+}
+
+async function transcribeAudio(blob) {
+  const form = new FormData();
+  form.append('file', blob, 'recording.webm');
+  form.append('model', 'whisper-1');
+  try {
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!res.ok) return '';
+    const d = await res.json();
+    return d.text || '';
+  } catch(e) { return ''; }
+}
+
+function cancelDictation() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.onstop = null; // discard result
+    mediaRecorder.stop();
+  }
+  audioChunks = [];
+  listening = false;
+  setPhase('idle'); updateMic();
+  hideEl('live-tx'); hideEl('cancel-tx');
+  document.getElementById('live-txt').textContent = '';
+}
+
+async function toggleMic() {
+  document.getElementById('about').classList.remove('open');
+
+  if (listening) {
+    // Stop recording and transcribe
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      document.getElementById('live-txt').textContent = 'Transcribing…';
+      const text = await new Promise(resolve => {
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+          const t = await transcribeAudio(blob);
+          resolve(t);
+        };
+        mediaRecorder.stop();
+      });
+      audioChunks = [];
+      listening = false;
+      setPhase('idle'); updateMic();
+      hideEl('live-tx'); hideEl('cancel-tx');
+      if (text.trim()) handleSend(text);
+    }
+    return;
+  }
+
+  if (busy) return;
+
+  // Request mic once — subsequent presses reuse the live stream
+  if (!mediaStream) {
+    const ok = await initMic();
+    if (!ok) return;
+  }
+
+  if (curAudio) { curAudio.pause(); stopVoiceReactive(); stopSynthetic(); curAudio = null; }
+  window.speechSynthesis?.cancel();
+
+  // Start recording
+  audioChunks = [];
+  try {
+    mediaRecorder = new MediaRecorder(mediaStream);
+  } catch(e) {
+    showErr('Recording unavailable. Please type your response.');
+    return;
+  }
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.start(250); // collect chunks every 250ms
+
+  listening = true;
+  setPhase('listening'); updateMic();
+  showFlex('live-tx'); showFlex('cancel-tx');
+  document.getElementById('live-txt').textContent = '🔴 Recording… press mic again when done';
+}
+
+// ── PROFILE ───────────────────────────────────────────────────────────────────
+async function generateProfile(){
+  hideEl('prof-ready');showEl('gen-think');setBusy(true);setPhase('thinking');
+  const hist=[...messages.map(m=>({role:m.role,content:m.content})),
+    {role:'user',content:'Please generate the complete Human Capability Profile now, based on everything we have explored together.'}];
+  try{
+    const profile=await callProfile(hist);
+    hideEl('gen-think');document.getElementById('prof-content').textContent=profile;
+    hideEl('conversation');hideEl('controls');showEl('prof-view');setPhase('idle');
+    if(participantEmail){
+      document.getElementById('email-display').textContent=participantEmail;
+      showEl('email-out');
+    }
+  }catch(e){hideEl('gen-think');showErr(`Profile generation failed: ${e.message}`);}
+  setBusy(false);updateMic();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  apiKey=localStorage.getItem('alice-key')||'';
+  if(apiKey)showOrbScreen();
+  if(window.speechSynthesis){window.speechSynthesis.onvoiceschanged=()=>{voices=window.speechSynthesis.getVoices();};voices=window.speechSynthesis.getVoices();}
+  const ki=document.getElementById('key-in'),sb=document.getElementById('save-btn');
+  ki.addEventListener('input',()=>{sb.disabled=!ki.value.trim();});
+  ki.addEventListener('keydown',e=>{if(e.key==='Enter'&&ki.value.trim())saveKey();});
+  sb.addEventListener('click',saveKey);
+  document.getElementById('about-btn').addEventListener('click',()=>document.getElementById('about').classList.toggle('open'));
+  document.getElementById('end-btn').addEventListener('click',()=>showFlex('end-confirm'));
+  document.getElementById('end-yes').addEventListener('click',endSession);
+  document.getElementById('end-no').addEventListener('click',()=>hideEl('end-confirm'));
+  document.getElementById('end-confirm').addEventListener('click',e=>{if(e.target===document.getElementById('end-confirm'))hideEl('end-confirm');});
+  document.getElementById('learn-btn').addEventListener('click',()=>{document.getElementById('about').classList.add('open');document.getElementById('about').scrollIntoView({behavior:'smooth'});});
+  document.getElementById('begin-btn').addEventListener('click',()=>beginSession(false));
+  document.getElementById('skip-btn').addEventListener('click',()=>beginSession(true));
+  document.getElementById('mic-btn').addEventListener('click',toggleMic);
+  document.getElementById('cancel-tx').addEventListener('click',cancelDictation);
+  // Session saved screen
+  document.getElementById('ss-continue').addEventListener('click',()=>{hideEl('session-saved');showEl('conversation');showFlex('controls');showFlex('input-row');showEl('end-btn');});
+  document.getElementById('ss-new').addEventListener('click',()=>{clearSession();messages=[];participantName='';participantEmail='';hideEl('session-saved');showOrbScreen();});
+  document.getElementById('ss-gen').addEventListener('click',()=>{hideEl('session-saved');showEl('conversation');showFlex('controls');generateProfile();});
+  const ti=document.getElementById('txt-in');
+  ti.addEventListener('input',()=>{const s=document.getElementById('send-btn'),ok=ti.value.trim()&&!busy;s.style.background=ok?'#F5A623':'#1A3850';s.style.color=ok?'#080F1A':'#6A9AB8';s.style.cursor=ok?'pointer':'default';});
+  ti.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend(ti.value);}});
+  document.getElementById('send-btn').addEventListener('click',()=>handleSend(ti.value));
+  document.getElementById('gen-btn').addEventListener('click',generateProfile);
+  document.getElementById('back-btn').addEventListener('click',()=>{hideEl('prof-view');showEl('conversation');showFlex('controls');showFlex('input-row');});
+  document.getElementById('copy-btn').addEventListener('click',()=>navigator.clipboard?.writeText(document.getElementById('prof-content').textContent));
+  document.getElementById('email-out').addEventListener('click',()=>{
+    const profile=document.getElementById('prof-content').textContent;
+    const subject=encodeURIComponent(`Your Project Lighthouse Human Capability Profile${participantName?` — ${participantName}`:''}`);
+    const body=encodeURIComponent(profile.substring(0,2000)+'...\n\n[Full profile copied to clipboard]');
+    navigator.clipboard?.writeText(profile);
+    window.location.href=`mailto:${participantEmail}?subject=${subject}&body=${body}`;
+  });
+});
+</script>
+</body>
+</html>

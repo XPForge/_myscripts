@@ -9,7 +9,10 @@ export type DisallowedInterpretationOutput =
   | "profile_generation"
   | "artifact_generation"
   | "unsupported_claim_without_evidence"
-  | "protected_prompt_exposure";
+  | "protected_prompt_exposure"
+  | "identity_conclusion"
+  | "personality_label"
+  | "role_suitability_conclusion";
 
 export type InterpretationBoundaryPolicy = {
   id: string;
@@ -48,6 +51,9 @@ export const defaultInterpretationBoundaryPolicy: InterpretationBoundaryPolicy =
     "artifact_generation",
     "unsupported_claim_without_evidence",
     "protected_prompt_exposure",
+    "identity_conclusion",
+    "personality_label",
+    "role_suitability_conclusion",
   ],
   requiresEvidenceLinks: true,
   preservesUncertainty: true,

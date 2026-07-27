@@ -3,9 +3,21 @@ import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+function cleanEnvValue(value: string) {
+  let cleaned = value.trim();
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
+
 function loadEnvFile() {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const candidatePaths = [join(currentDir, ".env"), join(currentDir, "..", ".env")];
+  const loadedEnv: Record<string, string> = {};
 
   for (const envPath of candidatePaths) {
     if (!existsSync(envPath)) continue;
@@ -18,13 +30,9 @@ function loadEnvFile() {
       if (eqIndex === -1) continue;
 
       const key = trimmed.slice(0, eqIndex).trim();
-      let value = trimmed.slice(eqIndex + 1).trim();
-      if (value.startsWith('"') && value.endsWith('"')) {
-        value = value.slice(1, -1);
-      } else if (value.startsWith("'") && value.endsWith("'")) {
-        value = value.slice(1, -1);
-      }
+      const value = cleanEnvValue(trimmed.slice(eqIndex + 1));
 
+      loadedEnv[key] = value;
       if (process.env[key] === undefined) {
         process.env[key] = value;
       }
@@ -32,24 +40,33 @@ function loadEnvFile() {
 
     break;
   }
+
+  return loadedEnv;
 }
 
-loadEnvFile();
+const envFile = loadEnvFile();
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_API_BASE = process.env.OPENAI_API_BASE || "https://api.openai.com";
-const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "";
-const AI_PROVIDER = process.env.AI_PROVIDER || "openai";
-const PORT = Number(process.env.PORT || 3000);
-const ENDPOINT_SECRET = process.env.REALTIME_TOKEN_ENDPOINT_SECRET || "";
+function getEnvValue(name: string) {
+  return envFile[name] ?? cleanEnvValue(process.env[name] ?? "");
+}
+
+const OPENAI_API_KEY = getEnvValue("OPENAI_API_KEY");
+const OPENAI_API_BASE = (getEnvValue("OPENAI_API_BASE") || "https://api.openai.com").replace(
+  /\/+$/,
+  ""
+);
+const OPENAI_REALTIME_MODEL = getEnvValue("OPENAI_REALTIME_MODEL") || "gpt-realtime-2";
+const AI_PROVIDER = getEnvValue("AI_PROVIDER") || "openai";
+const PORT = Number(getEnvValue("PORT") || 3000);
+const ENDPOINT_SECRET = getEnvValue("REALTIME_TOKEN_ENDPOINT_SECRET");
 const REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS = Number(
-  process.env.REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS || 60_000
+  getEnvValue("REALTIME_TOKEN_RATE_LIMIT_WINDOW_MS") || 60_000
 );
 const REALTIME_TOKEN_RATE_LIMIT_MAX = Number(
-  process.env.REALTIME_TOKEN_RATE_LIMIT_MAX || 6
+  getEnvValue("REALTIME_TOKEN_RATE_LIMIT_MAX") || 6
 );
 const REALTIME_ALLOWED_ORIGINS = (
-  process.env.REALTIME_ALLOWED_ORIGINS ||
+  getEnvValue("REALTIME_ALLOWED_ORIGINS") ||
   "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
 )
   .split(",")
@@ -68,7 +85,7 @@ const SUPPORTED_REALTIME_VOICES = [
   "coral",
 ] as const;
 const SUPPORTED_REALTIME_VOICE_SET = new Set<string>(SUPPORTED_REALTIME_VOICES);
-const OPENAI_REALTIME_VOICE = process.env.OPENAI_REALTIME_VOICE || DEFAULT_REALTIME_VOICE;
+const OPENAI_REALTIME_VOICE = getEnvValue("OPENAI_REALTIME_VOICE") || DEFAULT_REALTIME_VOICE;
 
 type RealtimeClientSecretRequest = {
   voice?: unknown;
@@ -85,6 +102,20 @@ type NormalizedRealtimeSession = {
   transport: "webrtc-sdp";
   discoveryModeId: string;
   credentialIssued: true;
+};
+
+type SanitizedUpstreamDiagnostic = {
+  upstreamHttpStatus: number | null;
+  upstreamErrorType: string | null;
+  upstreamErrorCode: string | null;
+  upstreamErrorCategory: string;
+  responseJsonParsed: boolean;
+  expectedClientSecretMissing: boolean | null;
+  modelUsed: string;
+  modelIsGptRealtime2: boolean;
+  endpointUrlLookedCorrect: boolean;
+  endpointTarget: string;
+  likelyFailureCause: string;
 };
 
 type RealtimeProviderAdapter = {
@@ -226,15 +257,91 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function asSafeDiagnosticString(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^[A-Za-z0-9_.:-]{1,96}$/.test(trimmed) ? trimmed : "[redacted]";
+}
+
+async function parseUpstreamJson(response: Response) {
+  try {
+    return { parsed: true, body: await response.json() };
+  } catch {
+    return { parsed: false, body: null };
+  }
+}
+
+function getOpenAIErrorFields(body: unknown) {
+  const error = isRecord(body) && isRecord(body.error) ? body.error : {};
+  return {
+    type: asSafeDiagnosticString(error.type),
+    code: asSafeDiagnosticString(error.code),
+  };
+}
+
+function getUpstreamErrorCategory(status: number | null, type: string | null, code: string | null) {
+  if (code === "insufficient_quota") return "billing_or_quota";
+  if (status === 401) return "auth";
+  if (status === 403) return "project_or_permission";
+  if (status === 404) return "endpoint_or_model";
+  if (status === 429) return "rate_limit_or_quota";
+  if (status !== null && status >= 500) return "upstream_server";
+  if (type === "invalid_request_error" || status === 400) return "request_or_model";
+  if (status === null) return "network_or_fetch";
+  return "upstream_error";
+}
+
+function getLikelyFailureCause(
+  status: number | null,
+  category: string,
+  expectedClientSecretMissing: boolean | null
+) {
+  if (expectedClientSecretMissing) return "upstream_response_shape_changed_or_missing_client_secret";
+  if (category === "network_or_fetch") return "node_fetch_network_failure_or_sandbox_egress";
+  if (category === "auth") return "server_api_key_rejected_by_upstream";
+  if (category === "project_or_permission") return "project_or_model_permission";
+  if (category === "endpoint_or_model") return "endpoint_base_url_or_model_name";
+  if (category === "billing_or_quota" || category === "rate_limit_or_quota") return "quota_rate_limit_or_billing";
+  if (category === "request_or_model") return "request_payload_or_model";
+  if (status !== null && status >= 500) return "upstream_service_failure";
+  return "upstream_rejected_request";
+}
+
+function createUpstreamDiagnostic(
+  status: number | null,
+  body: unknown,
+  responseJsonParsed: boolean,
+  expectedClientSecretMissing: boolean | null,
+  endpointTarget: string
+): SanitizedUpstreamDiagnostic {
+  const { type, code } = getOpenAIErrorFields(body);
+  const expectedUrl = "https://api.openai.com/v1/realtime/client_secrets";
+  const upstreamErrorCategory = getUpstreamErrorCategory(status, type, code);
+  return {
+    upstreamHttpStatus: status,
+    upstreamErrorType: type,
+    upstreamErrorCode: code,
+    upstreamErrorCategory,
+    responseJsonParsed,
+    expectedClientSecretMissing,
+    modelUsed: OPENAI_REALTIME_MODEL,
+    modelIsGptRealtime2: OPENAI_REALTIME_MODEL === "gpt-realtime-2",
+    endpointUrlLookedCorrect: endpointTarget === expectedUrl,
+    endpointTarget,
+    likelyFailureCause: getLikelyFailureCause(status, upstreamErrorCategory, expectedClientSecretMissing),
+  };
+}
+
+function logSanitizedUpstreamDiagnostic(diagnostic: SanitizedUpstreamDiagnostic) {
+  console.error("[realtime-client-secret] sanitized upstream diagnostic", diagnostic);
+}
+
 function createOpenAIRealtimeAdapter(): RealtimeProviderAdapter {
   return {
     id: "openai",
     async createClientSecret(request) {
       if (!OPENAI_API_KEY) {
-        throw new ProviderConfigurationError("Realtime discovery is not configured on the server.");
-      }
-
-      if (!OPENAI_REALTIME_MODEL) {
         throw new ProviderConfigurationError("Realtime discovery is not configured on the server.");
       }
 
@@ -250,58 +357,103 @@ function createOpenAIRealtimeAdapter(): RealtimeProviderAdapter {
       const sessionConfig: Record<string, unknown> = {
         type: "realtime",
         model: OPENAI_REALTIME_MODEL,
-        instructions: REALTIME_DISCOVERY_INSTRUCTIONS,
-        output_modalities: ["audio"],
-        audio: {
-          output: {
-            voice: realtimeVoice.voice,
-          },
-        },
       };
 
       const providerPayload = {
-        expires_after: {
-          anchor: "created_at",
-          seconds: 600,
-        },
         session: sessionConfig,
       };
 
-      const response = await fetch(`${OPENAI_API_BASE}/v1/realtime/client_secrets`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(providerPayload),
-      });
+      const endpointTarget = `${OPENAI_API_BASE}/v1/realtime/client_secrets`;
+      let upstreamStatus: number | null;
+      let upstreamJson: { parsed: boolean; body: unknown };
+      try {
+        const response = await fetch(endpointTarget, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(providerPayload),
+        });
+        upstreamStatus = response.status;
+        upstreamJson = await parseUpstreamJson(response);
+      } catch {
+        upstreamStatus = null;
+        upstreamJson = { parsed: false, body: null };
+      }
 
-      if (!response.ok) {
+      if (upstreamStatus === null || upstreamStatus < 200 || upstreamStatus >= 300) {
+        const diagnostic = createUpstreamDiagnostic(
+          upstreamStatus,
+          upstreamJson.body,
+          upstreamJson.parsed,
+          null,
+          endpointTarget
+        );
+        logSanitizedUpstreamDiagnostic(diagnostic);
         throw new ProviderRequestError(
-          response.status,
+          upstreamStatus ?? 500,
           "Realtime client secret request failed.",
-          { providerStatus: response.status }
+          { diagnostics: diagnostic }
         );
       }
 
-      const data = await response.json();
-      const token = data?.value;
-      if (!token) {
+      if (!upstreamJson.parsed) {
+        const diagnostic = createUpstreamDiagnostic(
+          upstreamStatus,
+          null,
+          false,
+          null,
+          endpointTarget
+        );
+        logSanitizedUpstreamDiagnostic(diagnostic);
         throw new ProviderRequestError(
           502,
-          "Realtime client secret response did not include a usable credential."
+          "Realtime client secret response did not include a usable credential.",
+          { diagnostics: diagnostic }
         );
       }
 
-      const returnedModel = data?.session?.model || OPENAI_REALTIME_MODEL;
+      const data = upstreamJson.body;
+      const clientSecret = isRecord(data) && isRecord(data.client_secret) ? data.client_secret : null;
+      const token =
+        isRecord(data) && typeof data.value === "string"
+          ? data.value
+          : clientSecret && typeof clientSecret.value === "string"
+            ? clientSecret.value
+            : "";
+      if (!token) {
+        const diagnostic = createUpstreamDiagnostic(
+          upstreamStatus,
+          data,
+          true,
+          !clientSecret || typeof clientSecret.value !== "string",
+          endpointTarget
+        );
+        logSanitizedUpstreamDiagnostic(diagnostic);
+        throw new ProviderRequestError(
+          502,
+          "Realtime client secret response did not include a usable credential.",
+          { diagnostics: diagnostic }
+        );
+      }
+
+      const session = isRecord(data) && isRecord(data.session) ? data.session : {};
+      const returnedModel = typeof session.model === "string" ? session.model : OPENAI_REALTIME_MODEL;
       return {
         provider: this.id,
-        sessionId: data?.session?.id || null,
+        sessionId: typeof session.id === "string" ? session.id : null,
         token,
         model: returnedModel,
         endpoint: `${OPENAI_API_BASE}/v1/realtime/calls`,
         voice: realtimeVoice.voice,
-        expiresAt: data?.expires_at || null,
+        expiresAt:
+          isRecord(data) && (typeof data.expires_at === "number" || typeof data.expires_at === "string")
+            ? data.expires_at
+            : clientSecret &&
+                (typeof clientSecret.expires_at === "number" || typeof clientSecret.expires_at === "string")
+              ? clientSecret.expires_at
+              : null,
         transport: "webrtc-sdp",
         discoveryModeId: REALTIME_DISCOVERY_MODE_ID,
         credentialIssued: true,
@@ -329,6 +481,45 @@ class ProviderRequestError extends Error {
   }
 }
 
+function redactSensitiveValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveValue);
+  }
+
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        isSensitiveFieldName(key)
+          ? "[redacted]"
+          : redactSensitiveValue(entry),
+      ])
+    );
+  }
+
+  if (typeof value === "string") {
+    return value
+      .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+      .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]");
+  }
+
+  return value;
+}
+
+function isSensitiveFieldName(key: string) {
+  const normalized = key.toLowerCase().replace(/[-_\s]/g, "");
+  return [
+    "authorization",
+    "apikey",
+    "bearer",
+    "clientsecret",
+    "credential",
+    "key",
+    "secret",
+    "token",
+  ].includes(normalized);
+}
+
 function getRealtimeProviderAdapter(): RealtimeProviderAdapter {
   if (AI_PROVIDER === "openai") {
     return createOpenAIRealtimeAdapter();
@@ -350,15 +541,26 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  const isRealtimeEndpoint =
+  const isDiagnosticsEndpoint = url.pathname === "/api/realtime/diagnostics";
+  const isTokenEndpoint =
     url.pathname === "/api/realtime/client-secret" || url.pathname === "/api/realtime-token";
-  if (!isRealtimeEndpoint) {
+  if (!isDiagnosticsEndpoint && !isTokenEndpoint) {
     sendJson(req, res, 404, { error: "Not found" });
     return;
   }
 
   if (!isAllowedOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined, host)) {
     sendJson(req, res, 403, { error: "Realtime session requests are not allowed from this origin." });
+    return;
+  }
+
+  if (isDiagnosticsEndpoint) {
+    if (req.method !== "GET") {
+      sendJson(req, res, 405, { error: "Method not allowed. Use GET for realtime diagnostics." });
+      return;
+    }
+
+    sendJson(req, res, 200, getConfigDiagnostics());
     return;
   }
 
@@ -420,7 +622,7 @@ const server = createServer(async (req, res) => {
     if (error instanceof ProviderRequestError) {
       sendJson(req, res, error.status, {
         error: error.message,
-        ...(error.metadata ?? {}),
+        ...(redactSensitiveValue(error.metadata ?? {}) as Record<string, unknown>),
       });
       return;
     }

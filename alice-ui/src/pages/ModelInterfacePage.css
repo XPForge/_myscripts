@@ -1,0 +1,131 @@
+.model-page {
+  min-height: 100dvh;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #172033;
+  background: #f4f6f9;
+}
+
+.model-panel {
+  width: min(680px, 100%);
+  padding: clamp(24px, 5vw, 44px);
+  border: 1px solid #dce1e8;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(23, 32, 51, 0.08);
+}
+
+.model-panel header p,
+.answer-panel p {
+  line-height: 1.6;
+}
+
+.model-panel h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+}
+
+.model-kicker {
+  margin: 0;
+  color: #50617b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model-panel label {
+  display: block;
+  margin: 28px 0 8px;
+  font-weight: 700;
+}
+
+.model-panel textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid #aeb8c7;
+  border-radius: 10px;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.model-panel textarea:focus {
+  outline: 3px solid rgba(44, 96, 190, 0.2);
+  border-color: #2c60be;
+}
+
+.model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.model-panel button {
+  padding: 10px 16px;
+  border: 1px solid #244f9e;
+  border-radius: 9px;
+  color: #fff;
+  background: #2c60be;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.model-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.model-panel .secondary-button,
+.model-panel .text-button {
+  color: #244f9e;
+  background: #fff;
+}
+
+.model-panel .text-button {
+  padding: 7px 10px;
+  border-color: #c8d1df;
+  font-size: 0.9rem;
+}
+
+.support-message {
+  color: #5d6879;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #8a1c1c;
+  background: #fff0f0;
+}
+
+.answer-panel {
+  min-height: 150px;
+  margin-top: 28px;
+  padding: 18px;
+  border-radius: 12px;
+  background: #f6f8fb;
+}
+
+.answer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.answer-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.answer-panel > p:last-child {
+  white-space: pre-wrap;
+}

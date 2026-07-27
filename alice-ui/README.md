@@ -1,73 +1,69 @@
-# React + TypeScript + Vite
+# Project Lighthouse / Alice Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Participant-facing Project Lighthouse cockpit rebuilt as a modular React/Vite app. The standalone Claude prototype is preserved as a reference artifact, while the live route uses composable pages, components, engine helpers, and Vercel API endpoints.
 
-Currently, two official plugins are available:
+## Local Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open the Vite URL shown in the terminal. The new Lighthouse cockpit is the root route. The previous application flow remains available at `/legacy`, with diagnostics still available at `/model`, `/native-benchmark`, `/realtime-voice`, and `/mic-test`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Plain Vite does not execute the `api/*.js` Vercel functions. The Discovery chat UI will keep working with a local fallback if `/api/chat` is unavailable.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Build
+
+```bash
+npm run build
 ```
+
+## Vercel Deployment
+
+1. Set `OPENAI_API_KEY` in the Vercel project environment.
+2. Optionally set `OPENAI_MODEL`, `OPENAI_API_BASE`, and `OPENAI_TTS_MODEL`.
+3. Deploy with Vercel using the included `vercel.json`.
+4. The browser calls relative endpoints: `/api/chat`, `/api/tts`, and `/api/transcribe`.
+
+## Environment Variables
+
+```text
+OPENAI_API_KEY=replace_with_your_openai_api_key
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_API_BASE=https://api.openai.com
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+```
+
+No API keys are used in browser code.
+
+## API Endpoints
+
+- `POST /api/chat`: sends Discovery conversation messages to the OpenAI Responses API and returns `{ reply }`.
+- `POST /api/tts`: accepts `{ input, voice }` and returns MP3 audio.
+- `POST /api/transcribe`: forwards multipart audio uploads to OpenAI transcription. The form should include the audio file and model fields.
+
+## Extracted From Claude Prototype
+
+- The standalone `public/alice.html` from `lighthouse-alice-v1.2.zip` is preserved at `public/reference/claude-alice-v1.2.html`.
+- `public/launch.html` is copied from the prototype as a static launch reference.
+- The rebuilt app carries forward the Discovery flow, Alice conversational posture, local session persistence, profile generation concept, and voice/TTS/transcription endpoint boundaries.
+
+## Current Structure
+
+- `src/pages`: Threshold, access, materials, preparing, ready, session, and profile pages.
+- `src/components/lighthouse`: Alice orb, Lightprint identifier, layout, doctrine overlay, chat, controls, uploader, status, and profile review components.
+- `src/engine`: session state, storage, Discovery prompt, API client, and profile section generation.
+- `src/styles`: CSS tokens and global Lighthouse styling.
+- `api`: Vercel serverless routes for chat, TTS, and transcription.
+
+## Current Limitations
+
+- Materials upload is represented as selectable source context; file parsing is not wired yet.
+- Plain `npm run dev` does not run Vercel functions, so chat uses local fallback unless served through Vercel or another API host.
+- TTS and transcription routes exist, but the live UI currently exposes settings rather than full audio recording/playback.
+- Generated profile sections are local draft representations until deeper profile synthesis is connected.
+
+## Doctrine
+
+Lighthouse is Discovery, not evaluation. The interface avoids scores, rankings, fit percentages, personality-test language, red-flag framing, and human/avatar representations of Alice. The participant remains the authority.

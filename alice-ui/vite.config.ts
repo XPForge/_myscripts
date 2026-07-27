@@ -33,6 +33,7 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/transcribe' ? './api/transcribe.js'
           : pathname === '/api/tts' ? './api/tts.js'
           : pathname === '/api/oz-capture' ? './api/oz-capture.js'
+          : pathname === '/api/profile-author' ? './api/profile-author.js'
           : null
         if (!modulePath) return next()
 

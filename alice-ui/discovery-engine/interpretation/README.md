@@ -35,6 +35,9 @@ The default boundary policy disallows:
 - artifact generation
 - unsupported claims without evidence
 - protected prompt exposure
+- identity conclusion
+- personality label
+- role suitability conclusion
 
 ## Not Implemented In Phase 10A
 
@@ -51,3 +54,9 @@ The default boundary policy disallows:
 ## Next Step
 
 The next planned step is `Phase 10B: Deterministic Mock Interpreter`.
+
+## Deterministic Mock Interpreter
+
+Phase 10B adds `runDeterministicMockInterpreter`. It is deterministic and contract-only. It preserves evidence references, returns uncertainty notes and boundary notes, and flags disallowed output requests declared in request metadata.
+
+The mock interpreter does not call an LLM, load protected prompt bodies, produce real observations, generate profiles, generate artifacts, or affect ALICE live behavior.

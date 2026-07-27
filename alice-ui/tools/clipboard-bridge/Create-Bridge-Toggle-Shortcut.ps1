@@ -121,10 +121,7 @@ function Remove-OldBridgeShortcuts {
 
 function Remove-BridgeDuplicateShortcuts {
     $finalNames = @(
-        "START Lighthouse Bridge",
-        "STOP Lighthouse Bridge",
-        "STATUS Lighthouse Bridge",
-        "Lighthouse Bridge Status"
+        "Lighthouse Bridge Applet"
     )
 
     foreach ($desktop in $DesktopPaths) {
@@ -150,16 +147,10 @@ Initialize-ShortcutPaths
 Remove-OldBridgeShortcuts
 Remove-BridgeDuplicateShortcuts
 
-$executeArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"if (-not (Test-Path -LiteralPath '$StableExecuteConfigPath')) { Write-Host 'Execution config missing. Create config.local.json from config.local.example.json first.'; Start-Sleep -Seconds 6; exit 1 }; & '$ControlPath' start -ConfigPath '$StableExecuteConfigPath'; Start-Sleep -Seconds 3`""
-$stopArguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$ControlPath' stop; Start-Sleep -Seconds 3`""
-$statusArguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -Command `"& '$ControlPath' status`""
-$statusLightArguments = "-NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File `"$StatusLightPath`""
+$appletArguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ControlPath`" start -ConfigPath `"$StableExecuteConfigPath`""
 
 $created = @()
-$created += New-Shortcut -Name "START Lighthouse Bridge" -Arguments $executeArguments -Description "Start the Lighthouse Clipboard Bridge in execution-enabled mode using config.local.json."
-$created += New-Shortcut -Name "STOP Lighthouse Bridge" -Arguments $stopArguments -Description "Stop the Lighthouse Clipboard Bridge."
-$created += New-Shortcut -Name "STATUS Lighthouse Bridge" -Arguments $statusArguments -Description "Show Lighthouse Clipboard Bridge status."
-$created += New-Shortcut -Name "Lighthouse Bridge Status" -Arguments $statusLightArguments -Description "Open the persistent Lighthouse Bridge status light."
+$created += New-Shortcut -Name "Lighthouse Bridge Applet" -Arguments $appletArguments -Description "Start the Lighthouse Clipboard Bridge and compact status applet."
 
 Write-Host "Lighthouse Bridge shortcuts created or updated:"
 foreach ($path in $created) {

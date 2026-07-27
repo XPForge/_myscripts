@@ -1,5 +1,6 @@
 {
   "repoPath": ".",
+  "appPath": "alice-ui",
   "pollIntervalMs": 1000,
   "taskOutputFile": "ALICE_TO_CODEX_TASK.md",
   "runtimeFolder": ".codex-bridge",
@@ -7,6 +8,9 @@
   "executionEnabled": true,
   "codexExePath": "",
   "codexSandbox": "workspace-write",
+  "codexWritableRoots": [
+    "."
+  ],
   "codexAskForApproval": "never",
   "copyReportToClipboard": true,
   "reportTimeoutSeconds": 900,

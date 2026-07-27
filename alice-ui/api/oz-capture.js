@@ -1,5 +1,17 @@
-const OPENAI_API_BASE = (process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
-const OZ_CAPTURE_MODEL = process.env.OZ_CAPTURE_MODEL || process.env.OPENAI_MODEL || "gpt-5.6-sol";
+export const config = { api: { bodyParser: false } };
+
+function sanitizeSecret(value) {
+  if (!value) return value;
+  return value
+    .split("")
+    .filter((ch) => ch.charCodeAt(0) !== 0xfeff)
+    .join("")
+    .trim();
+}
+
+const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
+const OZ_CAPTURE_MODEL = sanitizeSecret(process.env.OZ_CAPTURE_MODEL) || sanitizeSecret(process.env.OPENAI_MODEL) || "gpt-5.6-sol";
+const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 
 const OZ_CAPTURE_INSTRUCTION = `You are Oz Discovery Capture Wrapper v0.1.
 
@@ -43,18 +55,33 @@ function parseCapture(text) {
   return JSON.parse(normalized);
 }
 
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw.length) return {};
+  return JSON.parse(raw.toString("utf8"));
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
-  if (!process.env.OPENAI_API_KEY) return sendJson(res, 500, { error: "OPENAI_API_KEY is not configured" });
+  if (!OPENAI_API_KEY) return sendJson(res, 500, { error: "OPENAI_API_KEY is not configured" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const body = await readJsonBody(req);
     const turns = Array.isArray(body.turns) ? body.turns.filter(turn => turn && typeof turn.text === "string") : [];
     if (!turns.length) return sendJson(res, 400, { error: "Transcript turns are required" });
 
     const response = await fetch(`${OPENAI_API_BASE}/v1/responses`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: OZ_CAPTURE_MODEL,
         instructions: OZ_CAPTURE_INSTRUCTION,

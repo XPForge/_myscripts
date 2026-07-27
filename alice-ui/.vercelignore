@@ -1,0 +1,20 @@
+# Not part of the deployable app — excluded from upload to stay under
+# Vercel's size limit and avoid shipping unrelated local files.
+node_modules
+Downloads
+Assets
+.codex-bridge
+.codex-bridge_BACKUP_20260624_041303
+.codex-bridge_BADSTATE_20260624_045222
+.codex-bridge_BADSTATE_20260624_052354
+output
+docs
+agents
+tools
+backend
+discovery-engine
+lighthouse-clean-prototype
+lighthouse-claude-prototype
+lighthouse-openai-vanilla-prototype
+.vscode
+dist

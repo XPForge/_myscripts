@@ -1,10 +1,37 @@
-const OPENAI_API_BASE = (process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
-const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
+export const config = { api: { bodyParser: false } };
+
+function sanitizeSecret(value) {
+  if (!value) return value;
+  return value
+    .split("")
+    .filter((ch) => ch.charCodeAt(0) !== 0xfeff)
+    .join("")
+    .trim();
+}
+
+const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
+const TTS_MODEL = sanitizeSecret(process.env.OPENAI_TTS_MODEL) || "gpt-4o-mini-tts";
+const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
+}
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw.length) return {};
+  return JSON.parse(raw.toString("utf8"));
 }
 
 export default async function handler(req, res) {
@@ -13,12 +40,18 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!OPENAI_API_KEY) {
     sendJson(res, 500, { error: "OPENAI_API_KEY is not configured" });
     return;
   }
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "Invalid request body" });
+    return;
+  }
   const input = typeof body.input === "string" ? body.input.trim() : "";
   const voice = typeof body.voice === "string" ? body.voice : "sage";
   const instructions = typeof body.instructions === "string" ? body.instructions.trim() : "";
@@ -32,7 +65,7 @@ export default async function handler(req, res) {
   const response = await fetch(`${OPENAI_API_BASE}/v1/audio/speech`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

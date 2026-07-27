@@ -1,4 +1,14 @@
-const OPENAI_API_BASE = (process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
+function sanitizeSecret(value) {
+  if (!value) return value;
+  return value
+    .split("")
+    .filter((ch) => ch.charCodeAt(0) !== 0xfeff)
+    .join("")
+    .trim();
+}
+
+const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
+const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -21,7 +31,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!OPENAI_API_KEY) {
     sendJson(res, 500, { error: "OPENAI_API_KEY is not configured" });
     return;
   }
@@ -36,7 +46,7 @@ export default async function handler(req, res) {
   const response = await fetch(`${OPENAI_API_BASE}/v1/audio/transcriptions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": contentType,
     },
     body,

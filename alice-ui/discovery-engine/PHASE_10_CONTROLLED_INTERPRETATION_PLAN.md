@@ -19,11 +19,11 @@ These contracts define the shape of future controlled interpretation without imp
 
 ## Phase 10B: Deterministic Mock Interpreter
 
-Phase 10B may add a deterministic mock interpreter that accepts interpretation requests and returns predictable contract-valid results for verification. It should not call an LLM or load protected prompt bodies.
+Phase 10B adds a deterministic mock interpreter that accepts interpretation requests and returns predictable contract-valid results for verification. It does not call an LLM or load protected prompt bodies.
 
 ## Phase 10C: Optional Runtime Slice Integration
 
-Phase 10C may wire the deterministic mock interpreter into an isolated runtime verification path. This should remain local, deterministic, and separate from the current ALICE app.
+Phase 10C wires the deterministic mock interpreter into an isolated runtime verification path. This remains local, deterministic, and separate from the current ALICE app.
 
 ## Phase 10D: Optional Web Demo Display
 
