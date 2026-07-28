@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { readSessionFromRequest } from "./_lib/auth.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -104,10 +105,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    const session = readSessionFromRequest(req);
     const sql = neon(DATABASE_URL);
     const rows = await sql`
-      INSERT INTO testimonials (participant_name, participant_email, feedback_text, input_mode, consent_to_use_as_testimonial)
-      VALUES (${participantName || null}, ${participantEmail || null}, ${feedbackText}, ${inputMode}, ${consentToUseAsTestimonial})
+      INSERT INTO testimonials (participant_name, participant_email, feedback_text, input_mode, consent_to_use_as_testimonial, user_id)
+      VALUES (${participantName || null}, ${participantEmail || null}, ${feedbackText}, ${inputMode}, ${consentToUseAsTestimonial}, ${session?.userId || null})
       RETURNING id
     `;
     const id = rows[0]?.id;

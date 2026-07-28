@@ -4,6 +4,7 @@
 // so it actually works once deployed.
 
 import { neon } from "@neondatabase/serverless";
+import { readSessionFromRequest } from "./_lib/auth.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -27,13 +28,13 @@ const DATABASE_URL = sanitizeSecret(process.env.DATABASE_URL);
 // Best-effort retention of a development copy. Only called when the
 // participant explicitly consents via the Participant Authority checkbox.
 // A failure here must never break profile generation for the participant.
-async function saveDevelopmentCopy(participantName, participantEmail, model, profile) {
+async function saveDevelopmentCopy(participantName, participantEmail, model, profile, userId) {
   if (!DATABASE_URL) return;
   try {
     const sql = neon(DATABASE_URL);
     await sql`
-      INSERT INTO discovery_profiles (participant_name, participant_email, model, profile_json)
-      VALUES (${participantName}, ${participantEmail || null}, ${model}, ${JSON.stringify(profile)})
+      INSERT INTO discovery_profiles (participant_name, participant_email, model, profile_json, user_id)
+      VALUES (${participantName}, ${participantEmail || null}, ${model}, ${JSON.stringify(profile)}, ${userId || null})
     `;
   } catch (err) {
     console.error("Failed to save development copy:", err);
@@ -194,7 +195,8 @@ export default async function handler(req, res) {
     }
 
     if (retainForDevelopment) {
-      await saveDevelopmentCopy(participantName, participantEmail, PROFILE_AUTHORING_MODEL, parsed);
+      const session = readSessionFromRequest(req);
+      await saveDevelopmentCopy(participantName, participantEmail, PROFILE_AUTHORING_MODEL, parsed, session?.userId);
     }
 
     sendJson(res, 200, { model: PROFILE_AUTHORING_MODEL, profile: parsed });
