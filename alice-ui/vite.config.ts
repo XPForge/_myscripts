@@ -27,8 +27,7 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/submit-feedback' ? './api/submit-feedback.js'
           : pathname === '/api/auth-signup' ? './api/auth-signup.js'
           : pathname === '/api/auth-login' ? './api/auth-login.js'
-          : pathname === '/api/auth-logout' ? './api/auth-logout.js'
-          : pathname === '/api/auth-me' ? './api/auth-me.js'
+          : pathname === '/api/auth-session' ? './api/auth-session.js'
           : pathname === '/api/admin-stats' ? './api/admin-stats.js'
           : null
         if (!modulePath) return next()

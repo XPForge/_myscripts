@@ -25,12 +25,12 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
 }
 
 export async function signOut(): Promise<void> {
-  await postJson<{ status: string }>("/api/auth-logout", {});
+  await postJson<{ status: string }>("/api/auth-session", {});
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    const response = await fetch("/api/auth-me");
+    const response = await fetch("/api/auth-session");
     if (!response.ok) return null;
     const payload = (await response.json()) as { user: AuthUser | null };
     return payload.user ?? null;
