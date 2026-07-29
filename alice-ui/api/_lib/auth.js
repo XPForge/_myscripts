@@ -48,6 +48,23 @@ export function readSessionFromRequest(req) {
   return verifySessionToken(token);
 }
 
+export function isAdminEmail(email) {
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(String(email || "").toLowerCase());
+}
+
+// Distinguishes "not signed in" from "signed in but not an admin" so callers
+// can respond 401 vs 403 accordingly. Returns the session when authorized.
+export function requireAdminSession(req) {
+  const session = readSessionFromRequest(req);
+  if (!session) return { status: 401, session: null };
+  if (!isAdminEmail(session.email)) return { status: 403, session: null };
+  return { status: 200, session };
+}
+
 // Vercel's Node runtime always uses HTTPS at the edge in Production/Preview;
 // the local dev proxy is plain http, so Secure would silently drop the
 // cookie there.

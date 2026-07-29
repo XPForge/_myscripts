@@ -31,8 +31,10 @@ import type {
 import "./styles/global.css";
 import DiscoveryPage from "./components/discovery/DiscoveryPage";
 import HeroLandingPage from "./pages/HeroLandingPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 import { saveDiscoveryIdentity } from "./services/discoveryIdentity";
 import { getCurrentUser } from "./services/authClient";
+import { saveLastVisitedPage } from "./services/lastVisitedPage";
 
 function LighthouseCockpit() {
   const [session, setSession] = useState<DiscoverySession>(() => loadDiscoverySession());
@@ -167,6 +169,15 @@ function DiscoveryEntry() {
 }
 
 export default function App() {
+  // Records wherever a participant currently is (everywhere but the landing
+  // page itself), so the landing page's gateway can send them straight back
+  // to it next time, instead of always dropping them at the front door.
+  useEffect(() => {
+    if (window.location.pathname !== "/") {
+      saveLastVisitedPage(window.location.pathname + window.location.search);
+    }
+  }, []);
+
   if (window.location.pathname === "/legacy") {
     return (
       <AuthProvider>
@@ -195,6 +206,10 @@ export default function App() {
 
   if (window.location.pathname === "/discovery") {
     return <DiscoveryEntry />;
+  }
+
+  if (window.location.pathname === "/admin") {
+    return <AdminDashboardPage />;
   }
 
   return <HeroLandingPage />;

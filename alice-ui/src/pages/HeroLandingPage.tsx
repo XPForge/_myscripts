@@ -12,6 +12,7 @@ import {
   saveDiscoveryIdentity,
 } from "../services/discoveryIdentity";
 import { getCurrentUser, signIn, signOut, signUp, type AuthUser } from "../services/authClient";
+import { clearLastVisitedPage, loadLastVisitedPage } from "../services/lastVisitedPage";
 
 const LIGHTHOUSE_BACKGROUND_IMAGE = "/lighthouse-hero-background.jpg";
 const CONTENT_MAX_WIDTH = "520px";
@@ -65,6 +66,17 @@ function DiscoveryCapture() {
 
   useEffect(() => {
     getCurrentUser().then((current) => {
+      // Already signed in and dropped here from somewhere else (a shared
+      // link, a stale bookmark, session expiry recovery, etc.) — send them
+      // straight back to whatever page they were last on rather than making
+      // them click through the landing page again.
+      if (current) {
+        const lastPage = loadLastVisitedPage();
+        if (lastPage) {
+          window.location.href = lastPage;
+          return;
+        }
+      }
       setUser(current);
       setChecking(false);
     });
@@ -93,6 +105,7 @@ function DiscoveryCapture() {
     await signOut().catch(() => undefined);
     clearSavedDiscoverySession();
     clearDiscoveryIdentity();
+    clearLastVisitedPage();
     setUser(null);
     setName("");
     setEmail("");
