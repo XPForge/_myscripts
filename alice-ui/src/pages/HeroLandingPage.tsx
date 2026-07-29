@@ -15,6 +15,9 @@ import { getCurrentUser, signIn, signOut, signUp, type AuthUser } from "../servi
 import { clearLastVisitedPage, loadLastVisitedPage } from "../services/lastVisitedPage";
 
 const LIGHTHOUSE_BACKGROUND_IMAGE = "/lighthouse-hero-background.jpg";
+// Root informational/marketing site -- also linked from the Discovery Engine's
+// logo and side rail (see DiscoveryPage.tsx).
+const LIGHTHOUSE_INFO_SITE_URL = "https://lighthouse-discovery-oracle.lighthouse-paul.chatgpt.site";
 const CONTENT_MAX_WIDTH = "520px";
 
 const inputStyle: React.CSSProperties = {
@@ -306,7 +309,7 @@ export default function HeroLandingPage() {
               color: "#f6faff",
             }}
           >
-            Welcome to Lighthouse
+            Discovery Engine
           </h1>
 
           <p
@@ -319,23 +322,24 @@ export default function HeroLandingPage() {
               maxWidth: CONTENT_MAX_WIDTH,
             }}
           >
-            Lighthouse turns guided conversation into a clearer picture of how a person thinks, learns, solves
-            problems, and creates value.
+            This is the participant side Discovery Engine. To learn more, click below. To enter, complete the log in
+            or sign up authentication, then press the "Start Discovery" button.
           </p>
 
-          <p
+          <a
+            href={LIGHTHOUSE_INFO_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
-              margin: 0,
-              maxWidth: CONTENT_MAX_WIDTH,
-              fontSize: "0.92rem",
-              lineHeight: 1.55,
-              color: "rgba(255,255,255,0.78)",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: "rgba(255,221,150,0.9)",
+              textDecoration: "underline",
+              textUnderlineOffset: "3px",
             }}
           >
-            Resumes show where someone worked. Applications show what they answered. Lighthouse helps reveal what
-            those tools usually miss: patterns, capability, motivation, working style, environmental fit, and the
-            conditions where someone can do their best work.
-          </p>
+            Learn more about Lighthouse ↗
+          </a>
 
           <div style={{ marginTop: "8px" }}>
             <DiscoveryCapture />

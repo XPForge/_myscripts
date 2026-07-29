@@ -38,3 +38,6 @@ backend/data/
 
 .vercel
 .env*
+
+# Generated Alice TTS voice-tone samples -- local scratch output, not source
+voice-samples/
