@@ -15,7 +15,7 @@ const RESEND_API_KEY = sanitizeSecret(process.env.RESEND_API_KEY);
 const FROM_ADDRESS = sanitizeSecret(process.env.PROFILE_EMAIL_FROM) || "Lighthouse Discovery <discovery@beseenatlighthouse.online>";
 
 // Mirrors src/services/discoverySchemaTracker.ts's DISCOVERY_FIELD_LABELS and
-// api/profile-author.js's copy of the same map — duplicated here so this
+// api/profile-author.js's copy of the same map -- duplicated here so this
 // serverless function has no fragile cross-file import chain.
 const DISCOVERY_FIELD_LABELS = {
   workMotivators: "What motivates their work",
@@ -132,37 +132,39 @@ function buildProfileEmailHtml(participantName, profile) {
   </div>`;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Method not allowed" });
+async function handlePdf(req, res, body) {
+  if (!body.profile || typeof body.profile !== "object") {
+    sendJson(res, 400, { error: "Invalid request: profile is required" });
     return;
   }
+  const participantName = typeof body.participantName === "string" ? body.participantName : "";
+  try {
+    const pdfBuffer = await renderProfilePdf(participantName, body.profile);
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="lighthouse-discovery-profile.pdf"');
+    res.end(pdfBuffer);
+  } catch (err) {
+    console.error("profile-delivery (pdf) error:", err);
+    sendJson(res, 500, { error: "PDF generation failed" });
+  }
+}
 
+async function handleEmail(req, res, body) {
   if (!RESEND_API_KEY) {
     sendJson(res, 500, { error: "Email delivery is not configured" });
     return;
   }
-
-  let participantName;
-  let participantEmail;
-  let profile;
-  try {
-    const body = await readJsonBody(req);
-    if (typeof body.participantEmail !== "string" || !body.participantEmail.trim()) {
-      sendJson(res, 400, { error: "Invalid request: participantEmail is required" });
-      return;
-    }
-    if (!body.profile || typeof body.profile !== "object") {
-      sendJson(res, 400, { error: "Invalid request: profile is required" });
-      return;
-    }
-    participantName = typeof body.participantName === "string" ? body.participantName : "";
-    participantEmail = body.participantEmail;
-    profile = body.profile;
-  } catch {
-    sendJson(res, 400, { error: "Invalid request" });
+  if (typeof body.participantEmail !== "string" || !body.participantEmail.trim()) {
+    sendJson(res, 400, { error: "Invalid request: participantEmail is required" });
     return;
   }
+  if (!body.profile || typeof body.profile !== "object") {
+    sendJson(res, 400, { error: "Invalid request: profile is required" });
+    return;
+  }
+  const participantName = typeof body.participantName === "string" ? body.participantName : "";
+  const { participantEmail, profile } = body;
 
   let attachments;
   try {
@@ -197,7 +199,32 @@ export default async function handler(req, res) {
 
     sendJson(res, 200, { status: "sent" });
   } catch (err) {
-    console.error("send-profile-email error:", err);
+    console.error("profile-delivery (email) error:", err);
     sendJson(res, 500, { error: "Email delivery failed" });
   }
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "Invalid request" });
+    return;
+  }
+
+  if (body.mode === "email") {
+    await handleEmail(req, res, body);
+    return;
+  }
+  if (body.mode === "pdf") {
+    await handlePdf(req, res, body);
+    return;
+  }
+  sendJson(res, 400, { error: "Invalid request: mode must be 'pdf' or 'email'" });
 }

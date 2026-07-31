@@ -14,7 +14,7 @@ import {
 import { getCurrentUser, signIn, signOut, signUp, type AuthUser } from "../services/authClient";
 import { clearLastVisitedPage, loadLastVisitedPage } from "../services/lastVisitedPage";
 
-const LIGHTHOUSE_BACKGROUND_IMAGE = "/lighthouse-hero-background.jpg";
+const LIGHTHOUSE_BACKGROUND_IMAGE = "/discovery-hero-bg.png";
 // Root informational/marketing site -- also linked from the Discovery Engine's
 // logo and side rail (see DiscoveryPage.tsx).
 const LIGHTHOUSE_INFO_SITE_URL = "https://lighthouse-discovery-oracle.lighthouse-paul.chatgpt.site";

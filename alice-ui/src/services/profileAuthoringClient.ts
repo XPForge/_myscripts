@@ -4,8 +4,7 @@ import { DISCOVERY_FIELD_KEYS, type DiscoveryFieldKey } from "./lighthouseProfil
 // plugin) and on Vercel (as a real serverless function), so it works the same
 // way in both places instead of pointing at a hardcoded localhost port.
 const PROFILE_AUTHORING_API_URL = "/api/profile-author";
-const SEND_PROFILE_EMAIL_API_URL = "/api/send-profile-email";
-const GENERATE_PROFILE_PDF_API_URL = "/api/generate-profile-pdf";
+const PROFILE_DELIVERY_API_URL = "/api/profile-delivery";
 
 export type AuthoredProfileFields = Record<DiscoveryFieldKey, string> & {
   discoverySummary: string;
@@ -66,10 +65,10 @@ export async function sendProfileEmail(
   participantEmail: string,
   fields: AuthoredProfileFields
 ): Promise<void> {
-  const response = await fetch(SEND_PROFILE_EMAIL_API_URL, {
+  const response = await fetch(PROFILE_DELIVERY_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ participantName, participantEmail, profile: fields }),
+    body: JSON.stringify({ mode: "email", participantName, participantEmail, profile: fields }),
   });
 
   if (!response.ok) {
@@ -85,10 +84,10 @@ export async function sendProfileEmail(
 }
 
 export async function downloadProfilePdf(participantName: string, fields: AuthoredProfileFields): Promise<void> {
-  const response = await fetch(GENERATE_PROFILE_PDF_API_URL, {
+  const response = await fetch(PROFILE_DELIVERY_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ participantName, profile: fields }),
+    body: JSON.stringify({ mode: "pdf", participantName, profile: fields }),
   });
 
   if (!response.ok) {

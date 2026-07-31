@@ -22,13 +22,13 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/tts' ? './api/tts.js'
           : pathname === '/api/oz-capture' ? './api/oz-capture.js'
           : pathname === '/api/profile-author' ? './api/profile-author.js'
-          : pathname === '/api/send-profile-email' ? './api/send-profile-email.js'
-          : pathname === '/api/generate-profile-pdf' ? './api/generate-profile-pdf.js'
+          : pathname === '/api/profile-delivery' ? './api/profile-delivery.js'
           : pathname === '/api/submit-feedback' ? './api/submit-feedback.js'
           : pathname === '/api/auth-signup' ? './api/auth-signup.js'
           : pathname === '/api/auth-login' ? './api/auth-login.js'
           : pathname === '/api/auth-session' ? './api/auth-session.js'
           : pathname === '/api/admin-stats' ? './api/admin-stats.js'
+          : pathname === '/api/founder-intel' ? './api/founder-intel.js'
           : null
         if (!modulePath) return next()
 

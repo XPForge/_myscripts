@@ -32,6 +32,7 @@ import "./styles/global.css";
 import DiscoveryPage from "./components/discovery/DiscoveryPage";
 import HeroLandingPage from "./pages/HeroLandingPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import FounderDashboardPage from "./pages/FounderDashboardPage";
 import { saveDiscoveryIdentity } from "./services/discoveryIdentity";
 import { getCurrentUser } from "./services/authClient";
 import { saveLastVisitedPage } from "./services/lastVisitedPage";
@@ -210,6 +211,10 @@ export default function App() {
 
   if (window.location.pathname === "/admin") {
     return <AdminDashboardPage />;
+  }
+
+  if (window.location.pathname === "/founder") {
+    return <FounderDashboardPage />;
   }
 
   return <HeroLandingPage />;
