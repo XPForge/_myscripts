@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { getFounderIntel } from "../services/founderIntelClient";
+import { signOut } from "../services/authClient";
+import { clearDiscoveryIdentity } from "../services/discoveryIdentity";
+import { clearLastVisitedPage } from "../services/lastVisitedPage";
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 const C = {
@@ -674,13 +677,27 @@ export default function FounderDashboardPage() {
   useEffect(() => {
     fetch("/api/admin-stats")
       .then((response) => {
-        if (response.status === 200) setGate("authorized");
-        else if (response.status === 401) setGate("unauthorized");
+        if (response.status === 200) {
+          setGate("authorized");
+          return;
+        }
+        // This page must never be the "last visited page" a signed-in,
+        // non-founder user gets bounced back into from the landing page --
+        // otherwise "Back to Lighthouse" loops right back here.
+        clearLastVisitedPage();
+        if (response.status === 401) setGate("unauthorized");
         else if (response.status === 403) setGate("forbidden");
         else setGate("error");
       })
       .catch(() => setGate("error"));
   }, []);
+
+  const handleSignOutAndReturn = async () => {
+    await signOut().catch(() => undefined);
+    clearDiscoveryIdentity();
+    clearLastVisitedPage();
+    window.location.href = "/";
+  };
 
   if (gate === "authorized") return <FounderDashboard />;
 
@@ -691,14 +708,17 @@ export default function FounderDashboardPage() {
     error: { title: "Something went wrong", body: "Couldn't verify access. Try refreshing the page." },
   };
   const { title, body } = copy[gate];
+  const linkStyle: React.CSSProperties = { display: "inline-block", marginTop: 18, color: C.teal, fontSize: 13, fontWeight: 700, textDecoration: "none", background: "none", border: 0, padding: 0, fontFamily: "inherit", cursor: "pointer" };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "grid", placeItems: "center", color: C.text, fontFamily: "'Inter','Helvetica Neue',Arial,sans-serif", textAlign: "center", padding: 24 }}>
       <div>
         <div style={{ color: C.white, fontWeight: 800, fontSize: 20, marginBottom: 10 }}>{title}</div>
         {body && <div style={{ color: C.muted, fontSize: 13, maxWidth: 360 }}>{body}</div>}
-        {gate !== "checking" && (
-          <a href="/" style={{ display: "inline-block", marginTop: 18, color: C.teal, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Back to Lighthouse</a>
+        {gate === "forbidden" ? (
+          <button type="button" style={linkStyle} onClick={() => void handleSignOutAndReturn()}>Sign out &amp; return to Lighthouse</button>
+        ) : (
+          gate !== "checking" && <a href="/" style={linkStyle}>Back to Lighthouse</a>
         )}
       </div>
     </div>

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getAdminStats, type AdminStats, type DailyCount } from "../services/adminClient";
+import { signOut } from "../services/authClient";
+import { clearDiscoveryIdentity } from "../services/discoveryIdentity";
+import { clearLastVisitedPage } from "../services/lastVisitedPage";
 import "./AdminDashboardPage.css";
 
 type LoadState = "loading" | "unauthorized" | "forbidden" | "error" | "ready";
@@ -121,10 +124,21 @@ export default function AdminDashboardPage() {
         setStats(result.data);
         setState("ready");
       } else {
+        // This page must never be the "last visited page" a signed-in,
+        // non-admin user gets bounced back into from the landing page --
+        // otherwise "Back to Lighthouse" loops right back here.
+        clearLastVisitedPage();
         setState(result.status);
       }
     });
   }, []);
+
+  const handleSignOutAndReturn = async () => {
+    await signOut().catch(() => undefined);
+    clearDiscoveryIdentity();
+    clearLastVisitedPage();
+    window.location.href = "/";
+  };
 
   if (state !== "ready" || !stats) {
     const copy: Record<Exclude<LoadState, "ready">, { title: string; body: string }> = {
@@ -139,7 +153,11 @@ export default function AdminDashboardPage() {
         <div className="admin-dashboard__state">
           <h2>{title}</h2>
           {body && <p>{body}</p>}
-          {state !== "loading" && <a className="admin-dashboard__back" href="/">Back to Lighthouse</a>}
+          {state === "forbidden" ? (
+            <button type="button" className="admin-dashboard__back" onClick={() => void handleSignOutAndReturn()}>Sign out &amp; return to Lighthouse</button>
+          ) : (
+            state !== "loading" && <a className="admin-dashboard__back" href="/">Back to Lighthouse</a>
+          )}
         </div>
       </div>
     );
