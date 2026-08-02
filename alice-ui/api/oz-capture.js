@@ -1,3 +1,6 @@
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateChatCostUsd, recordCostEvent } from "./_lib/costTracking.js";
+
 export const config = { api: { bodyParser: false } };
 
 function sanitizeSecret(value) {
@@ -90,7 +93,26 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) return sendJson(res, 502, { error: "Oz capture provider request failed" });
-    const capture = parseCapture(extractText(await response.json()) || "{}");
+    const responsePayload = await response.json();
+    const capture = parseCapture(extractText(responsePayload) || "{}");
+
+    try {
+      const session = readSessionFromRequest(req);
+      recordCostEvent({
+        service: "openai.chat",
+        model: OZ_CAPTURE_MODEL,
+        kind: "oz_discovery_capture",
+        sessionId: getSessionIdFromRequest(req),
+        quantity: (responsePayload.usage?.input_tokens ?? 0) + (responsePayload.usage?.output_tokens ?? 0),
+        unit: "tokens",
+        estimatedCostUsd: estimateChatCostUsd("openai.chat", OZ_CAPTURE_MODEL, responsePayload.usage),
+        isTestAccount: isAdminEmail(session?.email),
+        meta: { inputTokens: responsePayload.usage?.input_tokens ?? null, outputTokens: responsePayload.usage?.output_tokens ?? null },
+      });
+    } catch {
+      // Cost logging must never affect the actual capture response.
+    }
+
     const lastTurn = turns[turns.length - 1];
     sendJson(res, 200, {
       captureId: crypto.randomUUID(),

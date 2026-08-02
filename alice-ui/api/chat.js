@@ -1,3 +1,6 @@
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateChatCostUsd, recordCostEvent } from "./_lib/costTracking.js";
+
 export const config = { api: { bodyParser: false } };
 
 function sanitizeSecret(value) {
@@ -81,6 +84,24 @@ export default async function handler(req, res) {
 
     const payload = await response.json();
     const reply = extractText(payload);
+
+    try {
+      const session = readSessionFromRequest(req);
+      recordCostEvent({
+        service: "openai.chat",
+        model: OPENAI_MODEL,
+        kind: "discovery_chat_turn",
+        sessionId: getSessionIdFromRequest(req),
+        quantity: (payload.usage?.input_tokens ?? 0) + (payload.usage?.output_tokens ?? 0),
+        unit: "tokens",
+        estimatedCostUsd: estimateChatCostUsd("openai.chat", OPENAI_MODEL, payload.usage),
+        isTestAccount: isAdminEmail(session?.email),
+        meta: { inputTokens: payload.usage?.input_tokens ?? null, outputTokens: payload.usage?.output_tokens ?? null },
+      });
+    } catch {
+      // Cost logging must never affect the actual chat response.
+    }
+
     sendJson(res, 200, { reply: reply || "What feels important to add next?" });
   } catch (err) {
     console.error("chat handler error:", err);

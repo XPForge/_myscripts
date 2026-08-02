@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
-import { readSessionFromRequest } from "./_lib/auth.js";
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateEmailCostUsd, recordCostEvent } from "./_lib/costTracking.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -47,10 +48,10 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-async function notifyAdmin({ id, participantName, participantEmail, feedbackText, inputMode, consent }) {
+async function notifyAdmin({ id, participantName, participantEmail, feedbackText, inputMode, consent, sessionId, isTestAccount }) {
   if (!RESEND_API_KEY) return;
   try {
-    await fetch("https://api.resend.com/emails", {
+    const sendResult = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -67,6 +68,19 @@ async function notifyAdmin({ id, participantName, participantEmail, feedbackText
         `,
       }),
     });
+
+    if (sendResult.ok) {
+      recordCostEvent({
+        service: "resend.email",
+        model: null,
+        kind: "feedback_admin_notification",
+        sessionId: sessionId || null,
+        quantity: 1,
+        unit: "email",
+        estimatedCostUsd: estimateEmailCostUsd(),
+        isTestAccount: Boolean(isTestAccount),
+      });
+    }
   } catch (err) {
     console.error("Failed to send admin feedback notification:", err);
   }
@@ -121,6 +135,8 @@ export default async function handler(req, res) {
       feedbackText,
       inputMode,
       consent: consentToUseAsTestimonial,
+      sessionId: getSessionIdFromRequest(req),
+      isTestAccount: isAdminEmail(session?.email),
     });
 
     sendJson(res, 200, { status: "saved", id });

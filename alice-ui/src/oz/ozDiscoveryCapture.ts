@@ -2,10 +2,10 @@ import type { OzCaptureTurn, OzDiscoveryCapture } from "./ozDiscoveryCaptureType
 
 const OZ_CAPTURE_STORAGE_KEY = "lighthouse.discovery.ozCaptures.v0.1";
 
-export async function captureOzDiscovery(turns: OzCaptureTurn[]): Promise<OzDiscoveryCapture> {
+export async function captureOzDiscovery(turns: OzCaptureTurn[], sessionId?: string): Promise<OzDiscoveryCapture> {
   const response = await fetch("/api/oz-capture", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Lighthouse-Session-Id": sessionId } : {}) },
     body: JSON.stringify({ turns }),
   });
 

@@ -5,11 +5,12 @@ export async function submitDiscoveryFeedback(
   participantEmail: string,
   feedbackText: string,
   inputMode: "typed" | "voice",
-  consentToUseAsTestimonial: boolean
+  consentToUseAsTestimonial: boolean,
+  sessionId?: string
 ): Promise<void> {
   const response = await fetch(SUBMIT_FEEDBACK_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Lighthouse-Session-Id": sessionId } : {}) },
     body: JSON.stringify({ participantName, participantEmail, feedbackText, inputMode, consentToUseAsTestimonial }),
   });
 

@@ -1,4 +1,6 @@
 import { renderProfilePdf } from "./_lib/profilePdf.js";
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateEmailCostUsd, recordCostEvent } from "./_lib/costTracking.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -195,6 +197,22 @@ async function handleEmail(req, res, body) {
       console.error("Resend send error:", response.status, errText);
       sendJson(res, 502, { error: "Email delivery failed" });
       return;
+    }
+
+    try {
+      const session = readSessionFromRequest(req);
+      recordCostEvent({
+        service: "resend.email",
+        model: null,
+        kind: "profile_delivery_email",
+        sessionId: getSessionIdFromRequest(req),
+        quantity: 1,
+        unit: "email",
+        estimatedCostUsd: estimateEmailCostUsd(),
+        isTestAccount: isAdminEmail(session?.email),
+      });
+    } catch {
+      // Cost logging must never affect the actual delivery response.
     }
 
     sendJson(res, 200, { status: "sent" });

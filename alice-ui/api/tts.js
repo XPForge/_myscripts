@@ -1,3 +1,6 @@
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateTtsCostUsd, recordCostEvent } from "./_lib/costTracking.js";
+
 export const config = { api: { bodyParser: false } };
 
 function sanitizeSecret(value) {
@@ -83,6 +86,23 @@ export default async function handler(req, res) {
   }
 
   const audio = Buffer.from(await response.arrayBuffer());
+
+  try {
+    const session = readSessionFromRequest(req);
+    recordCostEvent({
+      service: "openai.tts",
+      model: TTS_MODEL,
+      kind: "discovery_voice_reply",
+      sessionId: getSessionIdFromRequest(req),
+      quantity: input.length,
+      unit: "characters",
+      estimatedCostUsd: estimateTtsCostUsd(TTS_MODEL, input),
+      isTestAccount: isAdminEmail(session?.email),
+    });
+  } catch {
+    // Cost logging must never affect the actual audio response.
+  }
+
   res.statusCode = 200;
   res.setHeader("Content-Type", responseFormat === "wav" ? "audio/wav" : "audio/mpeg");
   res.end(audio);

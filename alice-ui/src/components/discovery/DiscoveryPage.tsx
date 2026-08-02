@@ -69,9 +69,23 @@ const STORAGE_KEY = "lighthouse.discovery.run1";
 const PROMPT_PROFILE_STORAGE_KEY = "lighthouse.discovery.alicePromptProfile";
 const now = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const filenameSlug = (name?: string) => (name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "participant";
+// An opaque correlation id (not participant data, just a random token) sent
+// as a header on metered-API calls so estimated cost can be grouped by
+// Discovery session. See api/_lib/costTracking.js.
+const COST_SESSION_ID_KEY = "lighthouse.discovery.costSessionId";
+function loadOrCreateSessionId(): string {
+  try {
+    const existing = localStorage.getItem(COST_SESSION_ID_KEY);
+    if (existing) return existing;
+  } catch { /* ignore storage errors */ }
+  const created = crypto.randomUUID();
+  try { localStorage.setItem(COST_SESSION_ID_KEY, created); } catch { /* ignore storage errors */ }
+  return created;
+}
 const seed: Turn[] = [{ id: "welcome", role: "alice", text: "To help me understand you deeply, what have been the moments in your life that changed the way you see yourself or the world?", timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: true, quietMode: false, aliceStatusAtTime: "listening", source: "chat" }];
 
 function useAliceSession(systemPrompt: string) {
+  const [sessionId] = useState<string>(() => loadOrCreateSessionId());
   const resumedSessionRef = useRef(localStorage.getItem(STORAGE_KEY) !== null);
   const [turns, setTurns] = useState<Turn[]>(() => { try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved).turns ?? seed : seed; } catch { return seed; } });
   const [status, setStatus] = useState<AliceStatus>("listening");
@@ -89,7 +103,7 @@ function useAliceSession(systemPrompt: string) {
   const playVoice = async (input: string) => {
     setVoiceError(""); setStatus("loading");
     try {
-      const audio = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input, voice: config.voiceName, instructions: input.length < 180 ? config.shortTtsInstructions : config.ttsInstructions, responseFormat: config.responseFormat }) });
+      const audio = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": sessionId }, body: JSON.stringify({ input, voice: config.voiceName, instructions: input.length < 180 ? config.shortTtsInstructions : config.ttsInstructions, responseFormat: config.responseFormat }) });
       if (!audio.ok) throw new Error("Alice voice is temporarily unavailable.");
       const url = URL.createObjectURL(await audio.blob()); const player = new Audio(url); player.playbackRate = config.playbackRate; audioRef.current = player;
       player.onplaying = () => setStatus("speaking");
@@ -114,13 +128,13 @@ function useAliceSession(systemPrompt: string) {
     ].join("\n");
     let reply = "Thank you for sharing that. What did that experience teach you about yourself?";
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: `${systemPrompt}\n\n${sessionContext}`, messages: next.filter(t => t.role !== "system").map(t => ({ role: t.role === "participant" ? "user" : "assistant", content: t.text })) }) });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": sessionId }, body: JSON.stringify({ system: `${systemPrompt}\n\n${sessionContext}`, messages: next.filter(t => t.role !== "system").map(t => ({ role: t.role === "participant" ? "user" : "assistant", content: t.text })) }) });
       if (response.ok) reply = (await response.json()).reply || reply;
     } catch { /* preserve a natural offline fallback */ }
     const aliceTurn: Turn = { id: crypto.randomUUID(), role: "alice", text: reply, timestamp: now(), inputMode, transcriptEdited: false, aliceVoiceEnabled: voiceOn, quietMode, aliceStatusAtTime: quietMode || !voiceOn ? "thinking" : "speaking", source: "chat" };
     const completedExchange = [...next, aliceTurn];
     setTurns(current => [...current, aliceTurn]);
-    captureOzDiscovery(completedExchange.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, timestamp: turn.timestamp }))).then(setOzCapture).catch(() => undefined);
+    captureOzDiscovery(completedExchange.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, timestamp: turn.timestamp })), sessionId).then(setOzCapture).catch(() => undefined);
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
   const markAsNewSession = () => { resumedSessionRef.current = false; };
@@ -130,7 +144,7 @@ function useAliceSession(systemPrompt: string) {
     const discoveryCategories = Object.values(DISCOVERY_FIELD_LABELS).join(", ");
     let reply = seed[0].text;
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": sessionId }, body: JSON.stringify({
         system: `${systemPrompt}\n\nYou are Alice, the frontline AI for Project Lighthouse. Your job is to discover the following through casual, guided conversation: ${discoveryCategories}. This is the very first message of a brand-new Discovery session. Introduce yourself in your own natural words: say that you're Alice and that this is Lighthouse Discovery, and briefly what it's for (understanding how the participant thinks, works, and thrives — not a test, not scored, not an evaluation) and how it works (one question at a time, and they can redirect you anytime). Keep it warm, brief, and conversational — not a long recitation. Then ask exactly one open question to begin, based on your own judgment of what would open the conversation well.`,
         messages: [{ role: "user", content: "Please begin." }],
       }) });
@@ -140,7 +154,7 @@ function useAliceSession(systemPrompt: string) {
     setTurns([aliceTurn]);
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
-  return { turns, setTurns, status, setStatus, voiceOn, setVoiceOn, quietMode, setQuietMode, voiceError, setVoiceError, ozCapture, setOzCapture, playVoice, save, stopAudio, send, markAsNewSession, isBrandNewSession, sendOpeningIntroduction };
+  return { turns, setTurns, status, setStatus, voiceOn, setVoiceOn, quietMode, setQuietMode, voiceError, setVoiceError, ozCapture, setOzCapture, playVoice, save, stopAudio, send, markAsNewSession, isBrandNewSession, sendOpeningIntroduction, sessionId };
 }
 
 const PlaceholderButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button className="outline-button" onClick={onClick}>{children}</button>;
@@ -366,7 +380,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     setMobileRail("right");
   };
   const startRecording = async () => { if (session.status !== "listening") return; try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const r = new MediaRecorder(stream); chunks.current = []; r.ondataavailable = e => chunks.current.push(e.data); r.start(); recorder.current = r; setRecording(true); setPaused(false); setSeconds(0); session.setStatus("listening"); } catch { openPlaceholder("Microphone access is unavailable. Check your browser permission, or use Type Instead."); } };
-  const finishRecording = () => { const r = recorder.current; if (!r) return; r.onstop = async () => { r.stream.getTracks().forEach(t => t.stop()); setRecording(false); setPaused(false); session.setStatus("loading"); const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" }); try { const form = new FormData(); form.append("file", blob, "answer.webm"); form.append("model", config.transcriptionModel); form.append("language", "en"); const response = await fetch("/api/transcribe", { method: "POST", body: form }); if (!response.ok) throw new Error(); const text = (await response.json()).text || ""; setReview(text); setOriginalReview(text); } catch { setReview("Your recording is ready. Transcription needs a configured server connection; you can type or edit your answer here."); setOriginalReview(""); } finally { session.setStatus("listening"); } }; r.stop(); };
+  const finishRecording = () => { const r = recorder.current; if (!r) return; r.onstop = async () => { r.stream.getTracks().forEach(t => t.stop()); setRecording(false); setPaused(false); session.setStatus("loading"); const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" }); try { const form = new FormData(); form.append("file", blob, "answer.webm"); form.append("model", config.transcriptionModel); form.append("language", "en"); const response = await fetch("/api/transcribe", { method: "POST", headers: { "X-Lighthouse-Session-Id": session.sessionId }, body: form }); if (!response.ok) throw new Error(); const text = (await response.json()).text || ""; setReview(text); setOriginalReview(text); } catch { setReview("Your recording is ready. Transcription needs a configured server connection; you can type or edit your answer here."); setOriginalReview(""); } finally { session.setStatus("listening"); } }; r.stop(); };
   const cancelRecording = () => { recorder.current?.stop(); recorder.current?.stream.getTracks().forEach(t => t.stop()); setRecording(false); setPaused(false); setSeconds(0); session.setStatus("listening"); };
   // Guarded here, not just via the button's `disabled`, because the textarea's
   // Enter-to-send handler calls this directly and would otherwise bypass it --
@@ -408,7 +422,8 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
         transcriptText,
         reviewName.trim() || "Participant",
         deliveryEmail.trim() || discoveryIdentity?.email || "",
-        allowDevelopmentCopy
+        allowDevelopmentCopy,
+        session.sessionId
       );
       setAuthoredProfile(result);
       setReviewPhase("authored");
@@ -440,7 +455,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     if (!authoredProfile) return;
     setDeliverySending(true); setDeliveryError(""); setDeliveryRequested(false);
     try {
-      await sendProfileEmail(reviewName.trim() || "Participant", deliveryEmail.trim(), authoredProfile.fields);
+      await sendProfileEmail(reviewName.trim() || "Participant", deliveryEmail.trim(), authoredProfile.fields, session.sessionId);
       setDeliveryRequested(true);
     } catch (error) {
       setDeliveryError(error instanceof Error ? error.message : "Unable to send the email.");
@@ -475,7 +490,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
         form.append("file", blob, "feedback.webm");
         form.append("model", config.transcriptionModel);
         form.append("language", "en");
-        const response = await fetch("/api/transcribe", { method: "POST", body: form });
+        const response = await fetch("/api/transcribe", { method: "POST", headers: { "X-Lighthouse-Session-Id": session.sessionId }, body: form });
         if (!response.ok) throw new Error();
         const text = (await response.json()).text || "";
         setFeedbackText(text);
@@ -497,7 +512,8 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
         deliveryEmail.trim() || discoveryIdentity?.email || "",
         value,
         feedbackTab === "speak" ? "voice" : "typed",
-        feedbackConsent
+        feedbackConsent,
+        session.sessionId
       );
       setFeedbackSubmitted(true);
     } catch (error) {

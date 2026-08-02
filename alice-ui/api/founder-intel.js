@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAdminSession } from "./_lib/auth.js";
+import { estimateChatCostUsd, recordCostEvent } from "./_lib/costTracking.js";
+
+const FOUNDER_INTEL_MODEL = "claude-opus-5";
 
 export const config = { api: { bodyParser: false } };
 
@@ -97,7 +100,7 @@ export default async function handler(req, res) {
     // the platform's non-streaming request timeout; the endpoint still
     // returns a single JSON payload matching the existing frontend contract.
     const stream = anthropic.beta.messages.stream({
-      model: "claude-opus-5",
+      model: FOUNDER_INTEL_MODEL,
       // Thinking is on by default for claude-opus-5, and max_tokens caps
       // thinking + visible text together -- 4096 was silently consumed
       // entirely by thinking with nothing left for the actual answer.
@@ -112,6 +115,24 @@ export default async function handler(req, res) {
       messages: [{ role: "user", content: prompt }],
     });
     const message = await stream.finalMessage();
+
+    try {
+      recordCostEvent({
+        service: "anthropic.chat",
+        model: FOUNDER_INTEL_MODEL,
+        kind: "founder_competitive_intel",
+        sessionId: null,
+        quantity: (message.usage?.input_tokens ?? 0) + (message.usage?.output_tokens ?? 0),
+        unit: "tokens",
+        estimatedCostUsd: estimateChatCostUsd("anthropic.chat", FOUNDER_INTEL_MODEL, message.usage),
+        // This endpoint is gated by requireAdminSession above, so every call
+        // here is inherently founder/admin usage, never a participant.
+        isTestAccount: true,
+        meta: { inputTokens: message.usage?.input_tokens ?? null, outputTokens: message.usage?.output_tokens ?? null },
+      });
+    } catch {
+      // Cost logging must never affect the actual founder-intel response.
+    }
 
     if (message.stop_reason === "refusal") {
       sendJson(res, 200, { text: "Claude declined to answer this request." });

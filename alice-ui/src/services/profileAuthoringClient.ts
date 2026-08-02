@@ -24,11 +24,12 @@ export async function authorLighthouseProfile(
   transcript: string,
   participantName: string,
   participantEmail: string,
-  retainForDevelopment: boolean
+  retainForDevelopment: boolean,
+  sessionId?: string
 ): Promise<AuthorProfileResult> {
   const response = await fetch(PROFILE_AUTHORING_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Lighthouse-Session-Id": sessionId } : {}) },
     body: JSON.stringify({ transcript, participantName, participantEmail, retainForDevelopment }),
   });
 
@@ -63,11 +64,12 @@ export async function authorLighthouseProfile(
 export async function sendProfileEmail(
   participantName: string,
   participantEmail: string,
-  fields: AuthoredProfileFields
+  fields: AuthoredProfileFields,
+  sessionId?: string
 ): Promise<void> {
   const response = await fetch(PROFILE_DELIVERY_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Lighthouse-Session-Id": sessionId } : {}) },
     body: JSON.stringify({ mode: "email", participantName, participantEmail, profile: fields }),
   });
 

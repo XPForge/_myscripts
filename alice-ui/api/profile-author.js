@@ -4,7 +4,8 @@
 // so it actually works once deployed.
 
 import { neon } from "@neondatabase/serverless";
-import { readSessionFromRequest } from "./_lib/auth.js";
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateChatCostUsd, recordCostEvent } from "./_lib/costTracking.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -194,9 +195,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    const session = readSessionFromRequest(req);
+
     if (retainForDevelopment) {
-      const session = readSessionFromRequest(req);
       await saveDevelopmentCopy(participantName, participantEmail, PROFILE_AUTHORING_MODEL, parsed, session?.userId);
+    }
+
+    try {
+      recordCostEvent({
+        service: "openai.chat",
+        model: PROFILE_AUTHORING_MODEL,
+        kind: "profile_authoring",
+        sessionId: getSessionIdFromRequest(req),
+        quantity: (payload?.usage?.input_tokens ?? 0) + (payload?.usage?.output_tokens ?? 0),
+        unit: "tokens",
+        estimatedCostUsd: estimateChatCostUsd("openai.chat", PROFILE_AUTHORING_MODEL, payload?.usage),
+        isTestAccount: isAdminEmail(session?.email),
+        meta: { inputTokens: payload?.usage?.input_tokens ?? null, outputTokens: payload?.usage?.output_tokens ?? null },
+      });
+    } catch {
+      // Cost logging must never affect the actual profile-authoring response.
     }
 
     sendJson(res, 200, { model: PROFILE_AUTHORING_MODEL, profile: parsed });

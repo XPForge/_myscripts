@@ -1,3 +1,6 @@
+import { readSessionFromRequest, isAdminEmail } from "./_lib/auth.js";
+import { getSessionIdFromRequest, estimateTranscriptionCostUsd, recordCostEvent } from "./_lib/costTracking.js";
+
 function sanitizeSecret(value) {
   if (!value) return value;
   return value
@@ -9,6 +12,11 @@ function sanitizeSecret(value) {
 
 const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://api.openai.com").replace(/\/+$/, "");
 const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
+// The request body is a raw multipart passthrough (not parsed), so the
+// actual `model` field the client sent isn't available here for cost
+// logging -- this mirrors the transcriptionModel every current caller
+// actually sends (see lighthouseDiscoveryConfig.ts). Update if that changes.
+const ASSUMED_TRANSCRIBE_MODEL = "gpt-4o-transcribe";
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -53,6 +61,26 @@ export default async function handler(req, res) {
   });
 
   const payload = await response.text();
+
+  if (response.ok) {
+    try {
+      const session = readSessionFromRequest(req);
+      recordCostEvent({
+        service: "openai.transcribe",
+        model: ASSUMED_TRANSCRIBE_MODEL,
+        kind: "discovery_answer_transcription",
+        sessionId: getSessionIdFromRequest(req),
+        quantity: body.length,
+        unit: "bytes",
+        estimatedCostUsd: estimateTranscriptionCostUsd(ASSUMED_TRANSCRIBE_MODEL, body.length),
+        isTestAccount: isAdminEmail(session?.email),
+        meta: { audioBytes: body.length },
+      });
+    } catch {
+      // Cost logging must never affect the actual transcription response.
+    }
+  }
+
   res.statusCode = response.ok ? 200 : 502;
   res.setHeader("Content-Type", response.headers.get("Content-Type") || "application/json");
   res.end(payload);
