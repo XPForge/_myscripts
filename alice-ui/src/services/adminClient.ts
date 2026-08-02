@@ -14,15 +14,30 @@ export type AdminRecentTestimonial = {
   feedback_preview: string;
 };
 
+export type AdminRecentExitEvent = {
+  id: string;
+  participant_name: string | null;
+  participant_email: string | null;
+  schema_coverage_percentage: number | null;
+  profile_readiness_percentage: number | null;
+  turn_count: number | null;
+  profile_generated: boolean;
+  exit_reason: string;
+  created_at: string;
+  user_id: string | null;
+};
+
 export type AdminStats = {
   users: { total: number; last7Days: number; daily: DailyCount[] };
   profiles: { total: number; linked: number; daily: DailyCount[] };
   testimonials: { total: number; consented: number; daily: DailyCount[] };
+  exits: { total: number; abandonedTotal: number; avgReadinessAtAbandon: number; daily: DailyCount[] };
   recent: {
     users: AdminRecentUser[];
     profiles: AdminRecentProfile[];
     testimonials: AdminRecentTestimonial[];
     signedUpNoProfile: AdminRecentUser[];
+    exits: AdminRecentExitEvent[];
   };
 };
 

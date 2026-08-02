@@ -57,10 +57,15 @@ export default async function handler(req, res) {
       testimonialsTotal,
       testimonialsConsented,
       testimonialsDaily,
+      exitsTotal,
+      exitsAbandonedTotal,
+      exitsAvgReadinessAtAbandon,
+      exitsDaily,
       recentUsers,
       recentProfiles,
       recentTestimonials,
       signedUpNoProfile,
+      recentExits,
     ] = await Promise.all([
       sql`SELECT count(*)::int AS count FROM users`,
       sql`SELECT count(*)::int AS count FROM users WHERE created_at >= now() - interval '7 days'`,
@@ -71,6 +76,10 @@ export default async function handler(req, res) {
       sql`SELECT count(*)::int AS count FROM testimonials`,
       sql`SELECT count(*)::int AS count FROM testimonials WHERE consent_to_use_as_testimonial = true`,
       sql`SELECT date_trunc('day', created_at) AS day, count(*)::int AS count FROM testimonials WHERE created_at >= now() - interval '30 days' GROUP BY 1 ORDER BY 1`,
+      sql`SELECT count(*)::int AS count FROM discovery_exit_events`,
+      sql`SELECT count(*)::int AS count FROM discovery_exit_events WHERE profile_generated = false`,
+      sql`SELECT coalesce(round(avg(profile_readiness_percentage)), 0)::int AS avg FROM discovery_exit_events WHERE profile_generated = false`,
+      sql`SELECT date_trunc('day', created_at) AS day, count(*)::int AS count FROM discovery_exit_events WHERE created_at >= now() - interval '30 days' GROUP BY 1 ORDER BY 1`,
       sql`SELECT id, name, email, created_at, last_login_at FROM users ORDER BY created_at DESC LIMIT 20`,
       sql`SELECT id, participant_name, participant_email, model, created_at, user_id FROM discovery_profiles ORDER BY created_at DESC LIMIT 20`,
       sql`SELECT id, participant_name, participant_email, input_mode, consent_to_use_as_testimonial, status, created_at, user_id, left(feedback_text, 160) AS feedback_preview FROM testimonials ORDER BY created_at DESC LIMIT 20`,
@@ -80,6 +89,8 @@ export default async function handler(req, res) {
           WHERE dp.id IS NULL
           ORDER BY u.created_at DESC
           LIMIT 50`,
+      sql`SELECT id, participant_name, participant_email, schema_coverage_percentage, profile_readiness_percentage, turn_count, profile_generated, exit_reason, created_at, user_id
+          FROM discovery_exit_events ORDER BY created_at DESC LIMIT 20`,
     ]);
 
     sendJson(res, 200, {
@@ -98,11 +109,18 @@ export default async function handler(req, res) {
         consented: testimonialsConsented[0].count,
         daily: normalizeDaily(testimonialsDaily),
       },
+      exits: {
+        total: exitsTotal[0].count,
+        abandonedTotal: exitsAbandonedTotal[0].count,
+        avgReadinessAtAbandon: exitsAvgReadinessAtAbandon[0].avg,
+        daily: normalizeDaily(exitsDaily),
+      },
       recent: {
         users: recentUsers,
         profiles: recentProfiles,
         testimonials: recentTestimonials,
         signedUpNoProfile,
+        exits: recentExits,
       },
     });
   } catch (err) {

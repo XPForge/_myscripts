@@ -11,6 +11,7 @@ const CHART_COLORS = {
   signups: "#3987e5",
   profiles: "#d95926",
   testimonials: "#199e70",
+  exits: "#c0392b",
 };
 
 // Builds a dense last-`days`-calendar-days series (ending today, UTC) from
@@ -114,6 +115,10 @@ function ConsentPill({ consented }: { consented: boolean }) {
   return <span className={`admin-pill ${consented ? "admin-pill--yes" : "admin-pill--no"}`}>{consented ? "Consented" : "No consent"}</span>;
 }
 
+function ExitOutcomePill({ profileGenerated }: { profileGenerated: boolean }) {
+  return <span className={`admin-pill ${profileGenerated ? "admin-pill--yes" : "admin-pill--no"}`}>{profileGenerated ? "Finished" : "Abandoned"}</span>;
+}
+
 export default function AdminDashboardPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -180,12 +185,14 @@ export default function AdminDashboardPage() {
         <StatTile label="Profiles Authored" value={stats.profiles.total} sub={`${stats.profiles.linked} linked to an account`} />
         <StatTile label="Feedback Submitted" value={stats.testimonials.total} sub={`${stats.testimonials.consented} consented to use`} />
         <StatTile label="Consent Rate" value={`${consentRate}%`} sub="of feedback submissions" />
+        <StatTile label="Discovery Abandoned" value={stats.exits.abandonedTotal} sub={`${stats.exits.avgReadinessAtAbandon}% avg. readiness when they left`} />
       </div>
 
       <div className="admin-charts">
         <ChartCard title="Signups" color={CHART_COLORS.signups} daily={stats.users.daily} />
         <ChartCard title="Profiles Authored" color={CHART_COLORS.profiles} daily={stats.profiles.daily} />
         <ChartCard title="Feedback Submitted" color={CHART_COLORS.testimonials} daily={stats.testimonials.daily} />
+        <ChartCard title="Discovery Exits" color={CHART_COLORS.exits} daily={stats.exits.daily} />
       </div>
 
       <div className="admin-section">
@@ -266,6 +273,33 @@ export default function AdminDashboardPage() {
                     <td><ConsentPill consented={t.consent_to_use_as_testimonial} /></td>
                     <td>{t.feedback_preview}</td>
                     <td>{formatDateTime(t.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="admin-section">
+        <h2 className="admin-section__title">Recent Discovery Exits</h2>
+        <p className="admin-section__hint">Where participants were in the conversation when they left — "Finished" means a profile had already been generated before they exited.</p>
+        <div className="admin-table-wrap">
+          {stats.recent.exits.length === 0 ? (
+            <div className="admin-table__empty">No exit events recorded yet.</div>
+          ) : (
+            <table className="admin-table">
+              <thead><tr><th>Participant</th><th>Email</th><th>Readiness</th><th>Turns</th><th>Outcome</th><th>Trigger</th><th>Left</th></tr></thead>
+              <tbody>
+                {stats.recent.exits.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.participant_name ?? "—"}</td>
+                    <td>{e.participant_email ?? "—"}</td>
+                    <td>{e.profile_readiness_percentage ?? "—"}%</td>
+                    <td className="admin-table__muted">{e.turn_count ?? "—"}</td>
+                    <td><ExitOutcomePill profileGenerated={e.profile_generated} /></td>
+                    <td className="admin-table__muted">{e.exit_reason}</td>
+                    <td>{formatDateTime(e.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

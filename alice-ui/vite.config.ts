@@ -24,6 +24,7 @@ function localApiPlugin(mode: string): Plugin {
           : pathname === '/api/profile-author' ? './api/profile-author.js'
           : pathname === '/api/profile-delivery' ? './api/profile-delivery.js'
           : pathname === '/api/submit-feedback' ? './api/submit-feedback.js'
+          : pathname === '/api/discovery-exit' ? './api/discovery-exit.js'
           : pathname === '/api/auth-signup' ? './api/auth-signup.js'
           : pathname === '/api/auth-login' ? './api/auth-login.js'
           : pathname === '/api/auth-session' ? './api/auth-session.js'
