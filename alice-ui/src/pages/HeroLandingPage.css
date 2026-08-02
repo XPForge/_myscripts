@@ -1,0 +1,145 @@
+.lp-shell {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #020617 0%, #050b1c 100%);
+  color: #ffffff;
+  font-family: "Google Sans", "Inter", system-ui, sans-serif;
+}
+
+.lp-nav {
+  display: flex;
+  align-items: center;
+  padding: 20px clamp(20px, 5vw, 64px) 0;
+}
+.lp-nav img { height: 32px; width: auto; }
+
+.lp-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: stretch;
+  min-height: calc(100vh - 64px);
+}
+
+.lp-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px clamp(20px, 5vw, 64px) 48px clamp(24px, 8vw, 96px);
+}
+.lp-copy-inner { display: grid; gap: 20px; max-width: 560px; }
+
+.lp-visual {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  height: min(88vh, 780px);
+  min-height: 320px;
+  background-image: url(/discovery-hero-bg.png);
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: top;
+}
+/* Fades the copy area's dark background rightward over the image's own left
+   edge, so the column boundary reads as one continuous scene instead of a
+   hard seam -- the letterboxed space contain leaves above/below the image
+   already shows the shared .lp-shell gradient through on its own. */
+.lp-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #03091c 0%, rgba(3, 9, 28, 0) 22%);
+  pointer-events: none;
+}
+
+.lp-eyebrow {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 221, 150, 0.86);
+}
+
+.lp-headline {
+  margin: 0;
+  font-family: "Tauri", sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.9rem, 3.6vw, 2.7rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #f6faff;
+}
+
+.lp-body { display: grid; gap: 12px; }
+.lp-body p {
+  margin: 0;
+  font-size: clamp(0.94rem, 1.4vw, 1.02rem);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.lp-free-statement {
+  display: grid;
+  gap: 2px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 221, 150, 0.35);
+  background: rgba(255, 221, 150, 0.08);
+}
+.lp-free-statement strong { font-size: 1.05rem; color: #ffe8b8; }
+.lp-free-statement span { font-size: 0.86rem; color: rgba(255, 232, 184, 0.78); }
+
+.lp-future-statement {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.72);
+}
+.lp-coming-soon {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.lp-trust-statement {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.lp-form-panel {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lp-control-statement {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.lp-learn-more { display: grid; gap: 10px; }
+.lp-learn-more > span { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); }
+
+.lp-footer {
+  padding: 18px clamp(20px, 5vw, 64px) 26px;
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+@media (max-width: 900px) {
+  .lp-grid { grid-template-columns: 1fr; min-height: 0; }
+  .lp-copy { padding: 28px 20px 36px; }
+  .lp-visual { position: static; height: auto; min-height: 260px; background-position: bottom; }
+}
