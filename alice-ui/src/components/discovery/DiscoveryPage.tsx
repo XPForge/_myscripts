@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Brain, Check, ChevronDown, CircleUserRound, Download, FileText, Heart, Lightbulb, Menu, Mic, Moon, Paperclip, Pause, Play, RefreshCcw, Send, ShieldCheck, Sparkles, Speaker, Square, Sun, Trash2, Volume2, X, Zap } from "lucide-react";
+import { Bell, Check, ChevronDown, Copy, Download, FileText, Lightbulb, Menu, Mic, Moon, Paperclip, Pause, Play, RefreshCcw, Send, ShieldCheck, Sparkles, Speaker, Square, Sun, Trash2, Volume2, X, Zap } from "lucide-react";
 import AliceAvatar, { AliceStatusLegend, AliceStatusWaveform, type AliceStatus } from "./AliceAvatar";
 import { lighthouseDiscoveryConfig as config } from "../../config/lighthouseDiscoveryConfig";
+import { LIGHTHOUSE_INFORMATION_SITE_URL as LIGHTHOUSE_INFO_SITE_URL } from "../../config/lighthouseSiteConfig";
 import { alicePromptProfiles, getAlicePromptProfile, isAlicePromptProfileId, type AlicePromptProfileId } from "../../config/alicePromptProfiles";
 import { captureOzDiscovery, clearOzDiscoveryCaptures, loadOzDiscoveryCaptures } from "../../oz/ozDiscoveryCapture";
 import type { OzDiscoveryCapture } from "../../oz/ozDiscoveryCaptureTypes";
@@ -18,8 +19,6 @@ import "./discovery.css";
 // Debug tooling below is gated to this single account and must never be
 // exposed to participants.
 const DEBUG_TOOLS_ACCOUNT_EMAIL = "humancapabilityprofile@gmail.com";
-// Root informational/marketing site — linked from the logo, the side rail, and info panels.
-const LIGHTHOUSE_INFO_SITE_URL = "https://lighthouse-discovery-oracle.lighthouse-paul.chatgpt.site";
 const SAMPLE_TEST_TRANSCRIPT =
   "What motivates me most is solving something nobody else has cracked yet — I'm deeply motivated when I can see the impact of what I built. I get frustrated by unclear priorities, and it frustrates me when decisions keep changing. I learn best by building something small and breaking it, that's my learning style. When I hit a hard bug I try to figure out the smallest reproduction, then troubleshoot from there. I try to explain things simply to others, and I make sure I listen before I respond. I've had to lead a small team before, and I mentor a couple of junior engineers now. I do my best work as a team, and I love how collaborative a good sprint can feel. I thrive when the goals are clear and I'm energized by fast feedback loops. I struggle when I'm micromanaged, and I get drained by constant context switching. I adapt fairly fast when things change, even when a project pivots halfway through. Under pressure, especially near a deadline, I get very focused. There's an opportunity I'd like to explore in more technical leadership. One thing that's often overlooked about me is how much of the groundwork I do that nobody sees — it's a bit of a hidden strength. For example, last quarter I quietly rebuilt our deploy pipeline; for instance, that cut release time in half. I realized I care more about enabling others than I first said, and I noticed that pattern repeating.";
 const CHECKPOINT_ANNOUNCEMENT_TEXT =
@@ -69,6 +68,7 @@ type Tab = "speak" | "type" | "attach";
 const STORAGE_KEY = "lighthouse.discovery.run1";
 const PROMPT_PROFILE_STORAGE_KEY = "lighthouse.discovery.alicePromptProfile";
 const now = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const filenameSlug = (name?: string) => (name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "participant";
 const seed: Turn[] = [{ id: "welcome", role: "alice", text: "To help me understand you deeply, what have been the moments in your life that changed the way you see yourself or the world?", timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: true, quietMode: false, aliceStatusAtTime: "listening", source: "chat" }];
 
 function useAliceSession(systemPrompt: string) {
@@ -145,13 +145,13 @@ function useAliceSession(systemPrompt: string) {
 
 const PlaceholderButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button className="outline-button" onClick={onClick}>{children}</button>;
 const LearnMoreLink = () => <a className="outline-button learn-more-link" href={LIGHTHOUSE_INFO_SITE_URL} target="_blank" rel="noopener noreferrer">Learn more about Lighthouse ↗</a>;
-const CollapsibleCard = ({ title, collapsed, onToggle, children, dataTour, className = "" }: { title: string; collapsed: boolean; onToggle: () => void; children: React.ReactNode; dataTour?: string; className?: string }) => (
-  <section className={`rail-card ${className}`} data-tour={dataTour}>
+const CollapsibleCard = ({ title, collapsed, onToggle, children, dataTour, className = "", grow = false }: { title: string; collapsed: boolean; onToggle: () => void; children: React.ReactNode; dataTour?: string; className?: string; grow?: boolean }) => (
+  <section className={`rail-card ${className} ${grow && !collapsed ? "rail-card--grow" : ""}`} data-tour={dataTour}>
     <h2 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={onToggle}>
       {title}
       <span aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`} style={{ fontSize: "1rem" }}>{collapsed ? "+" : "−"}</span>
     </h2>
-    {!collapsed && children}
+    {!collapsed && (grow ? <div className="rail-card__scroll">{children}</div> : children)}
   </section>
 );
 const CollapsibleSection = ({ title, collapsed, onToggle, children }: { title: string; collapsed: boolean; onToggle: () => void; children: React.ReactNode }) => (
@@ -192,7 +192,21 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const recorder = useRef<MediaRecorder | null>(null); const chunks = useRef<Blob[]>([]); const chatTop = useRef<HTMLDivElement | null>(null);
   const discoveryIdentity = useMemo(() => loadDiscoveryIdentity(), []);
   const isDebugAccount = discoveryIdentity?.email === DEBUG_TOOLS_ACCOUNT_EMAIL;
-  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({});
+  // A session opens with every panel closed except DISCOVERY PROGRESS and
+  // DISCOVERY INSIGHTS -- the two participants actually need to see right
+  // away. Everything else (including the sections nested inside HELP) starts
+  // collapsed so it doesn't compete for attention until opened on purpose.
+  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
+    "session-info": true,
+    "quick-actions": true,
+    "help": true,
+    "talking-with-alice": true,
+    "whats-next": true,
+    "status-legend": true,
+    "about-lighthouse": true,
+    "privacy-trust": true,
+    "developer-tools": true,
+  });
   const togglePanel = (id: string) => setCollapsedPanels((p) => ({ ...p, [id]: !p[id] }));
   const [checkpointAnnounced, setCheckpointAnnounced] = useState(false);
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>("decide");
@@ -282,18 +296,97 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     session.setTurns(current => [...current, checkpointTurn]);
     if (session.voiceOn && !session.quietMode) void session.playVoice(CHECKPOINT_ANNOUNCEMENT_TEXT);
     setCheckpointAnnounced(true);
+    setModal(current => current ?? "review");
+    setReviewPhase("decide");
+    setAuthoringError("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkpointAnnounced, schemaCoverage.profileReadinessPercentage]);
+  // Kept up to date every render (no deps array) so the exit-beacon effect
+  // below -- which registers its listeners once -- always reads the latest
+  // values through the ref instead of a stale closure.
+  const exitSnapshotRef = useRef({
+    schemaCoveragePercentage: 0,
+    profileReadinessPercentage: 0,
+    turnCount: 0,
+    profileGenerated: false,
+    participantName: "",
+    participantEmail: "",
+  });
+  exitSnapshotRef.current = {
+    schemaCoveragePercentage: schemaCoverage.coveragePercentage,
+    profileReadinessPercentage: schemaCoverage.profileReadinessPercentage,
+    turnCount: session.turns.length,
+    profileGenerated: authoredProfile !== null,
+    participantName: discoveryIdentity?.name ?? "",
+    participantEmail: discoveryIdentity?.email ?? "",
+  };
+  const exitSentRef = useRef(false);
+  useEffect(() => {
+    let hiddenTimer: number | null = null;
+    const sendExitBeacon = (exitReason: "pagehide" | "visibilitychange") => {
+      if (exitSentRef.current) return;
+      exitSentRef.current = true;
+      const blob = new Blob([JSON.stringify({ ...exitSnapshotRef.current, exitReason })], { type: "application/json" });
+      navigator.sendBeacon("/api/discovery-exit", blob);
+    };
+    // visibilitychange fires on every tab switch, so a bare hidden->send would
+    // log an "exit" for a two-second alt-tab. Waiting 5s and clearing on
+    // return distinguishes an actual departure from a quick glance elsewhere.
+    // pagehide (tab close, navigation, mobile backgrounding) sends immediately.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenTimer = window.setTimeout(() => sendExitBeacon("visibilitychange"), 5000);
+      } else if (hiddenTimer !== null) {
+        window.clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+    };
+    const onPageHide = () => {
+      if (hiddenTimer !== null) window.clearTimeout(hiddenTimer);
+      sendExitBeacon("pagehide");
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+      if (hiddenTimer !== null) window.clearTimeout(hiddenTimer);
+    };
+  }, []);
   const visibleTurns = useMemo(() => [...session.turns].reverse(), [session.turns]);
   useEffect(() => { chatTop.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [session.turns.length]);
   useEffect(() => { if (!recording || paused) return; const id = window.setInterval(() => setSeconds(s => s + 1), 1000); return () => clearInterval(id); }, [recording, paused]);
   const openPlaceholder = (name: string) => { setPlaceholder(name); setModal("placeholder"); };
-  const startRecording = async () => { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const r = new MediaRecorder(stream); chunks.current = []; r.ondataavailable = e => chunks.current.push(e.data); r.start(); recorder.current = r; setRecording(true); setPaused(false); setSeconds(0); session.setStatus("listening"); } catch { openPlaceholder("Microphone access is unavailable. Check your browser permission, or use Type Instead."); } };
+  // "Review My Insights" lives in the left rail's QUICK ACTIONS, but the
+  // panel it's about is DISCOVERY INSIGHTS on the right -- expand it there
+  // (and, on mobile where the right rail is its own slide-in drawer, open
+  // that drawer) instead of just describing what it would do.
+  const openInsightsPanel = () => {
+    setCollapsedPanels((current) => ({ ...current, "discovery-insights": false }));
+    setMobileRail("right");
+  };
+  const startRecording = async () => { if (session.status !== "listening") return; try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const r = new MediaRecorder(stream); chunks.current = []; r.ondataavailable = e => chunks.current.push(e.data); r.start(); recorder.current = r; setRecording(true); setPaused(false); setSeconds(0); session.setStatus("listening"); } catch { openPlaceholder("Microphone access is unavailable. Check your browser permission, or use Type Instead."); } };
   const finishRecording = () => { const r = recorder.current; if (!r) return; r.onstop = async () => { r.stream.getTracks().forEach(t => t.stop()); setRecording(false); setPaused(false); session.setStatus("loading"); const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" }); try { const form = new FormData(); form.append("file", blob, "answer.webm"); form.append("model", config.transcriptionModel); form.append("language", "en"); const response = await fetch("/api/transcribe", { method: "POST", body: form }); if (!response.ok) throw new Error(); const text = (await response.json()).text || ""; setReview(text); setOriginalReview(text); } catch { setReview("Your recording is ready. Transcription needs a configured server connection; you can type or edit your answer here."); setOriginalReview(""); } finally { session.setStatus("listening"); } }; r.stop(); };
   const cancelRecording = () => { recorder.current?.stop(); recorder.current?.stream.getTracks().forEach(t => t.stop()); setRecording(false); setPaused(false); setSeconds(0); session.setStatus("listening"); };
-  const sendText = async () => { const value = typed.trim(); if (!value) return; setTyped(""); await session.send(value, "typed"); };
-  const sendReview = async () => { const value = review.trim(); if (!value) return; const edited = value !== originalReview; setReview(""); await session.send(value, "voice", edited); };
-  const exportTranscript = () => { const content = session.turns.map(t => `[${t.timestamp}] ${t.role === "participant" ? "You" : "Alice"}: ${t.text}`).join("\n\n"); const url = URL.createObjectURL(new Blob([content], { type: "text/plain" })); const a = document.createElement("a"); a.href = url; a.download = "lighthouse-discovery-transcript.txt"; a.click(); URL.revokeObjectURL(url); };
+  // Guarded here, not just via the button's `disabled`, because the textarea's
+  // Enter-to-send handler calls this directly and would otherwise bypass it --
+  // sending while a previous reply is still in flight (status isn't back to
+  // "listening" yet) is what caused Alice to answer several near-duplicate
+  // messages in a row, each built from a turns snapshot missing the others.
+  const sendText = async () => { const value = typed.trim(); if (!value || session.status !== "listening") return; setTyped(""); await session.send(value, "typed"); };
+  const sendReview = async () => { const value = review.trim(); if (!value || session.status !== "listening") return; const edited = value !== originalReview; setReview(""); await session.send(value, "voice", edited); };
+  const buildTranscriptText = () => session.turns.map(t => `[${t.timestamp}] ${t.role === "participant" ? "You" : "Alice"}: ${t.text}`).join("\n\n");
+  const exportTranscript = () => { const url = URL.createObjectURL(new Blob([buildTranscriptText()], { type: "text/plain" })); const a = document.createElement("a"); a.href = url; a.download = `lighthouse-discovery-transcript-${filenameSlug(discoveryIdentity?.name)}.txt`; a.click(); URL.revokeObjectURL(url); };
+  const [transcriptCopied, setTranscriptCopied] = useState(false);
+  const copyTranscript = async () => {
+    try {
+      await navigator.clipboard.writeText(buildTranscriptText());
+      setTranscriptCopied(true);
+      window.setTimeout(() => setTranscriptCopied(false), 2000);
+    } catch {
+      openPlaceholder("Copying to the clipboard isn't available in this browser.");
+    }
+  };
   const clearData = () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); setModal(null); };
   // Resetting Discovery starts a fresh conversation for the same signed-in
   // account -- it must not clear the real identity/session, only the
@@ -301,6 +394,13 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const resetProfile = () => { session.stopAudio(); if (recording) cancelRecording(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); session.markAsNewSession(); setTyped(""); setReview(""); setOriginalReview(""); setSeconds(0); setRecording(false); setPaused(false); session.setStatus("listening"); setModal(null); setCheckpointAnnounced(false); setReviewPhase("decide"); setAuthoredProfile(null); setAuthoringError(""); setDeliveryRequested(false); setAllowDevelopmentCopy(false); onRestart(); };
   const handleSignOut = async () => { await signOut().catch(() => undefined); clearDiscoveryIdentity(); clearLastVisitedPage(); window.location.href = "/"; };
   const openReviewModal = () => { setReviewPhase("decide"); setAuthoringError(""); setModal("review"); };
+  const handleInstantComplete = () => {
+    session.stopAudio();
+    setCheckpointAnnounced(true);
+    setAuthoringError("");
+    setModal("review");
+    void generateProfileFromReview();
+  };
   const generateProfileFromReview = async () => {
     setReviewPhase("authoring"); setAuthoringError("");
     try {
@@ -321,7 +421,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     const text = authoredProfile?.fields.generatedProfile;
     if (!text) return;
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-    const a = document.createElement("a"); a.href = url; a.download = "lighthouse-discovery-profile.txt"; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = `lighthouse-discovery-profile-${filenameSlug(reviewName || discoveryIdentity?.name)}.txt`; a.click(); URL.revokeObjectURL(url);
   };
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [pdfError, setPdfError] = useState("");
@@ -416,6 +516,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const showPromptProfileSelector = isDebugAccount;
   const elapsed = useMemo(() => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, [seconds]);
   return <div className={`discovery-page discovery-page--${theme}`}>
+    {(session.status === "thinking" || session.status === "loading") && <div className="alice-busy-overlay" role="status" aria-label="Alice is thinking"><span className="alice-busy-spinner" /></div>}
     <img src="/domain-wheel-graphic.png" alt="" aria-hidden="true" className="domain-wheel-decor" />
     <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileRail((current) => current === "left" ? null : "left")} aria-label={mobileRail === "left" ? "Close progress menu" : "Open progress menu"}><Menu /></button><a className="brand" href={LIGHTHOUSE_INFO_SITE_URL} target="_blank" rel="noopener noreferrer" title="Visit the Lighthouse informational site"><img className="brand-logo-img" src="/project-lighthouse-logo.png" alt="Project Lighthouse"/></a><div className="page-title"><strong>LIGHTHOUSE DISCOVERY ENGINE</strong><small>You guide the conversation. <b>Alice</b> helps you be fully seen.</small></div><div className="top-actions" data-tour="top-actions"><span className="session-pill" data-tour="brand-status"><small>Session Status</small><b>● &nbsp; In Progress</b></span><button className="top-action-button" onClick={startGuidedTour}>Take the Tour</button><button className="top-action-button icon-button theme-toggle" onClick={toggleTheme} aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun/> : <Moon/>}</button><button className="top-action-button icon-button" aria-label="Notifications"><Bell /></button><span style={{ position: "relative" }}><button className="top-action-button profile-button" onClick={() => setProfileMenuOpen(v => !v)} aria-label={discoveryIdentity?.name ? `Open profile menu for ${discoveryIdentity.name}` : "Open profile menu"} aria-expanded={profileMenuOpen} title={discoveryIdentity?.name}><span>{discoveryIdentity?.name?.trim()?.[0]?.toUpperCase() ?? "?"}</span><ChevronDown/></button>{profileMenuOpen && <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "#fff", border: "1px solid #dce3ef", borderRadius: "8px", boxShadow: "0 8px 24px rgba(24,39,75,.12)", minWidth: "160px", padding: "6px", zIndex: 30 }}>{discoveryIdentity?.name && <div style={{ padding: "6px 8px", fontSize: "0.78rem", opacity: 0.7, borderBottom: "1px solid #eef1f6", marginBottom: "4px" }}>{discoveryIdentity.name}<br/><span style={{ fontSize: "0.72rem" }}>{discoveryIdentity.email}</span></div>}<button onClick={() => { setProfileMenuOpen(false); void handleSignOut(); }} style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer", fontSize: "0.82rem" }}>Sign out</button></div>}</span></div><button className="icon-button mobile-menu" onClick={() => setMobileRail((current) => current === "right" ? null : "right")} aria-label={mobileRail === "right" ? "Close insights menu" : "Open insights menu"}><Sparkles /></button></header>
     <main className="three-column">
@@ -425,30 +526,36 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
           <div style={{ display: "grid", justifyItems: "center", gap: "8px" }}>
             {discoveryIdentity?.name && <b style={{ fontSize: "1.3rem", lineHeight: 1.2, textAlign: "center" }}>{discoveryIdentity.name}</b>}
             <SingleProgressRing percentage={schemaCoverage.profileReadinessPercentage} label="profile progress" />
+            <button className="primary" disabled={schemaCoverage.profileReadinessPercentage < 50} style={schemaCoverage.profileReadinessPercentage < 50 ? { opacity: 0.4, cursor: "not-allowed" } : undefined} onClick={openReviewModal}><Sparkles/> Generate Profile</button>
+            <button className="primary" disabled={schemaCoverage.profileReadinessPercentage < 100} style={schemaCoverage.profileReadinessPercentage < 100 ? { opacity: 0.4, cursor: "not-allowed" } : undefined} onClick={handleInstantComplete} title="Stop Alice and jump straight to your generated profile"><Zap/> Instant Complete</button>
           </div>
         </CollapsibleCard>
         <CollapsibleCard title="SESSION INFO" collapsed={!!collapsedPanels["session-info"]} onToggle={() => togglePanel("session-info")} dataTour="session-info">
           <dl className="session-info">{discoveryIdentity?.name && <div><dt>◒ &nbsp; Participant</dt><dd>{discoveryIdentity.name}</dd></div>}<div><dt>◷ &nbsp; Started</dt><dd>Today, {seed[0].timestamp}</dd></div><div><dt>◷ &nbsp; This Session</dt><dd>{formatDurationMs(sessionElapsedMs)}</dd></div><div><dt>◷ &nbsp; Overall Time with Alice</dt><dd>{formatDurationMs(totalTimeMs)}</dd></div><div><dt>▣ &nbsp; Conversations</dt><dd>{session.turns.length}</dd></div><div><dt>▤ &nbsp; Last Saved</dt><dd>just now</dd></div></dl><PlaceholderButton onClick={() => setModal("transcript")}>View Full Transcript</PlaceholderButton>
         </CollapsibleCard>
         <CollapsibleCard title="QUICK ACTIONS" collapsed={!!collapsedPanels["quick-actions"]} onToggle={() => togglePanel("quick-actions")} dataTour="quick-actions">
-          <div className="quick-actions"><button onClick={openReviewModal}><Sparkles/>Review & Generate Profile</button><button onClick={()=>openPlaceholder("Insights review is coming soon.")}><FileText/>Review My Insights</button><button onClick={()=>openPlaceholder("Preferences are coming soon.")}><Check/>Update My Preferences</button><button onClick={exportTranscript}><Download/>Export My Transcript</button><button onClick={()=>setModal("reset-profile")}><RefreshCcw/>Reset Discovery Profile</button><button onClick={()=>setModal("delete")}><Trash2/>Delete My Data</button></div>
+          <div className="quick-actions"><button onClick={openReviewModal}><Sparkles/>Review & Generate Profile</button><button onClick={openInsightsPanel}><FileText/>Review My Insights</button><button onClick={()=>openPlaceholder("Preferences are coming soon.")}><Check/>Update My Preferences</button><button onClick={exportTranscript}><Download/>Export My Transcript</button><button onClick={()=>setModal("reset-profile")}><RefreshCcw/>Reset Discovery Profile</button><button onClick={()=>setModal("delete")}><Trash2/>Delete My Data</button></div>
         </CollapsibleCard>
-        <CollapsibleCard title="TALKING WITH ALICE" collapsed={!!collapsedPanels["talking-with-alice"]} onToggle={() => togglePanel("talking-with-alice")}><Info icon={<Mic/>} title="Press to speak" text="Tap the mic, say your answer, tap again when done."/><Info icon={<FileText/>} title="Review before sending" text="Your words appear as text — fix anything that's off."/><Info icon={<Send/>} title="Send when ready" text="Nothing goes to Alice until you press send."/><LearnMoreLink/></CollapsibleCard>
-        <CollapsibleCard title="ABOUT LIGHTHOUSE" collapsed={!!collapsedPanels["about-lighthouse"]} onToggle={() => togglePanel("about-lighthouse")}><Info icon={<Lightbulb/>} title="What is Lighthouse?" text="See the discovery engine, the philosophy behind it, and what's coming next."/><LearnMoreLink/></CollapsibleCard>
+        <CollapsibleCard title="HELP" grow collapsed={!!collapsedPanels["help"]} onToggle={() => togglePanel("help")} dataTour="help-panel">
+          <CollapsibleSection title="TALKING WITH ALICE" collapsed={!!collapsedPanels["talking-with-alice"]} onToggle={() => togglePanel("talking-with-alice")}><Info icon={<Mic/>} title="Press to speak" text="Tap the mic, say your answer, tap again when done."/><Info icon={<FileText/>} title="Review before sending" text="Your words appear as text — fix anything that's off."/><Info icon={<Send/>} title="Send when ready" text="Nothing goes to Alice until you press send."/><LearnMoreLink/></CollapsibleSection>
+          <CollapsibleSection title="WHAT HAPPENS NEXT?" collapsed={!!collapsedPanels["whats-next"]} onToggle={() => togglePanel("whats-next")}><p>When you feel ready, you can turn your insights into a complete profile and choose opportunities that fit you.</p><button onClick={()=>openPlaceholder("Snapshot Profile generation is separate from live Discovery and is coming soon.")}>Generate Snapshot Profile →</button></CollapsibleSection>
+          <CollapsibleSection title="ALICE STATUS LEGEND" collapsed={!!collapsedPanels["status-legend"]} onToggle={() => togglePanel("status-legend")}><AliceStatusLegend/></CollapsibleSection>
+          <CollapsibleSection title="ABOUT LIGHTHOUSE" collapsed={!!collapsedPanels["about-lighthouse"]} onToggle={() => togglePanel("about-lighthouse")}><Info icon={<Lightbulb/>} title="What is Lighthouse?" text="See the discovery engine, the philosophy behind it, and what's coming next."/><LearnMoreLink/></CollapsibleSection>
+        </CollapsibleCard>
       </aside>
       <section className="center-panel"><div className="discovery-console"><div className="alice-identity"><AliceAvatar status={session.status} size="lg"/><h1>A.L.I.CE. <Sparkles/></h1><b>Your Discovery Guide</b><button className={`voice-mode-button ${session.voiceOn?"active":""}`} onClick={toggleVoice} aria-pressed={session.voiceOn}><Volume2/> Voice {session.voiceOn?"On":"Off"}</button><span className={`alice-debug alice-debug--${session.status}`}>Alice status: {session.status}{showPromptProfileSelector ? ` · ${activePromptProfile.name}` : ""}</span>{showPromptProfileSelector && <label className="prompt-mode-control">Alice Prompt Mode<select value={promptProfileId} onChange={event=>selectPromptProfile(event.target.value as AlicePromptProfileId)}>{alicePromptProfiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label>}</div>
         <div className="composer" data-tour="composer"><div className="tabs"><button className={tab==="speak"?"active":""} onClick={()=>setTab("speak")}><Mic/> Speak Your Answer</button><button className={tab==="type"?"active":""} onClick={()=>setTab("type")}><FileText/> Type Instead</button><button className="disabled" disabled title="Attach isn't available yet — coming in a future update."><Paperclip/> Attach (Coming Soon)</button></div>
-          {tab === "speak" && <div className="speak-pane"><b>Push to Talk</b><small>Tap to record. Review before Alice responds.</small><div className="record-line" data-tour="mic-button"><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/><button className={`record-button ${recording?"recording":""}`} onClick={recording?finishRecording:startRecording} aria-label={recording?"Done speaking":"Start recording"}>{recording?<Square/>:<Mic/>}</button><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/></div><strong>{elapsed}</strong><span>{recording ? paused ? "Recording paused" : "Listening..." : "Ready to record"}</span><div className="record-actions"><button disabled={!recording} onClick={()=>{ if(!recorder.current)return; if (paused) recorder.current.resume(); else recorder.current.pause(); setPaused(!paused); }}>{paused?<Play/>:<Pause/>} {paused?"Resume":"Pause"}</button><button disabled={!recording} onClick={finishRecording}><Check/> Done Speaking</button><button disabled={!recording} onClick={cancelRecording}><X/> Cancel</button></div></div>}
-          {tab === "type" && <div className="type-pane"><textarea value={typed} onChange={e=>setTyped(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); void sendText();}}} placeholder="Share what’s on your mind…"/><button className={sendReminder && typed.trim() ? "send-pulse" : undefined} onClick={sendText} disabled={!typed.trim()}><Send/> Send to Alice</button></div>}
+          {tab === "speak" && <div className="speak-pane"><b>Push to Talk</b><small>Tap to record. Review before Alice responds.</small><div className="record-line" data-tour="mic-button"><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/><button className={`record-button ${recording?"recording":""}`} onClick={recording?finishRecording:startRecording} disabled={!recording && session.status !== "listening"} aria-label={recording?"Done speaking":"Start recording"}>{recording?<Square/>:<Mic/>}</button><AliceStatusWaveform status={recording&&!paused?"listening":"loading"}/></div><strong>{elapsed}</strong><span>{recording ? paused ? "Recording paused" : "Listening..." : "Ready to record"}</span><div className="record-actions"><button disabled={!recording} onClick={()=>{ if(!recorder.current)return; if (paused) recorder.current.resume(); else recorder.current.pause(); setPaused(!paused); }}>{paused?<Play/>:<Pause/>} {paused?"Resume":"Pause"}</button><button disabled={!recording} onClick={finishRecording}><Check/> Done Speaking</button><button disabled={!recording} onClick={cancelRecording}><X/> Cancel</button></div></div>}
+          {tab === "type" && <div className="type-pane"><textarea value={typed} onChange={e=>setTyped(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); void sendText();}}} placeholder="Share what’s on your mind…"/><button className={sendReminder && typed.trim() ? "send-pulse" : undefined} onClick={sendText} disabled={!typed.trim() || session.status !== "listening"}><Send/> Send to Alice</button></div>}
           {tab === "attach" && <div className="attach-pane"><Paperclip/><b>Attach context later</b><span>Coming soon — attachments are not processed in Run 1.</span></div>}
         </div></div>
-        <div className="transcript-review" data-tour="transcript-review"><div><b>Your Transcript <span>(Review before sending)</span></b><label><FileText/> Edit</label></div><textarea value={review} onChange={e=>setReview(e.target.value)} placeholder="Your recorded transcript will appear here for review."/><button className={sendReminder && review.trim() ? "send-pulse" : undefined} onClick={sendReview} disabled={!review.trim()}><Send/> Send to Alice</button></div>
+        <div className="transcript-review" data-tour="transcript-review"><div><b>Your Transcript <span>(Review before sending)</span></b><label><FileText/> Edit</label></div><textarea value={review} onChange={e=>setReview(e.target.value)} placeholder="Your recorded transcript will appear here for review."/><button className={sendReminder && review.trim() ? "send-pulse" : undefined} onClick={sendReview} disabled={!review.trim() || session.status !== "listening"}><Send/> Send to Alice</button></div>
         <div className="voice-error-slot">{session.voiceError && <div className="voice-error" role="status"><Speaker/> {session.voiceError}<button onClick={()=>session.setVoiceError("")}><X/></button></div>}</div>
         <div className="conversation-divider"><span>Conversation</span><i /></div>
         <div className="chat" data-tour="conversation-log"><div ref={chatTop}/>{visibleTurns.map(turn => <div className={`message-row message-row--${turn.role}`} key={turn.id}>{turn.role === "alice" && <AliceAvatar status={turn.aliceStatusAtTime} size="sm"/>}<div className="bubble"><time>{turn.timestamp}</time><p>{turn.text}</p>{turn.role === "alice" && turn.aliceVoiceEnabled && <Volume2 className="bubble-speaker"/>}</div>{turn.role === "participant" && <span className="user-dot" title={discoveryIdentity?.name}>{discoveryIdentity?.name?.trim()?.[0]?.toUpperCase() ?? "?"}</span>}</div>)}</div>
       </section>
       <aside className={`right-rail ${mobileRail === "right" ? "rail-open" : ""}`}><button className="drawer-close" onClick={() => setMobileRail(null)}><X /></button>
-        <CollapsibleCard title="DISCOVERY INSIGHTS" collapsed={!!collapsedPanels["discovery-insights"]} onToggle={() => togglePanel("discovery-insights")}>
+        <CollapsibleCard title="DISCOVERY INSIGHTS" grow collapsed={!!collapsedPanels["discovery-insights"]} onToggle={() => togglePanel("discovery-insights")}>
           <h3>Emerging Themes</h3>
           {emergingThemes.length === 0 && <p style={{ fontSize: "0.78rem", opacity: 0.7 }}>Nothing has surfaced yet — insights will appear here as the conversation continues.</p>}
           {emergingThemes.map((theme, i) => {
@@ -457,7 +564,10 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
           })}
           <PlaceholderButton onClick={() => setModal("insights")} >Explore Insights</PlaceholderButton>
         </CollapsibleCard>
-        <CollapsibleCard title="WHAT ALICE IS LEARNING" collapsed={!!collapsedPanels["alice-learning"]} onToggle={() => togglePanel("alice-learning")}><Info icon={<Heart/>} title="What matters to you" text="Your values and priorities"/><Info icon={<Brain/>} title="How you think" text="Your perspective and patterns"/><Info icon={<Zap/>} title="What drives you" text="Your motivations and energy"/><Info icon={<CircleUserRound/>} title="How you contribute" text="Your unique strengths"/><PlaceholderButton onClick={()=>openPlaceholder("The Learning Map is coming soon.")}>View Learning Map</PlaceholderButton><LearnMoreLink/></CollapsibleCard>
+        {/* WHAT ALICE IS LEARNING — parked here for later, not removed. Pulled out of
+            the right rail so DISCOVERY INSIGHTS could take the long/scrollable slot;
+            bring this back as its own CollapsibleCard (icons: Heart/Brain/Zap/CircleUserRound,
+            "View Learning Map" placeholder) when there's a home for it again. */}
         <CollapsibleCard title="PRIVACY & TRUST" collapsed={!!collapsedPanels["privacy-trust"]} onToggle={() => togglePanel("privacy-trust")}><Info icon={<ShieldCheck/>} title="Your data is yours" text="We do not sell your information or use it to exploit you."/><Info icon={<ShieldCheck/>} title="Private by default" text="You choose what is saved, shared, exported, or shown to others."/><Info icon={<ShieldCheck/>} title="Protected by design" text="Your profile, story, and discovery materials are handled with care."/><Info icon={<ShieldCheck/>} title="No hidden judgment" text="Lighthouse is built to understand you, not secretly score or rank you."/><Info icon={<ShieldCheck/>} title="Participant authority" text="You remain the final authority over how you are represented."/><PlaceholderButton onClick={()=>setModal("privacy")}>Learn More</PlaceholderButton><LearnMoreLink/></CollapsibleCard>
         {isDebugAccount && <CollapsibleCard title="DEVELOPER TOOLS" className="developer-tools-card" collapsed={!!collapsedPanels["developer-tools"]} onToggle={() => togglePanel("developer-tools")}>
           <div style={{ display: "grid", gap: "8px" }}>
@@ -465,12 +575,13 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
             <PlaceholderButton onClick={debugFillSampleTranscript}>Fill Sample Transcript</PlaceholderButton>
             <PlaceholderButton onClick={() => setModal("reset-profile")}>Reset Discovery</PlaceholderButton>
             <PlaceholderButton onClick={openReviewModal}>Jump to Review Screen</PlaceholderButton>
+            <PlaceholderButton onClick={() => window.open("/admin", "_blank", "noopener")}>Open Admin Dashboard</PlaceholderButton>
           </div>
         </CollapsibleCard>}
       </aside>
     </main>
-    <footer className="bottom-bar"><div className="footer-graphic-slot" /><div><CollapsibleSection title="SESSION SHORTCUTS" collapsed={!!collapsedPanels["session-shortcuts"]} onToggle={() => togglePanel("session-shortcuts")}><span className="shortcut-grid"><button onClick={()=>{session.save();openPlaceholder("Progress saved on this device.")}}>Save Progress</button><button onClick={()=>openPlaceholder("Notes are coming soon.")}>Add Note</button><button onClick={()=>setTab("type")}>Ask Alice Anything</button><button onClick={()=>openPlaceholder("Topic navigation is coming soon.")}>Jump to Topic</button></span></CollapsibleSection></div><div className="next"><CollapsibleSection title="WHAT HAPPENS NEXT?" collapsed={!!collapsedPanels["whats-next"]} onToggle={() => togglePanel("whats-next")}><p>When you feel ready, you can turn your insights into a complete profile and choose opportunities that fit you.</p><button onClick={()=>openPlaceholder("Snapshot Profile generation is separate from live Discovery and is coming soon.")}>Generate Snapshot Profile →</button></CollapsibleSection></div><div><CollapsibleSection title="ALICE STATUS LEGEND" collapsed={!!collapsedPanels["status-legend"]} onToggle={() => togglePanel("status-legend")}><AliceStatusLegend/></CollapsibleSection></div></footer>
-    {modal && <div className="modal-backdrop" onMouseDown={()=>setModal(null)}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}><X/></button>{modal==="transcript"&&<><h2>Full Transcript</h2><div className="full-transcript">{session.turns.map(t=><p key={t.id}><b>{t.role==="participant"?"You":"Alice"}</b><time>{t.timestamp}</time>{t.text}</p>)}</div><button className="primary" onClick={exportTranscript}><Download/> Export Transcript</button></>}{modal==="placeholder"&&<><Lightbulb className="modal-icon"/><h2>{placeholder}</h2><p>This space is intentionally light in the Run 1 baseline.</p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="reset-profile"&&<><RefreshCcw className="modal-icon"/><h2>Reset Discovery profile?</h2><p>This starts Discovery over with a fresh conversation and clears the current Oz captures. Your theme, voice mode, and Alice Prompt Mode preferences will stay the same.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="primary" onClick={resetProfile}><RefreshCcw/> Reset Profile</button></div></>}{modal==="delete"&&<><Trash2 className="modal-icon danger"/><h2>Delete local Discovery data?</h2><p>This clears the transcript saved in this browser. This cannot be undone.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="danger-button" onClick={clearData}>Delete My Data</button></div></>}{modal==="privacy"&&<><ShieldCheck className="modal-icon"/><h2>Privacy &amp; Trust</h2><p>Lighthouse is built around a simple principle: you should not have to surrender control of your story in order to be seen.</p><p>Your discovery profile may contain personal history, work experience, strengths, struggles, patterns, goals, and context that ordinary résumés often leave out. That kind of information deserves careful handling.</p><p>Lighthouse is designed to protect:</p><ul style={{margin:"0 0 14px",paddingLeft:"20px",fontSize:"12px",lineHeight:1.7}}><li>your privacy</li><li>your consent</li><li>your context</li><li>your right to review</li><li>your authority over representation</li><li>your ability to decide what is shared</li></ul><p>We do not treat your story as raw material to extract from you.</p><p>We do not sell your information.</p><p>We do not secretly rank you behind your back.</p><p>We do not turn your complexity into a hidden score.</p><p>The purpose of Lighthouse is to help you become more accurately understood, not to make you easier to reduce, filter, or exploit.</p><p>Before anything is shared outside your private workspace, you should know what is being shared, why it is being shared, and who it is being shared with.</p><p><b>Privacy is not an add-on here. It is part of the foundation.</b></p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="insights"&&<><Sparkles className="modal-icon"/><h2>Discovery Insights</h2><p>These are patterns Alice is noticing as the conversation unfolds — not conclusions, not scores. You can confirm, refine, or redirect anything here.</p>{emergingThemes.length===0&&<p>Nothing has surfaced yet — keep talking with Alice and insights will start to appear here.</p>}{emergingThemes.map(theme=>{const evidence=(session.ozCapture?.evidenceItems??[]).filter(e=>theme.evidenceItemIds.includes(e.id));const band=themeSignalBand(theme.evidenceItemIds.length);return <div key={theme.id} style={{marginBottom:"18px",paddingBottom:"14px",borderBottom:"1px solid #e7eaf1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:"10px"}}><b style={{fontSize:"13px"}}>{theme.title}</b><small style={{opacity:0.7,whiteSpace:"nowrap"}}>{band.label}</small></div><p style={{margin:"6px 0"}}>{theme.description}</p>{evidence.length>0&&<div style={{fontSize:"11px",opacity:0.8}}><b>What this is based on</b><ul style={{margin:"4px 0 0",paddingLeft:"18px"}}>{evidence.map(e=><li key={e.id}>&ldquo;{e.excerpt}&rdquo;</li>)}</ul></div>}{theme.uncertaintyNotes.length>0&&<p style={{fontSize:"11px",opacity:0.65,marginTop:"6px"}}>Still uncertain: {theme.uncertaintyNotes.join(" ")}</p>}</div>;})}<button className="primary" onClick={()=>setModal(null)}>Got it</button></>}
+    <footer className="bottom-bar"><div className="footer-graphic-slot" /><div><CollapsibleSection title="SESSION SHORTCUTS" collapsed={!!collapsedPanels["session-shortcuts"]} onToggle={() => togglePanel("session-shortcuts")}><span className="shortcut-grid"><button onClick={()=>{session.save();openPlaceholder("Progress saved on this device.")}}>Save Progress</button><button onClick={()=>openPlaceholder("Notes are coming soon.")}>Add Note</button><button onClick={()=>setTab("type")}>Ask Alice Anything</button><button onClick={()=>openPlaceholder("Topic navigation is coming soon.")}>Jump to Topic</button></span></CollapsibleSection></div></footer>
+    {modal && <div className="modal-backdrop" onMouseDown={()=>setModal(null)}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}><X/></button>{modal==="transcript"&&<><h2>Full Transcript</h2><div className="full-transcript">{session.turns.map(t=><p key={t.id}><b>{t.role==="participant"?"You":"Alice"}</b><time>{t.timestamp}</time>{t.text}</p>)}</div><div className="modal-actions" style={{justifyContent:"flex-start"}}><button onClick={copyTranscript}><Copy/> {transcriptCopied?"Copied!":"Copy Transcript"}</button><button className="primary" onClick={exportTranscript}><Download/> Export Transcript</button></div></>}{modal==="placeholder"&&<><Lightbulb className="modal-icon"/><h2>{placeholder}</h2><p>This space is intentionally light in the Run 1 baseline.</p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="reset-profile"&&<><RefreshCcw className="modal-icon"/><h2>Reset Discovery profile?</h2><p>This starts Discovery over with a fresh conversation and clears the current Oz captures. Your theme, voice mode, and Alice Prompt Mode preferences will stay the same.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="primary" onClick={resetProfile}><RefreshCcw/> Reset Profile</button></div></>}{modal==="delete"&&<><Trash2 className="modal-icon danger"/><h2>Delete local Discovery data?</h2><p>This clears the transcript saved in this browser. This cannot be undone.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="danger-button" onClick={clearData}>Delete My Data</button></div></>}{modal==="privacy"&&<><ShieldCheck className="modal-icon"/><h2>Privacy &amp; Trust</h2><p>Lighthouse is built around a simple principle: you should not have to surrender control of your story in order to be seen.</p><p>Your discovery profile may contain personal history, work experience, strengths, struggles, patterns, goals, and context that ordinary résumés often leave out. That kind of information deserves careful handling.</p><p>Lighthouse is designed to protect:</p><ul style={{margin:"0 0 14px",paddingLeft:"20px",fontSize:"12px",lineHeight:1.7}}><li>your privacy</li><li>your consent</li><li>your context</li><li>your right to review</li><li>your authority over representation</li><li>your ability to decide what is shared</li></ul><p>We do not treat your story as raw material to extract from you.</p><p>We do not sell your information.</p><p>We do not secretly rank you behind your back.</p><p>We do not turn your complexity into a hidden score.</p><p>The purpose of Lighthouse is to help you become more accurately understood, not to make you easier to reduce, filter, or exploit.</p><p>Before anything is shared outside your private workspace, you should know what is being shared, why it is being shared, and who it is being shared with.</p><p><b>Privacy is not an add-on here. It is part of the foundation.</b></p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="insights"&&<><Sparkles className="modal-icon"/><h2>Discovery Insights</h2><p>These are patterns Alice is noticing as the conversation unfolds — not conclusions, not scores. You can confirm, refine, or redirect anything here.</p>{emergingThemes.length===0&&<p>Nothing has surfaced yet — keep talking with Alice and insights will start to appear here.</p>}{emergingThemes.map(theme=>{const evidence=(session.ozCapture?.evidenceItems??[]).filter(e=>theme.evidenceItemIds.includes(e.id));const band=themeSignalBand(theme.evidenceItemIds.length);return <div key={theme.id} style={{marginBottom:"18px",paddingBottom:"14px",borderBottom:"1px solid #e7eaf1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:"10px"}}><b style={{fontSize:"13px"}}>{theme.title}</b><small style={{opacity:0.7,whiteSpace:"nowrap"}}>{band.label}</small></div><p style={{margin:"6px 0"}}>{theme.description}</p>{evidence.length>0&&<div style={{fontSize:"11px",opacity:0.8}}><b>What this is based on</b><ul style={{margin:"4px 0 0",paddingLeft:"18px"}}>{evidence.map(e=><li key={e.id}>&ldquo;{e.excerpt}&rdquo;</li>)}</ul></div>}{theme.uncertaintyNotes.length>0&&<p style={{fontSize:"11px",opacity:0.65,marginTop:"6px"}}>Still uncertain: {theme.uncertaintyNotes.join(" ")}</p>}</div>;})}<button className="primary" onClick={()=>setModal(null)}>Got it</button></>}
       {modal === "review" && (
         <div style={{ display: "grid", gap: "14px", textAlign: "left" }}>
           <h2>Review Discovery before generating a profile</h2>

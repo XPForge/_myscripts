@@ -98,7 +98,8 @@ export async function downloadProfilePdf(participantName: string, fields: Author
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "lighthouse-discovery-profile.pdf";
+  const slug = participantName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "participant";
+  a.download = `lighthouse-discovery-profile-${slug}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }
