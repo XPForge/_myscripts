@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getFounderIntel } from "../services/founderIntelClient";
+import { getAdminStats, type AdminStats } from "../services/adminClient";
 import { signOut } from "../services/authClient";
 import { clearDiscoveryIdentity } from "../services/discoveryIdentity";
 import { clearLastVisitedPage } from "../services/lastVisitedPage";
@@ -87,7 +88,6 @@ const INITIAL_SHARK = { problem:60,solution:50,market:20,model:55,traction:5,moa
 const INITIAL_STATE = {
   shark: INITIAL_SHARK,
   product: INITIAL_PRODUCT,
-  disc: { sessions:0, participants:0, profiles:0 },
   todos: SEED_TODOS,
   nextId: 11,
   complianceScore: 8,
@@ -291,40 +291,44 @@ function ProductPanel({ status, setStatus }: { status: Record<string, string>; s
 }
 
 // ── PANEL: DISCOVERY ──────────────────────────────────────────────────────────
-function DiscoveryPanel({ disc, setDisc }: { disc: Record<string, number>; setDisc: (updater: (d: Record<string, number>) => Record<string, number>) => void }) {
+// Pulled live from the same admin-stats the Admin Dashboard uses -- no more
+// hand-tallied counters. "Sessions" = every discovery_exit_events row (a
+// session that ended without finishing) plus every profile generated (a
+// session that did) -- the closest available proxy to "how many times has
+// someone actually gone through Discovery," since there's no dedicated
+// sessions table yet.
+function DiscoveryPanel({ stats }: { stats: AdminStats | null }) {
+  const participants = stats?.users.total ?? 0;
+  const profiles = stats?.profiles.total ?? 0;
+  const sessions = (stats?.exits.total ?? 0) + profiles;
   const METRICS = [
-    { key:"sessions",     label:"Discovery Sessions", color:C.safe },
-    { key:"participants", label:"Total Participants",  color:C.teal },
-    { key:"profiles",     label:"Profiles Generated",  color:C.amber },
+    { key:"sessions",     value:sessions,     label:"Discovery Sessions", color:C.safe },
+    { key:"participants", value:participants, label:"Total Participants",  color:C.teal },
+    { key:"profiles",     value:profiles,     label:"Profiles Generated",  color:C.amber },
   ];
   return (
     <div style={{ animation:"fadein .3s ease" }}>
+      <div style={{ color:C.muted, fontSize:11, marginBottom:12 }}>Live from the database — same numbers as the <a href="/admin" target="_blank" rel="noopener noreferrer" style={{ color:C.teal }}>Admin Dashboard</a>.</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
         {METRICS.map(m=>(
           <div key={m.key} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px", textAlign:"center" }}>
-            <div style={{ color:m.color, fontWeight:900, fontSize:38, lineHeight:1 }}>{disc[m.key]}</div>
+            <div style={{ color:m.color, fontWeight:900, fontSize:38, lineHeight:1 }}>{m.value}</div>
             <div style={{ color:C.muted, fontSize:10, textTransform:"uppercase", letterSpacing:".04em", marginTop:4, lineHeight:1.3 }}>{m.label}</div>
-            <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:12 }}>
-              <button onClick={()=>setDisc(d=>({...d,[m.key]:Math.max(0,d[m.key]-1)}))}
-                style={{ background:C.border, color:C.text, border:"none", borderRadius:5, width:28, height:28, fontWeight:700, cursor:"pointer", fontSize:16 }}>−</button>
-              <button onClick={()=>setDisc(d=>({...d,[m.key]:d[m.key]+1}))}
-                style={{ background:m.color, color:C.bg, border:"none", borderRadius:5, width:28, height:28, fontWeight:700, cursor:"pointer", fontSize:16 }}>+</button>
-            </div>
           </div>
         ))}
       </div>
       <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 18px" }}>
         <div style={{ color:C.safe, fontSize:11, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>Discovery Intelligence</div>
         <div style={{ color:C.text, fontSize:13, lineHeight:1.75 }}>
-          {disc.sessions===0
+          {sessions===0
             ? "No sessions run yet. The first real participant session is the most important milestone between here and everything else. Deploy, run three sessions, listen hard. The system will tell you what to fix next."
-            : disc.sessions<5
-            ? `${disc.sessions} session${disc.sessions>1?"s":""} in. Signal gathering has begun. Patterns start emerging around 10 — keep going.`
-            : disc.sessions<15
-            ? `${disc.sessions} sessions in. You're starting to see patterns. Time to think about the first public profile — even one strong example changes the story.`
-            : `${disc.sessions} sessions — meaningful discovery data. Consider a public case study or early validation narrative. You have evidence now.`}
+            : sessions<5
+            ? `${sessions} session${sessions>1?"s":""} in. Signal gathering has begun. Patterns start emerging around 10 — keep going.`
+            : sessions<15
+            ? `${sessions} sessions in. You're starting to see patterns. Time to think about the first public profile — even one strong example changes the story.`
+            : `${sessions} sessions — meaningful discovery data. Consider a public case study or early validation narrative. You have evidence now.`}
         </div>
-        {disc.sessions>0 && disc.profiles===0 && (
+        {sessions>0 && profiles===0 && (
           <div style={{ marginTop:10, color:C.amber, fontSize:12 }}>⚑ Sessions are running but no profiles generated yet. Profiles are the output that creates visibility for participants.</div>
         )}
       </div>
@@ -537,7 +541,6 @@ function CommsPanel() {
 type DashboardState = {
   shark: Record<string, number>;
   product: Record<string, string>;
-  disc: Record<string, number>;
   todos: Todo[];
   nextId: number;
   complianceScore: number;
@@ -557,7 +560,7 @@ function loadState(): DashboardState {
 }
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
-function FounderDashboard() {
+function FounderDashboard({ stats }: { stats: AdminStats | null }) {
   const [st, setSt]         = useState<DashboardState>(loadState);
   const [active, setActive] = useState("ops");
 
@@ -581,7 +584,8 @@ function FounderDashboard() {
   // Score each station
   const sharkScore   = Math.round(SHARK.reduce((s,c)=>s+(st.shark[c.id]/100)*c.w,0));
   const productScore = Math.round((PRODUCT_ITEMS.filter(p=>st.product[p.id]==="built").length/PRODUCT_ITEMS.length)*100);
-  const discScore    = Math.min(100, Math.round((st.disc.sessions/15)*100));
+  const discSessions = (stats?.exits.total ?? 0) + (stats?.profiles.total ?? 0);
+  const discScore    = Math.min(100, Math.round((discSessions/15)*100));
   const opsScore     = st.todos.length ? Math.round((st.todos.filter(t=>t.done).length/st.todos.length)*100) : 0;
 
   const SCORES: Record<string, number> = {
@@ -602,7 +606,7 @@ function FounderDashboard() {
     compliance:  <CompliancePanel  score={st.complianceScore} setScore={upd("complianceScore")}/>,
     threat:      <ThreatPanel/>,
     product:     <ProductPanel     status={st.product}   setStatus={upd("product")}/>,
-    discovery:   <DiscoveryPanel   disc={st.disc}         setDisc={upd("disc")}/>,
+    discovery:   <DiscoveryPanel   stats={stats}/>,
     investor:    <InvestorPanel    scores={st.shark}       setScores={upd("shark")}/>,
     competitive: <CompetitivePanel/>,
     ops:         <OpsPanel         todos={st.todos}        setTodos={upd("todos")} nextId={st.nextId} setNextId={upd("nextId")}/>,
@@ -631,6 +635,7 @@ function FounderDashboard() {
             <div style={{color:C.muted,fontSize:10,letterSpacing:".1em",marginTop:3}}>FOUNDER COMMAND DASHBOARD</div>
           </div>
           <div style={{flex:1}}/>
+          <a href="/admin" target="_blank" rel="noopener noreferrer" style={{ color:C.teal, fontSize:11, fontWeight:700, letterSpacing:".04em", textDecoration:"none", border:`1px solid ${C.border2}`, borderRadius:6, padding:"6px 10px" }}>Admin Dashboard →</a>
           <BeaconMeter score={mission}/>
         </div>
       </div>
@@ -673,23 +678,24 @@ type GateState = "checking" | "authorized" | "unauthorized" | "forbidden" | "err
 
 export default function FounderDashboardPage() {
   const [gate, setGate] = useState<GateState>("checking");
+  const [stats, setStats] = useState<AdminStats | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin-stats")
-      .then((response) => {
-        if (response.status === 200) {
-          setGate("authorized");
-          return;
-        }
-        // This page must never be the "last visited page" a signed-in,
-        // non-founder user gets bounced back into from the landing page --
-        // otherwise "Back to Lighthouse" loops right back here.
-        clearLastVisitedPage();
-        if (response.status === 401) setGate("unauthorized");
-        else if (response.status === 403) setGate("forbidden");
-        else setGate("error");
-      })
-      .catch(() => setGate("error"));
+    // This call was already happening just to read the status code for the
+    // access gate -- now it also feeds the DISCOVERY panel's live numbers,
+    // so there's no second round-trip for the same data.
+    getAdminStats().then((result) => {
+      if (result.status === "ok") {
+        setStats(result.data);
+        setGate("authorized");
+        return;
+      }
+      // This page must never be the "last visited page" a signed-in,
+      // non-founder user gets bounced back into from the landing page --
+      // otherwise "Back to Lighthouse" loops right back here.
+      clearLastVisitedPage();
+      setGate(result.status);
+    });
   }, []);
 
   const handleSignOutAndReturn = async () => {
@@ -699,7 +705,7 @@ export default function FounderDashboardPage() {
     window.location.href = "/";
   };
 
-  if (gate === "authorized") return <FounderDashboard />;
+  if (gate === "authorized") return <FounderDashboard stats={stats} />;
 
   const copy: Record<Exclude<GateState, "authorized">, { title: string; body: string }> = {
     checking: { title: "Loading…", body: "" },

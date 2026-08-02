@@ -177,7 +177,10 @@ export default function AdminDashboardPage() {
           <h1>Admin Dashboard</h1>
           <p>Signups, completed profiles, and feedback across Lighthouse Discovery.</p>
         </div>
-        <a className="admin-dashboard__back" href="/">Back to Lighthouse</a>
+        <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
+          <a className="admin-dashboard__back" href="/founder" target="_blank" rel="noopener noreferrer">Founder Dashboard →</a>
+          <a className="admin-dashboard__back" href="/">Back to Lighthouse</a>
+        </div>
       </div>
 
       <div className="admin-tiles">
