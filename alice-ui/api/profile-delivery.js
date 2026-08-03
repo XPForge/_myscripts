@@ -16,26 +16,20 @@ function sanitizeSecret(value) {
 const RESEND_API_KEY = sanitizeSecret(process.env.RESEND_API_KEY);
 const FROM_ADDRESS = sanitizeSecret(process.env.PROFILE_EMAIL_FROM) || "Lighthouse Discovery <discovery@beseenatlighthouse.online>";
 
-// Mirrors src/services/discoverySchemaTracker.ts's DISCOVERY_FIELD_LABELS and
+// Mirrors src/services/ozSchemaCoverage.ts's OZ_SCHEMA_AREA_LABELS and
 // api/profile-author.js's copy of the same map -- duplicated here so this
 // serverless function has no fragile cross-file import chain.
-const DISCOVERY_FIELD_LABELS = {
-  workMotivators: "What motivates their work",
-  workFrustrators: "What frustrates or drains them",
-  learningCharacteristics: "How they learn",
-  problemSolvingCharacteristics: "How they solve problems",
-  communicationCharacteristics: "How they communicate",
-  leadershipCharacteristics: "How they lead",
-  collaborationCharacteristics: "How they collaborate",
-  environmentalAccelerators: "Environments that help them thrive",
-  environmentalInhibitors: "Environments that hold them back",
-  adaptabilityCharacteristics: "How they adapt to change",
-  pressureResponse: "How they respond under pressure",
-  opportunityIndicators: "What opportunities interest them",
-  overlookedCharacteristics: "Strengths that get overlooked",
-  supportingEvidence: "Concrete examples and evidence",
-  emergentDiscoveries: "New things surfacing in conversation",
-  notYetDiscovered: "What's still unexplored",
+const OZ_SCHEMA_AREA_LABELS = {
+  capabilities: "What they're capable of",
+  constraints: "What limits or constrains them",
+  preferences: "How they like to work",
+  motivations: "What motivates them",
+  environment_fit: "The environments where they fit best",
+  relationships: "How they relate to and work with others",
+  values: "What matters most to them",
+  decision_making: "How they make decisions",
+  uncertainty: "What's still uncertain or unconfirmed",
+  other: "Other notable observations",
 };
 
 function sendJson(res, status, payload) {
@@ -74,7 +68,7 @@ function paragraphs(text) {
 }
 
 function buildProfileEmailHtml(participantName, profile) {
-  const sections = Object.entries(DISCOVERY_FIELD_LABELS)
+  const sections = Object.entries(OZ_SCHEMA_AREA_LABELS)
     .map(([key, label]) => {
       const value = profile[key];
       if (!value) return "";

@@ -2,8 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCOVERY_FIELD_KEYS } from "../src/services/lighthouseProfile.ts";
-import { DISCOVERY_FIELD_LABELS } from "../src/services/discoverySchemaTracker.ts";
+import { OZ_SCHEMA_AREAS, OZ_SCHEMA_AREA_LABELS } from "../src/services/ozSchemaCoverage.ts";
 
 function loadEnvFile() {
   const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -130,8 +129,8 @@ function extractFirstJsonObject(text: string): unknown {
 }
 
 function buildProfileAuthoringInstructions() {
-  const fieldList = DISCOVERY_FIELD_KEYS.map(
-    (key) => `- "${key}": ${DISCOVERY_FIELD_LABELS[key]}`
+  const fieldList = OZ_SCHEMA_AREAS.map(
+    (key) => `- "${key}": ${OZ_SCHEMA_AREA_LABELS[key]}`
   ).join("\n");
 
   return [

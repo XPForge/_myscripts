@@ -42,27 +42,20 @@ async function saveDevelopmentCopy(participantName, participantEmail, model, pro
   }
 }
 
-// Mirrors src/services/lighthouseProfile.ts's DISCOVERY_FIELD_KEYS and
-// src/services/discoverySchemaTracker.ts's DISCOVERY_FIELD_LABELS. Duplicated
-// here (plain JS, no TS import) so this serverless function has no fragile
-// cross-file import chain in the deployed environment.
-const DISCOVERY_FIELD_LABELS = {
-  workMotivators: "What motivates their work",
-  workFrustrators: "What frustrates or drains them",
-  learningCharacteristics: "How they learn",
-  problemSolvingCharacteristics: "How they solve problems",
-  communicationCharacteristics: "How they communicate",
-  leadershipCharacteristics: "How they lead",
-  collaborationCharacteristics: "How they collaborate",
-  environmentalAccelerators: "Environments that help them thrive",
-  environmentalInhibitors: "Environments that hold them back",
-  adaptabilityCharacteristics: "How they adapt to change",
-  pressureResponse: "How they respond under pressure",
-  opportunityIndicators: "What opportunities interest them",
-  overlookedCharacteristics: "Strengths that get overlooked",
-  supportingEvidence: "Concrete examples and evidence",
-  emergentDiscoveries: "New things surfacing in conversation",
-  notYetDiscovered: "What's still unexplored",
+// Mirrors src/services/ozSchemaCoverage.ts's OZ_SCHEMA_AREA_LABELS.
+// Duplicated here (plain JS, no TS import) so this serverless function has
+// no fragile cross-file import chain in the deployed environment.
+const OZ_SCHEMA_AREA_LABELS = {
+  capabilities: "What they're capable of",
+  constraints: "What limits or constrains them",
+  preferences: "How they like to work",
+  motivations: "What motivates them",
+  environment_fit: "The environments where they fit best",
+  relationships: "How they relate to and work with others",
+  values: "What matters most to them",
+  decision_making: "How they make decisions",
+  uncertainty: "What's still uncertain or unconfirmed",
+  other: "Other notable observations",
 };
 
 function sendJson(res, status, payload) {
@@ -113,7 +106,7 @@ function extractFirstJsonObject(text) {
 }
 
 function buildProfileAuthoringInstructions() {
-  const fieldList = Object.entries(DISCOVERY_FIELD_LABELS)
+  const fieldList = Object.entries(OZ_SCHEMA_AREA_LABELS)
     .map(([key, label]) => `- "${key}": ${label}`)
     .join("\n");
 

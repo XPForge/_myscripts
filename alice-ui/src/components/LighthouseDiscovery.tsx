@@ -30,9 +30,9 @@ import {
 } from "../ai/realtimeVoiceDiscoveryClient";
 import {
   computeSchemaCoverage,
-  DISCOVERY_FIELD_LABELS,
   type SchemaCoverageReport,
-} from "../services/discoverySchemaTracker";
+} from "../services/legacyKeywordSchemaCoverage";
+import { DISCOVERY_FIELD_LABELS } from "../services/discoverySchemaTracker";
 import { authorLighthouseProfile, type AuthorProfileResult } from "../services/profileAuthoringClient";
 import { useAuth } from "../context/AuthContext";
 import { ConcentricProgressRings } from "./shared/ConcentricProgressRings";

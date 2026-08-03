@@ -1,4 +1,5 @@
-import { DISCOVERY_FIELD_KEYS, type DiscoveryFieldKey } from "./lighthouseProfile";
+import { OZ_SCHEMA_AREAS } from "./ozSchemaCoverage";
+import type { OzSchemaArea } from "../oz/ozDiscoveryCaptureTypes";
 
 // Relative path — served by api/profile-author.js locally (via the Vite dev
 // plugin) and on Vercel (as a real serverless function), so it works the same
@@ -6,7 +7,7 @@ import { DISCOVERY_FIELD_KEYS, type DiscoveryFieldKey } from "./lighthouseProfil
 const PROFILE_AUTHORING_API_URL = "/api/profile-author";
 const PROFILE_DELIVERY_API_URL = "/api/profile-delivery";
 
-export type AuthoredProfileFields = Record<DiscoveryFieldKey, string> & {
+export type AuthoredProfileFields = Record<OzSchemaArea, string> & {
   discoverySummary: string;
   generatedProfile: string;
 };
@@ -48,8 +49,8 @@ export async function authorLighthouseProfile(
   const rawProfile = payload.profile ?? {};
 
   const fields = Object.fromEntries(
-    DISCOVERY_FIELD_KEYS.map((key) => [key, toFieldString(rawProfile[key])])
-  ) as Record<DiscoveryFieldKey, string>;
+    OZ_SCHEMA_AREAS.map((key) => [key, toFieldString(rawProfile[key])])
+  ) as Record<OzSchemaArea, string>;
 
   return {
     model: payload.model ?? "unknown",
