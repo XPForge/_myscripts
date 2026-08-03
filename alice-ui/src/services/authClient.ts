@@ -15,12 +15,12 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export async function signUp(name: string, email: string, password: string): Promise<AuthUser> {
-  const { user } = await postJson<{ user: AuthUser }>("/api/auth-signup", { name, email, password });
+  const { user } = await postJson<{ user: AuthUser }>("/api/auth-credentials", { mode: "signup", name, email, password });
   return user;
 }
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
-  const { user } = await postJson<{ user: AuthUser }>("/api/auth-login", { email, password });
+  const { user } = await postJson<{ user: AuthUser }>("/api/auth-credentials", { mode: "login", email, password });
   return user;
 }
 
