@@ -282,7 +282,7 @@ export default function HeroLandingPage() {
       <link href="https://fonts.googleapis.com/css2?family=Tauri&display=swap" rel="stylesheet" />
 
       <div className="lp-nav">
-        <img src="/project-lighthouse-logo.png" alt="Project Lighthouse" />
+        <img src="/lighthouse-logo-icon.png" alt="Project Lighthouse" />
       </div>
 
       <div className="lp-grid">
@@ -338,13 +338,13 @@ export default function HeroLandingPage() {
                 Learn More About Lighthouse
               </a>
             </div>
+
+            <div className="lp-footer">© {new Date().getFullYear()} Project Lighthouse</div>
           </div>
         </div>
 
         <div className="lp-visual" role="img" aria-label="A glowing lighthouse tower with an open doorway, standing over a dark sea under a starry sky" />
       </div>
-
-      <div className="lp-footer">© {new Date().getFullYear()} Project Lighthouse</div>
     </div>
   );
 }

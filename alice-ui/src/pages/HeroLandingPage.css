@@ -32,12 +32,11 @@
   align-self: start;
   position: sticky;
   top: 0;
-  height: min(88vh, 780px);
-  min-height: 320px;
-  background-image: url(/discovery-hero-bg.png);
+  height: 100vh;
+  background-image: url(/lighthouse-bg-tower-open-door.png);
   background-repeat: no-repeat;
-  background-size: contain;
-  background-position: top;
+  background-size: cover;
+  background-position: right center;
 }
 /* Fades the copy area's dark background rightward over the image's own left
    edge, so the column boundary reads as one continuous scene instead of a
@@ -133,7 +132,6 @@
 .lp-learn-more > span { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); }
 
 .lp-footer {
-  padding: 18px clamp(20px, 5vw, 64px) 26px;
   font-size: 0.74rem;
   color: rgba(255, 255, 255, 0.4);
 }
