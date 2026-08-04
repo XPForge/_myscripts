@@ -51,6 +51,18 @@
 .top-actions{gap:7px}.top-actions .session-pill,.top-actions .top-action-button{height:38px;border:1px solid #d7deea;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(24,39,75,.04);transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}.top-actions .session-pill{min-width:105px;padding:5px 11px;display:flex;flex-direction:column;justify-content:center}.top-actions .top-action-button{padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap}.top-actions .top-action-button svg{width:14px;height:14px;flex:0 0 auto}.top-actions .top-action-button:hover{border-color:#9eb2d2;background:#f7faff;box-shadow:0 3px 10px rgba(35,60,115,.1);transform:translateY(-1px)}.top-actions .top-action-button:focus-visible{outline:2px solid #3978f6;outline-offset:2px}.top-actions .save-exit-button{min-width:82px}.top-actions .icon-button{width:38px;padding:0}.top-actions .icon-button svg{width:17px;height:17px}.top-actions .profile-button{gap:7px;padding:0 8px 0 5px}.top-actions .profile-button>span{width:27px;height:27px;border-radius:7px;background:linear-gradient(145deg,#5252df,#2d2bad);color:#fff;display:grid;place-items:center;font-size:11px}.top-actions .profile-button>svg{width:13px;height:13px;color:#65708a}
 .discovery-page--dark .top-actions .session-pill,.discovery-page--dark .top-actions .top-action-button{background:#111b32;border-color:#2c3a5a;color:#e5ebff;box-shadow:0 1px 3px #02061066}.discovery-page--dark .top-actions .top-action-button:hover{background:#192642;border-color:#526789;box-shadow:0 4px 12px #02061088}.discovery-page--dark .top-actions .theme-toggle{color:#ffd978}.discovery-page--dark .top-actions .profile-button>svg{color:#9fabc2}
 
+/* Profile dropdown menu (name/email + sign out). Was hardcoded white with no
+   text color set, so it silently inherited dark mode's light page text on
+   its own white background -- nearly unreadable. Themed explicitly instead. */
+.profile-menu{background:#fff;border:1px solid #dce3ef;color:#10183f}
+.profile-menu__identity{opacity:.7;border-bottom:1px solid #eef1f6}
+.profile-menu__signout{background:none;color:#10183f}
+.profile-menu__signout:hover{background:#f2f4f9}
+.discovery-page--dark .profile-menu{background:#18243b;border-color:#354563;color:#e8eeff}
+.discovery-page--dark .profile-menu__identity{border-color:#2c3953}
+.discovery-page--dark .profile-menu__signout{color:#e8eeff}
+.discovery-page--dark .profile-menu__signout:hover{background:#223252}
+
 /* Keep the top-right command controls (Tour, theme, profile) always visible
    on narrow screens instead of vanishing entirely -- only the purely
    decorative session-status pill and the not-yet-wired notifications bell
