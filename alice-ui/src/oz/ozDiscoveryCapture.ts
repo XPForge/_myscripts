@@ -2,11 +2,14 @@ import type { OzCaptureTurn, OzDiscoveryCapture } from "./ozDiscoveryCaptureType
 
 const OZ_CAPTURE_STORAGE_KEY = "lighthouse.discovery.ozCaptures.v0.1";
 
-export async function captureOzDiscovery(turns: OzCaptureTurn[], sessionId?: string): Promise<OzDiscoveryCapture> {
+export async function captureOzDiscovery(turns: OzCaptureTurn[], sessionId?: string, previousCapture?: OzDiscoveryCapture | null): Promise<OzDiscoveryCapture> {
   const response = await fetch("/api/oz-capture", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Lighthouse-Session-Id": sessionId } : {}) },
-    body: JSON.stringify({ turns }),
+    // previousCapture lets the server ask the model for only what's new
+    // since last time instead of re-deriving the whole transcript's worth
+    // of evidence/themes every turn -- see api/oz-capture.js for why.
+    body: JSON.stringify({ turns, previousCapture: previousCapture ?? undefined }),
   });
 
   if (!response.ok) throw new Error("Oz capture request failed");

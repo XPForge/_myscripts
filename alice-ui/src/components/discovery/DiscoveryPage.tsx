@@ -135,7 +135,7 @@ function useAliceSession(systemPrompt: string) {
     const aliceTurn: Turn = { id: crypto.randomUUID(), role: "alice", text: reply, timestamp: now(), inputMode, transcriptEdited: false, aliceVoiceEnabled: voiceOn, quietMode, aliceStatusAtTime: quietMode || !voiceOn ? "thinking" : "speaking", source: "chat" };
     const completedExchange = [...next, aliceTurn];
     setTurns(current => [...current, aliceTurn]);
-    captureOzDiscovery(completedExchange.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, timestamp: turn.timestamp })), sessionId).then(setOzCapture).catch(() => undefined);
+    captureOzDiscovery(completedExchange.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, timestamp: turn.timestamp })), sessionId, ozCapture).then(setOzCapture).catch(() => undefined);
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
   const markAsNewSession = () => { resumedSessionRef.current = false; };

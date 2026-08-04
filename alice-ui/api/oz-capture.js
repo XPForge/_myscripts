@@ -23,7 +23,19 @@ const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 // of which any client ever reads. Cutting them roughly halved output tokens
 // with no behavior change (the API response still includes those keys, just
 // always empty -- see the handler below).
-const OZ_CAPTURE_INSTRUCTION = `You are Oz Discovery Capture Wrapper v0.1.
+//
+// Incremental on top of that: this used to re-derive evidence/themes from
+// the WHOLE transcript every single turn, re-paying for everything it had
+// already found on turn 1 again on turn 10. Now the caller (see
+// buildInstruction below) is shown a compact summary of what's already been
+// captured and is asked for only what's new -- new evidence, and only
+// themes that are new or need updating. schemaAreaMappings is left as a
+// full fresh derivation every time (it's cheap -- 10 short entries -- and
+// the model already has the full transcript, so there's no accuracy cost to
+// not incrementalizing it). The server (see mergeCapture below) does the
+// actual appending/merging so the response contract to the client is
+// unchanged -- it still always gets back the full accumulated capture.
+const OZ_CAPTURE_BASE_INSTRUCTION = `You are Oz Discovery Capture Wrapper v0.1.
 
 You run only after Discovery meaning appears in a participant and Alice transcript. You do not conduct Discovery, script Alice, choose Alice's next question, force coverage, score, rank, match, diagnose, decide truth, or mark an inference confirmed.
 
@@ -32,15 +44,77 @@ Alice discovers meaning in motion.
 Oz preserves meaning after it appears.
 The schema organizes Discovery; it does not conduct Discovery.
 
-Capture only what the transcript supports. Preserve participant language in evidence excerpts. Treat emerging themes as provisional -- every theme requires participant confirmation. Record per-theme uncertainty. Keep excerpts and notes concise. Return JSON only, using this exact top-level shape:
+Capture only what the transcript supports. Preserve participant language in evidence excerpts. Treat emerging themes as provisional -- every theme requires participant confirmation. Record per-theme uncertainty. Keep excerpts and notes concise. Never invent evidence.
+
+You will be given the full transcript, plus a summary of what has already been captured in earlier turns. Do not repeat anything already captured. Return JSON only, using this exact top-level shape:
 {
-  "evidenceItems": [{"id":"evidence-1","excerpt":""}],
-  "emergingThemes": [{"id":"theme-1","title":"","description":"","evidenceItemIds":[],"participantConfirmationNeeded":true,"uncertaintyNotes":[]}],
+  "newEvidenceItems": [{"id":"new-evidence-1","excerpt":""}],
+  "themes": [{"id":"new-theme-1 (for a brand new theme) or the exact existing theme id (to update it)","title":"","description":"","evidenceItemIds":[],"uncertaintyNotes":[]}],
   "schemaAreaMappings": [{"schemaArea":"other","evidenceItemIds":[],"notes":[]}]
 }
 
-Allowed schema areas: capabilities, constraints, preferences, motivations, environment_fit, relationships, values, decision_making, uncertainty, other.
-Use empty arrays when the transcript does not support a category. Never invent evidence.`;
+Rules:
+- newEvidenceItems: only quotes not already captured. Give each a local id like "new-evidence-1", "new-evidence-2".
+- themes: only include a theme here if it's genuinely new, or an existing theme needs updating because of new evidence. Do not re-list unchanged existing themes. evidenceItemIds may reference either an existing evidence id shown below, or one of this turn's new-evidence-N ids.
+- schemaAreaMappings: always return the FULL current picture across all 10 areas (this one is not incremental) -- capabilities, constraints, preferences, motivations, environment_fit, relationships, values, decision_making, uncertainty, other. evidenceItemIds here are just rough per-area tokens, not required to resolve to real evidence ids. Use empty arrays where the transcript doesn't support a category.`;
+
+function buildOzCaptureInstruction(previousCapture) {
+  const priorEvidence = Array.isArray(previousCapture?.evidenceItems) ? previousCapture.evidenceItems : [];
+  const priorThemes = Array.isArray(previousCapture?.emergingThemes) ? previousCapture.emergingThemes : [];
+  if (!priorEvidence.length && !priorThemes.length) return OZ_CAPTURE_BASE_INSTRUCTION;
+
+  const evidenceSummary = priorEvidence.map((item) => `- ${item.id}: "${item.excerpt}"`).join("\n") || "(none)";
+  const themeSummary = priorThemes.map((theme) => `- ${theme.id}: "${theme.title}" -- ${theme.description}`).join("\n") || "(none)";
+
+  return `${OZ_CAPTURE_BASE_INSTRUCTION}
+
+Already captured in earlier turns -- do not repeat any of this:
+
+Existing evidence:
+${evidenceSummary}
+
+Existing themes:
+${themeSummary}`;
+}
+
+// Merges a turn's delta response into the accumulated capture, assigning
+// globally-unique ids to genuinely-new items and remapping any references
+// to this turn's local new-evidence-N ids so themes stay correctly linked.
+function mergeCapture(previousCapture, delta) {
+  const priorEvidence = Array.isArray(previousCapture?.evidenceItems) ? previousCapture.evidenceItems : [];
+  const priorThemes = Array.isArray(previousCapture?.emergingThemes) ? previousCapture.emergingThemes : [];
+
+  const newEvidenceRaw = Array.isArray(delta.newEvidenceItems) ? delta.newEvidenceItems : [];
+  const localToGlobalEvidenceId = new Map();
+  const newEvidenceItems = newEvidenceRaw
+    .filter((item) => item && typeof item.excerpt === "string" && item.excerpt.trim())
+    .map((item, index) => {
+      const globalId = `evidence-${priorEvidence.length + index + 1}`;
+      if (typeof item.id === "string") localToGlobalEvidenceId.set(item.id, globalId);
+      return { id: globalId, excerpt: item.excerpt, sourceTurnIds: [], schemaAreas: [], uncertaintyNotes: [] };
+    });
+  const evidenceItems = [...priorEvidence, ...newEvidenceItems];
+
+  const remapEvidenceIds = (ids) => (Array.isArray(ids) ? ids.map((id) => localToGlobalEvidenceId.get(id) ?? id) : []);
+
+  const themeById = new Map(priorThemes.map((theme) => [theme.id, theme]));
+  let nextThemeNumber = priorThemes.length + 1;
+  for (const theme of Array.isArray(delta.themes) ? delta.themes : []) {
+    if (!theme || typeof theme.title !== "string") continue;
+    const isUpdateToExisting = typeof theme.id === "string" && themeById.has(theme.id);
+    const finalId = isUpdateToExisting ? theme.id : `theme-${nextThemeNumber++}`;
+    themeById.set(finalId, {
+      id: finalId,
+      title: theme.title,
+      description: typeof theme.description === "string" ? theme.description : "",
+      evidenceItemIds: remapEvidenceIds(theme.evidenceItemIds),
+      participantConfirmationNeeded: true,
+      uncertaintyNotes: Array.isArray(theme.uncertaintyNotes) ? theme.uncertaintyNotes : [],
+    });
+  }
+
+  return { evidenceItems, emergingThemes: [...themeById.values()] };
+}
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -83,13 +157,14 @@ export default async function handler(req, res) {
     const body = await readJsonBody(req);
     const turns = Array.isArray(body.turns) ? body.turns.filter(turn => turn && typeof turn.text === "string") : [];
     if (!turns.length) return sendJson(res, 400, { error: "Transcript turns are required" });
+    const previousCapture = body.previousCapture && typeof body.previousCapture === "object" ? body.previousCapture : null;
 
     const response = await fetch(`${OPENAI_API_BASE}/v1/responses`, {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: OZ_CAPTURE_MODEL,
-        instructions: OZ_CAPTURE_INSTRUCTION,
+        instructions: buildOzCaptureInstruction(previousCapture),
         input: [{ role: "user", content: `Capture Discovery records from this transcript:\n${JSON.stringify(turns)}` }],
       }),
     });
@@ -116,27 +191,23 @@ export default async function handler(req, res) {
     }
 
     const lastTurn = turns[turns.length - 1];
+    const merged = mergeCapture(previousCapture, capture);
+
     // Response keeps the full OzDiscoveryCapture shape for backward
-    // compatibility (nothing on the client needs to change) even though the
+    // compatibility (nothing on the client needs to change): evidenceItems
+    // and emergingThemes are the accumulated result of merging this turn's
+    // delta into previousCapture, not just this turn's model output. The
     // model is no longer asked to generate possibleSignals, openQuestions,
     // doNotAssumeNotes, top-level participantConfirmationNeeded, or
-    // top-level uncertaintyNotes -- those keys are now always empty.
+    // top-level uncertaintyNotes -- those keys stay always empty.
     sendJson(res, 200, {
       captureId: crypto.randomUUID(),
       version: "0.1",
       createdAt: new Date().toISOString(),
       transcriptThroughTurnId: lastTurn.id,
-      evidenceItems: Array.isArray(capture.evidenceItems)
-        ? capture.evidenceItems.map((item) => ({
-            id: item?.id,
-            excerpt: item?.excerpt,
-            sourceTurnIds: [],
-            schemaAreas: [],
-            uncertaintyNotes: [],
-          }))
-        : [],
+      evidenceItems: merged.evidenceItems,
       possibleSignals: [],
-      emergingThemes: Array.isArray(capture.emergingThemes) ? capture.emergingThemes : [],
+      emergingThemes: merged.emergingThemes,
       openQuestions: [],
       doNotAssumeNotes: [],
       participantConfirmationNeeded: [],
