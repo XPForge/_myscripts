@@ -65,7 +65,7 @@ a.outline-button.learn-more-link{display:block;box-sizing:border-box;text-align:
 .discovery-page--dark a.outline-button.learn-more-link{color:#79a5ff!important}
 
 /* Reminder pulse on the "Send to Alice" buttons after inactivity with unsent text. */
-@keyframes send-pulse-glow{0%{box-shadow:0 0 0 0 rgba(20,88,244,.55)}70%{box-shadow:0 0 0 11px rgba(20,88,244,0)}100%{box-shadow:0 0 0 0 rgba(20,88,244,0)}}
+@keyframes send-pulse-glow{0%{box-shadow:0 0 0 0 rgba(255,23,23,.75)}70%{box-shadow:0 0 0 30px rgba(255,23,23,0)}100%{box-shadow:0 0 0 0 rgba(255,23,23,0)}}
 .send-pulse{animation:send-pulse-glow 1.4s ease-out infinite}
 
 
