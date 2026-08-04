@@ -16,6 +16,13 @@ const OPENAI_API_BASE = sanitizeSecret(process.env.OPENAI_API_BASE || "https://a
 const OZ_CAPTURE_MODEL = sanitizeSecret(process.env.OZ_CAPTURE_MODEL) || sanitizeSecret(process.env.OPENAI_MODEL) || "gpt-5.6-sol";
 const OPENAI_API_KEY = sanitizeSecret(process.env.OPENAI_API_KEY);
 
+// Trimmed to only the fields the live product actually renders (Discovery
+// Insights panel/modal and the progress ring/checklist) -- this used to also
+// ask for possibleSignals, openQuestions, doNotAssumeNotes, a top-level
+// participantConfirmationNeeded list, and top-level uncertaintyNotes, none
+// of which any client ever reads. Cutting them roughly halved output tokens
+// with no behavior change (the API response still includes those keys, just
+// always empty -- see the handler below).
 const OZ_CAPTURE_INSTRUCTION = `You are Oz Discovery Capture Wrapper v0.1.
 
 You run only after Discovery meaning appears in a participant and Alice transcript. You do not conduct Discovery, script Alice, choose Alice's next question, force coverage, score, rank, match, diagnose, decide truth, or mark an inference confirmed.
@@ -25,16 +32,11 @@ Alice discovers meaning in motion.
 Oz preserves meaning after it appears.
 The schema organizes Discovery; it does not conduct Discovery.
 
-Capture only what the transcript supports. Preserve participant language in evidence excerpts. Treat possible signals and emerging themes as provisional. Every inference or theme requires participant confirmation. Record uncertainty and explicit do-not-assume boundaries. Return JSON only, using this exact top-level shape:
+Capture only what the transcript supports. Preserve participant language in evidence excerpts. Treat emerging themes as provisional -- every theme requires participant confirmation. Record per-theme uncertainty. Keep excerpts and notes concise. Return JSON only, using this exact top-level shape:
 {
-  "evidenceItems": [{"id":"evidence-1","excerpt":"","sourceTurnIds":[],"schemaAreas":[],"uncertaintyNotes":[]}],
-  "possibleSignals": [{"id":"signal-1","statement":"","evidenceItemIds":[],"schemaArea":"other","participantConfirmationNeeded":true,"uncertaintyNotes":[]}],
+  "evidenceItems": [{"id":"evidence-1","excerpt":""}],
   "emergingThemes": [{"id":"theme-1","title":"","description":"","evidenceItemIds":[],"participantConfirmationNeeded":true,"uncertaintyNotes":[]}],
-  "openQuestions": [{"id":"question-1","question":"","reason":"","relatedEvidenceItemIds":[]}],
-  "doNotAssumeNotes": [],
-  "participantConfirmationNeeded": [{"targetType":"possible_signal","targetId":"signal-1","reason":""}],
-  "schemaAreaMappings": [{"schemaArea":"other","evidenceItemIds":[],"possibleSignalIds":[],"notes":[]}],
-  "uncertaintyNotes": []
+  "schemaAreaMappings": [{"schemaArea":"other","evidenceItemIds":[],"notes":[]}]
 }
 
 Allowed schema areas: capabilities, constraints, preferences, motivations, environment_fit, relationships, values, decision_making, uncertainty, other.
@@ -114,19 +116,39 @@ export default async function handler(req, res) {
     }
 
     const lastTurn = turns[turns.length - 1];
+    // Response keeps the full OzDiscoveryCapture shape for backward
+    // compatibility (nothing on the client needs to change) even though the
+    // model is no longer asked to generate possibleSignals, openQuestions,
+    // doNotAssumeNotes, top-level participantConfirmationNeeded, or
+    // top-level uncertaintyNotes -- those keys are now always empty.
     sendJson(res, 200, {
       captureId: crypto.randomUUID(),
       version: "0.1",
       createdAt: new Date().toISOString(),
       transcriptThroughTurnId: lastTurn.id,
-      evidenceItems: Array.isArray(capture.evidenceItems) ? capture.evidenceItems : [],
-      possibleSignals: Array.isArray(capture.possibleSignals) ? capture.possibleSignals : [],
+      evidenceItems: Array.isArray(capture.evidenceItems)
+        ? capture.evidenceItems.map((item) => ({
+            id: item?.id,
+            excerpt: item?.excerpt,
+            sourceTurnIds: [],
+            schemaAreas: [],
+            uncertaintyNotes: [],
+          }))
+        : [],
+      possibleSignals: [],
       emergingThemes: Array.isArray(capture.emergingThemes) ? capture.emergingThemes : [],
-      openQuestions: Array.isArray(capture.openQuestions) ? capture.openQuestions : [],
-      doNotAssumeNotes: Array.isArray(capture.doNotAssumeNotes) ? capture.doNotAssumeNotes : [],
-      participantConfirmationNeeded: Array.isArray(capture.participantConfirmationNeeded) ? capture.participantConfirmationNeeded : [],
-      schemaAreaMappings: Array.isArray(capture.schemaAreaMappings) ? capture.schemaAreaMappings : [],
-      uncertaintyNotes: Array.isArray(capture.uncertaintyNotes) ? capture.uncertaintyNotes : [],
+      openQuestions: [],
+      doNotAssumeNotes: [],
+      participantConfirmationNeeded: [],
+      schemaAreaMappings: Array.isArray(capture.schemaAreaMappings)
+        ? capture.schemaAreaMappings.map((mapping) => ({
+            schemaArea: mapping?.schemaArea,
+            evidenceItemIds: Array.isArray(mapping?.evidenceItemIds) ? mapping.evidenceItemIds : [],
+            possibleSignalIds: [],
+            notes: Array.isArray(mapping?.notes) ? mapping.notes : [],
+          }))
+        : [],
+      uncertaintyNotes: [],
     });
   } catch {
     sendJson(res, 400, { error: "Invalid Oz capture request" });
