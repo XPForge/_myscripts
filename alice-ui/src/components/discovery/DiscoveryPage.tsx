@@ -7,7 +7,6 @@ import { alicePromptProfiles, getAlicePromptProfile, isAlicePromptProfileId, typ
 import { captureOzDiscovery, clearOzDiscoveryCaptures, loadOzDiscoveryCaptures } from "../../oz/ozDiscoveryCapture";
 import type { OzDiscoveryCapture } from "../../oz/ozDiscoveryCaptureTypes";
 import { ConcentricProgressRings, SingleProgressRing } from "../shared/ConcentricProgressRings";
-import { DISCOVERY_FIELD_LABELS } from "../../services/discoverySchemaTracker";
 import { computeOzSchemaCoverage, OZ_SCHEMA_AREA_LABELS, type OzSchemaCoverageReport } from "../../services/ozSchemaCoverage";
 import { authorLighthouseProfile, sendProfileEmail, downloadProfilePdf, type AuthorProfileResult } from "../../services/profileAuthoringClient";
 import { clearDiscoveryIdentity, loadDiscoveryIdentity } from "../../services/discoveryIdentity";
@@ -83,9 +82,9 @@ function loadOrCreateSessionId(): string {
   try { localStorage.setItem(COST_SESSION_ID_KEY, created); } catch { /* ignore storage errors */ }
   return created;
 }
-const seed: Turn[] = [{ id: "welcome", role: "alice", text: "To help me understand you deeply, what have been the moments in your life that changed the way you see yourself or the world?", timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: true, quietMode: false, aliceStatusAtTime: "listening", source: "chat" }];
+const seed: Turn[] = [{ id: "welcome", role: "alice", text: "Hi, I'm Alice — it's good to meet you. What's on your mind today?", timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: true, quietMode: false, aliceStatusAtTime: "listening", source: "chat" }];
 
-function useAliceSession(systemPrompt: string) {
+function useAliceSession(systemPrompt: string, continuityMemory?: string | null) {
   const [sessionId] = useState<string>(() => loadOrCreateSessionId());
   const resumedSessionRef = useRef(localStorage.getItem(STORAGE_KEY) !== null);
   const [turns, setTurns] = useState<Turn[]>(() => { try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved).turns ?? seed : seed; } catch { return seed; } });
@@ -125,8 +124,8 @@ function useAliceSession(systemPrompt: string) {
       `- turnCount: ${next.length}`,
       `- lastParticipantMessage: ${JSON.stringify(text)}`,
       `- resumedSession: ${resumedSessionRef.current}`,
-      "The participant has provided a meaningful message. Respond from that message and the existing transcript. Do not use the default opening fallback.",
-    ].join("\n");
+      "The participant has provided a meaningful message. Respond from that message and the existing transcript. Continue naturally from what's already been discussed — do not reintroduce yourself or restart the opening.",
+    ].join("\n") + (continuityMemory ? `\n\nWhat you already know about this participant:\n${continuityMemory}` : "");
     let reply = "Thank you for sharing that. What did that experience teach you about yourself?";
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": sessionId }, body: JSON.stringify({ system: `${systemPrompt}\n\n${sessionContext}`, messages: next.filter(t => t.role !== "system").map(t => ({ role: t.role === "participant" ? "user" : "assistant", content: t.text })) }) });
@@ -139,14 +138,24 @@ function useAliceSession(systemPrompt: string) {
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
   const markAsNewSession = () => { resumedSessionRef.current = false; };
+  // Set when /api/discovery-workspace restores a prior session onto a
+  // browser with no local history (a new device) -- prevents the opening
+  // intro from firing even though this specific browser has never seen
+  // this participant before.
+  const markAsResumedSession = () => { resumedSessionRef.current = true; };
   const isBrandNewSession = () => !resumedSessionRef.current;
-  const sendOpeningIntroduction = async () => {
+  const sendOpeningIntroduction = async (memorySummary?: string) => {
     setStatus("thinking");
-    const discoveryCategories = Object.values(DISCOVERY_FIELD_LABELS).join(", ");
     let reply = seed[0].text;
+    // memorySummary is already plain English (built server-side by
+    // /api/discovery-workspace's buildMemorySummary) -- never raw schema
+    // names, resolution labels, or evidence counts. SESSION_AWARE_OPENING_GUIDANCE
+    // (already part of systemPrompt) tells Alice how to use this naturally
+    // instead of reading it back like a report.
+    const continuityBlock = memorySummary ? `\n\nWhat you already know about this participant:\n${memorySummary}` : "";
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": sessionId }, body: JSON.stringify({
-        system: `${systemPrompt}\n\nYou are Alice, the frontline AI for Project Lighthouse. Your job is to discover the following through casual, guided conversation: ${discoveryCategories}. This is the very first message of a brand-new Discovery session. Introduce yourself in your own natural words: say that you're Alice and that this is Lighthouse Discovery, and briefly what it's for (understanding how the participant thinks, works, and thrives — not a test, not scored, not an evaluation) and how it works (one question at a time, and they can redirect you anytime). Keep it warm, brief, and conversational — not a long recitation. Then ask exactly one open question to begin, based on your own judgment of what would open the conversation well.`,
+        system: `${systemPrompt}\n\nYou are Alice, the frontline AI for Project Lighthouse. This is the first message of this Discovery session. On a truly first-ever session, introduce yourself in your own natural words: say that you're Alice and that this is Lighthouse Discovery, and briefly what it's for (understanding how the participant thinks, works, and thrives — not a test, not scored, not an evaluation) and how it works (one question at a time, and they can redirect you anytime). Keep it warm, brief, and conversational — not a long recitation.${continuityBlock}`,
         messages: [{ role: "user", content: "Please begin." }],
       }) });
       if (response.ok) reply = (await response.json()).reply || reply;
@@ -155,7 +164,7 @@ function useAliceSession(systemPrompt: string) {
     setTurns([aliceTurn]);
     if (voiceOn && !quietMode) await playVoice(reply); else setStatus("listening");
   };
-  return { turns, setTurns, status, setStatus, voiceOn, setVoiceOn, quietMode, setQuietMode, voiceError, setVoiceError, ozCapture, setOzCapture, playVoice, save, stopAudio, send, markAsNewSession, isBrandNewSession, sendOpeningIntroduction, sessionId };
+  return { turns, setTurns, status, setStatus, voiceOn, setVoiceOn, quietMode, setQuietMode, voiceError, setVoiceError, ozCapture, setOzCapture, playVoice, save, stopAudio, send, markAsNewSession, markAsResumedSession, isBrandNewSession, sendOpeningIntroduction, sessionId };
 }
 
 const PlaceholderButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button className="outline-button" onClick={onClick}>{children}</button>;
@@ -182,7 +191,14 @@ const CollapsibleSection = ({ title, collapsed, onToggle, children }: { title: s
 export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) {
   const [promptProfileId, setPromptProfileId] = useState<AlicePromptProfileId>(() => { const saved = localStorage.getItem(PROMPT_PROFILE_STORAGE_KEY); return isAlicePromptProfileId(saved) ? saved : config.defaultAlicePromptProfileId; });
   const activePromptProfile = useMemo(() => getAlicePromptProfile(promptProfileId), [promptProfileId]);
-  const session = useAliceSession(activePromptProfile.systemPrompt);
+  // Cross-device continuity: the authoritative record lives server-side
+  // (discovery_workspaces/discovery_sessions, keyed to the logged-in
+  // account), local storage is just a same-tick recovery cache. See the
+  // workspace-fetch effect below for how continuityMemory/relationshipState
+  // get populated, and the sync effect for how local changes flow back up.
+  const [continuityMemory, setContinuityMemory] = useState<string | null>(null);
+  const [workspaceChecked, setWorkspaceChecked] = useState(false);
+  const session = useAliceSession(activePromptProfile.systemPrompt, continuityMemory);
   const [theme, setTheme] = useState<"dark" | "light">(() => localStorage.getItem("lighthouse.discovery.theme") === "light" ? "light" : "dark");
   const [tab, setTab] = useState<Tab>("speak"); const [typed, setTyped] = useState(""); const [recording, setRecording] = useState(false); const [paused, setPaused] = useState(false); const [seconds, setSeconds] = useState(0); const [review, setReview] = useState(""); const [originalReview, setOriginalReview] = useState("");
   // Nudges the participant to actually press send once something is ready to
@@ -291,15 +307,65 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     }, 1000);
     return () => window.clearInterval(interval);
   }, []);
+  // Cross-device continuity check -- runs once on mount, before the opening
+  // intro is allowed to fire. Fails open: if the request errors or the
+  // participant has no server-side workspace yet, this just resolves to
+  // "first_session" behavior (the existing local-only flow), same as
+  // before this feature existed.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/discovery-workspace", { headers: { "X-Lighthouse-Session-Id": session.sessionId } });
+        if (!response.ok) return;
+        const data = await response.json() as { relationshipState: string; memorySummary: string | null; turns: Turn[] | null; ozCapture: OzDiscoveryCapture | null };
+        if (cancelled) return;
+        if (data.relationshipState !== "first_session") {
+          if (data.turns && data.turns.length > 0) {
+            session.setTurns(data.turns);
+            session.markAsResumedSession();
+          }
+          if (data.ozCapture) session.setOzCapture(data.ozCapture);
+          setContinuityMemory(data.memorySummary);
+        }
+      } catch {
+        // Local-only behavior is the safe fallback -- see effect comment above.
+      } finally {
+        if (!cancelled) setWorkspaceChecked(true);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const introFiredRef = useRef(false);
   useEffect(() => {
     if (introFiredRef.current) return;
+    if (!workspaceChecked) return;
     if (!session.isBrandNewSession()) return;
     if (session.turns.length !== 1 || session.turns[0].id !== "welcome") return;
     introFiredRef.current = true;
-    void session.sendOpeningIntroduction();
+    void session.sendOpeningIntroduction(continuityMemory ?? undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [workspaceChecked]);
+  // Syncs local session state to the server-side workspace so it's
+  // recognizable from other devices. Gated on workspaceChecked so the
+  // initial seed placeholder never overwrites real server state before the
+  // restore above has had a chance to run.
+  useEffect(() => {
+    if (!workspaceChecked) return;
+    if (session.turns.length <= 1) return;
+    fetch("/api/discovery-workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Lighthouse-Session-Id": session.sessionId },
+      body: JSON.stringify({
+        turns: session.turns,
+        ozCapture: session.ozCapture,
+        checkpointAnnounced,
+        profileGenerated: authoredProfile !== null,
+      }),
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.turns, session.ozCapture, checkpointAnnounced, authoredProfile, workspaceChecked]);
   const [showTourPrompt, setShowTourPrompt] = useState(false);
   const tourPromptShownRef = useRef(false);
   useEffect(() => {
@@ -353,8 +419,8 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     const sendExitBeacon = (exitReason: "pagehide" | "visibilitychange") => {
       if (exitSentRef.current) return;
       exitSentRef.current = true;
-      const blob = new Blob([JSON.stringify({ ...exitSnapshotRef.current, exitReason })], { type: "application/json" });
-      navigator.sendBeacon("/api/discovery-exit", blob);
+      const blob = new Blob([JSON.stringify({ ...exitSnapshotRef.current, exitReason, mode: "exit_event" })], { type: "application/json" });
+      navigator.sendBeacon("/api/submit-feedback", blob);
     };
     // visibilitychange fires on every tab switch, so a bare hidden->send would
     // log an "exit" for a two-second alt-tab. Waiting 5s and clearing on

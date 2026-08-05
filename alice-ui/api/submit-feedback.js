@@ -48,6 +48,45 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
+function toPercentage(value) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : null;
+}
+
+function toCount(value) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+}
+
+// Merged in from the old api/discovery-exit.js -- Vercel's Hobby plan caps a
+// deployment at 12 functions, and adding api/discovery-workspace.js pushed
+// the project over. Sent via navigator.sendBeacon as the participant leaves
+// mid-Discovery, so this has to tolerate a body that never arrives (browser
+// can drop the beacon) and must never make the caller wait -- there's no one
+// listening for the response by the time it lands.
+async function handleExitEvent(req, res, body) {
+  if (!DATABASE_URL) {
+    sendJson(res, 500, { error: "Exit-event storage is not configured" });
+    return;
+  }
+  const exitReason = body.exitReason === "pagehide" ? "pagehide" : "visibilitychange";
+  const participantName = typeof body.participantName === "string" ? body.participantName.trim() : "";
+  const participantEmail = typeof body.participantEmail === "string" ? body.participantEmail.trim() : "";
+
+  try {
+    const session = readSessionFromRequest(req);
+    const sql = neon(DATABASE_URL);
+    await sql`
+      INSERT INTO discovery_exit_events
+        (user_id, participant_name, participant_email, schema_coverage_percentage, profile_readiness_percentage, turn_count, profile_generated, exit_reason)
+      VALUES
+        (${session?.userId || null}, ${participantName || null}, ${participantEmail || null}, ${toPercentage(body.schemaCoveragePercentage)}, ${toPercentage(body.profileReadinessPercentage)}, ${toCount(body.turnCount)}, ${body.profileGenerated === true}, ${exitReason})
+    `;
+    sendJson(res, 200, { status: "recorded" });
+  } catch (err) {
+    console.error("discovery-exit error:", err);
+    sendJson(res, 500, { error: "Unable to record exit event" });
+  }
+}
+
 async function notifyAdmin({ id, participantName, participantEmail, feedbackText, inputMode, consent, sessionId, isTestAccount }) {
   if (!RESEND_API_KEY) return;
   try {
@@ -92,18 +131,35 @@ export default async function handler(req, res) {
     return;
   }
 
+  let rawBody;
+  try {
+    rawBody = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "Invalid request" });
+    return;
+  }
+
+  // navigator.sendBeacon can't set custom headers, so exit events are
+  // distinguished by a `mode` field in the body instead. Absent mode keeps
+  // backward compatibility with the existing feedback client, which never
+  // sent one.
+  if (rawBody.mode === "exit_event") {
+    await handleExitEvent(req, res, rawBody);
+    return;
+  }
+
   if (!DATABASE_URL) {
     sendJson(res, 500, { error: "Feedback storage is not configured" });
     return;
   }
 
+  const body = rawBody;
   let participantName;
   let participantEmail;
   let feedbackText;
   let inputMode;
   let consentToUseAsTestimonial;
   try {
-    const body = await readJsonBody(req);
     if (typeof body.feedbackText !== "string" || !body.feedbackText.trim()) {
       sendJson(res, 400, { error: "Invalid request: feedbackText is required" });
       return;
