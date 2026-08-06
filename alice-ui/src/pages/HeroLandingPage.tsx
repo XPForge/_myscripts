@@ -68,7 +68,11 @@ const linkButtonStyle: React.CSSProperties = {
 
 type Step = "checking" | "returning" | "form" | "welcome";
 
-function DiscoveryCapture() {
+// Owns all auth-capture state/handlers so the two render modes below (the
+// full marketing layout for anonymous visitors, and the centered post-login
+// modal) can share the exact same logic without one being nested inside the
+// other.
+function useAuthCapture() {
   const [step, setStep] = useState<Step>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mode, setMode] = useState<"signup" | "login">("signup");
@@ -140,11 +144,98 @@ function DiscoveryCapture() {
     setPassword("");
   };
 
-  if (step === "checking") {
+  return {
+    step, user, mode, setMode,
+    firstName, setFirstName, lastName, setLastName, email, setEmail, password, setPassword,
+    showPassword, setShowPassword, submitting, error, setError,
+    handleSubmit, handleSignOut, enterDiscovery,
+  };
+}
+
+type AuthCapture = ReturnType<typeof useAuthCapture>;
+
+// The signup/login form -- rendered inline in the marketing layout for
+// anonymous visitors. Never rendered once a user is authenticated (see
+// PostLoginPanel below for that state instead).
+function AuthFormPanel({ capture }: { capture: AuthCapture }) {
+  if (capture.step === "checking") {
     return <div style={{ minHeight: "160px" }} />;
   }
 
-  if (step === "welcome") {
+  return (
+    <div style={{ display: "grid", gap: "14px" }}>
+      <div>
+        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#ffffff" }}>
+          {capture.mode === "signup" ? "Start your free Discovery" : "Log in to continue"}
+        </div>
+        <div style={{ fontSize: "0.84rem", color: "rgba(255,255,255,0.65)", marginTop: "4px" }}>
+          {capture.mode === "signup" ? "Enter your name and email to begin." : "Welcome back — enter your details to continue."}
+        </div>
+      </div>
+      <form onSubmit={(event) => void capture.handleSubmit(event)} style={{ display: "grid", gap: "12px" }}>
+        {capture.mode === "signup" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+              First name
+              <input value={capture.firstName} onChange={(event) => capture.setFirstName(event.target.value)} type="text" required autoComplete="given-name" style={inputStyle} />
+            </label>
+            <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+              Last name
+              <input value={capture.lastName} onChange={(event) => capture.setLastName(event.target.value)} type="text" required autoComplete="family-name" style={inputStyle} />
+            </label>
+          </div>
+        )}
+        <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+          Email address
+          <input value={capture.email} onChange={(event) => capture.setEmail(event.target.value)} type="email" required autoComplete="email" style={inputStyle} />
+        </label>
+        <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+          Password
+          <div style={{ position: "relative" }}>
+            <input
+              value={capture.password}
+              onChange={(event) => capture.setPassword(event.target.value)}
+              type={capture.showPassword ? "text" : "password"}
+              required
+              minLength={8}
+              autoComplete={capture.mode === "signup" ? "new-password" : "current-password"}
+              style={{ ...inputStyle, paddingRight: "40px" }}
+            />
+            <button
+              type="button"
+              onClick={() => capture.setShowPassword((v) => !v)}
+              aria-label={capture.showPassword ? "Hide password" : "Show password"}
+              style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 0, cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex" }}
+            >
+              {capture.showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
+        </label>
+        {capture.error && <div style={{ fontSize: "0.82rem", color: "#fca5a5" }}>{capture.error}</div>}
+        <button
+          type="submit"
+          disabled={capture.submitting || !capture.email.trim() || capture.password.length < 8 || (capture.mode === "signup" && (!capture.firstName.trim() || !capture.lastName.trim()))}
+          style={{ ...primaryButtonStyle, opacity: capture.submitting ? 0.7 : 1, cursor: capture.submitting ? "wait" : "pointer", marginTop: "4px" }}
+        >
+          {capture.submitting ? "Please wait…" : capture.mode === "signup" ? "Start Free Discovery" : "Log in"}
+        </button>
+      </form>
+      <button
+        type="button"
+        onClick={() => { capture.setMode(capture.mode === "signup" ? "login" : "signup"); capture.setError(""); }}
+        style={linkButtonStyle}
+      >
+        {capture.mode === "signup" ? "Already have an account? Log in" : "New here? Start your free Discovery instead"}
+      </button>
+    </div>
+  );
+}
+
+// Everything a just-signed-up or returning participant needs -- rendered
+// inside a centered modal once authenticated, over the background image
+// alone, instead of alongside the full marketing page.
+function PostLoginPanel({ capture }: { capture: AuthCapture }) {
+  if (capture.step === "welcome") {
     return (
       <div style={{ display: "grid", gap: "14px" }}>
         <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#ffffff" }}>Welcome to Lighthouse</div>
@@ -162,19 +253,19 @@ function DiscoveryCapture() {
           </p>
           <p style={{ margin: 0 }}>What we discover may be organized into a capability profile for your review.</p>
         </div>
-        <button type="button" onClick={enterDiscovery} style={primaryButtonStyle}>
+        <button type="button" onClick={capture.enterDiscovery} style={primaryButtonStyle}>
           Begin My Discovery
         </button>
       </div>
     );
   }
 
-  if (step === "returning" && user) {
+  if (capture.step === "returning" && capture.user) {
     const hasSession = hasSavedDiscoverySession();
     return (
       <div style={{ display: "grid", gap: "14px" }}>
         <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff" }}>
-          Welcome back{user.name ? `, ${user.name}` : ""}
+          Welcome back{capture.user.name ? `, ${capture.user.name}` : ""}
         </div>
         <div style={{ fontSize: "0.88rem", color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
           {hasSession
@@ -183,7 +274,7 @@ function DiscoveryCapture() {
         </div>
         <div style={{ display: "grid", gap: "10px" }}>
           {hasSession && (
-            <button type="button" onClick={enterDiscovery} style={primaryButtonStyle}>
+            <button type="button" onClick={capture.enterDiscovery} style={primaryButtonStyle}>
               Continue Discovery
             </button>
           )}
@@ -191,13 +282,13 @@ function DiscoveryCapture() {
             type="button"
             onClick={() => {
               clearSavedDiscoverySession();
-              enterDiscovery();
+              capture.enterDiscovery();
             }}
             style={hasSession ? secondaryButtonStyle : primaryButtonStyle}
           >
             {hasSession ? "Start New Discovery Session" : "Start Discovery"}
           </button>
-          <button type="button" onClick={() => void handleSignOut()} style={{ ...linkButtonStyle, opacity: 0.7 }}>
+          <button type="button" onClick={() => void capture.handleSignOut()} style={{ ...linkButtonStyle, opacity: 0.7 }}>
             Not you? Sign out
           </button>
         </div>
@@ -205,76 +296,33 @@ function DiscoveryCapture() {
     );
   }
 
-  return (
-    <div style={{ display: "grid", gap: "14px" }}>
-      <div>
-        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#ffffff" }}>
-          {mode === "signup" ? "Start your free Discovery" : "Log in to continue"}
-        </div>
-        <div style={{ fontSize: "0.84rem", color: "rgba(255,255,255,0.65)", marginTop: "4px" }}>
-          {mode === "signup" ? "Enter your name and email to begin." : "Welcome back — enter your details to continue."}
-        </div>
-      </div>
-      <form onSubmit={(event) => void handleSubmit(event)} style={{ display: "grid", gap: "12px" }}>
-        {mode === "signup" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
-              First name
-              <input value={firstName} onChange={(event) => setFirstName(event.target.value)} type="text" required autoComplete="given-name" style={inputStyle} />
-            </label>
-            <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
-              Last name
-              <input value={lastName} onChange={(event) => setLastName(event.target.value)} type="text" required autoComplete="family-name" style={inputStyle} />
-            </label>
-          </div>
-        )}
-        <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
-          Email address
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required autoComplete="email" style={inputStyle} />
-        </label>
-        <label style={{ display: "grid", gap: "6px", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
-          Password
-          <div style={{ position: "relative" }}>
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type={showPassword ? "text" : "password"}
-              required
-              minLength={8}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              style={{ ...inputStyle, paddingRight: "40px" }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 0, cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex" }}
-            >
-              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </div>
-        </label>
-        {error && <div style={{ fontSize: "0.82rem", color: "#fca5a5" }}>{error}</div>}
-        <button
-          type="submit"
-          disabled={submitting || !email.trim() || password.length < 8 || (mode === "signup" && (!firstName.trim() || !lastName.trim()))}
-          style={{ ...primaryButtonStyle, opacity: submitting ? 0.7 : 1, cursor: submitting ? "wait" : "pointer", marginTop: "4px" }}
-        >
-          {submitting ? "Please wait…" : mode === "signup" ? "Start Free Discovery" : "Log in"}
-        </button>
-      </form>
-      <button
-        type="button"
-        onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); }}
-        style={linkButtonStyle}
-      >
-        {mode === "signup" ? "Already have an account? Log in" : "New here? Start your free Discovery instead"}
-      </button>
-    </div>
-  );
+  return null;
 }
 
 export default function HeroLandingPage() {
+  const capture = useAuthCapture();
+  const isAuthenticated = capture.step === "welcome" || capture.step === "returning";
+
+  if (isAuthenticated) {
+    return (
+      <div className="lp-shell">
+        <div className="lp-nav">
+          <img src="/lighthouse-logo-icon.png" alt="Project Lighthouse" />
+        </div>
+        <div
+          className="lp-visual-full"
+          role="img"
+          aria-label="A glowing lighthouse tower with an open doorway, standing over a dark sea under a starry sky"
+        />
+        <div className="lp-modal-backdrop">
+          <div className="lp-modal">
+            <PostLoginPanel capture={capture} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="lp-shell">
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -324,7 +372,7 @@ export default function HeroLandingPage() {
             </p>
 
             <div className="lp-form-panel">
-              <DiscoveryCapture />
+              <AuthFormPanel capture={capture} />
             </div>
 
             <p className="lp-control-statement">
