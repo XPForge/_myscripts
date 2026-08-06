@@ -60,7 +60,12 @@ export type OzSchemaCoverageReport = {
 // push several categories to "touched" almost immediately, and each category
 // is now worth more of the total (10 points vs. ~6.25).
 const READINESS_START_THRESHOLD = 30;
-const READINESS_FULL_THRESHOLD = 75;
+// 100 (not a lower cutoff) -- the checkpoint/profile prompt should only
+// fire once every schema area genuinely has coverage, not once most of
+// them do. This previously sat at 75, which meant the checkpoint could
+// fire (and the review modal pop open) as soon as coverage crossed ~75-80%,
+// well before the conversation had actually touched everything.
+const READINESS_FULL_THRESHOLD = 100;
 const MINIMUM_PARTICIPANT_TURNS_FOR_READINESS = 5;
 
 function aggregateMapping(
