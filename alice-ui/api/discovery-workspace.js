@@ -63,6 +63,12 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// Mirrors src/services/ozSchemaCoverage.ts's MINIMUM_EVIDENCE_FOR_FILLED --
+// a single rough per-area token (Oz's own description of what these ids
+// are) isn't enough to honestly claim "explored in meaningful depth" to the
+// participant. Keep these two thresholds in sync.
+const MINIMUM_EVIDENCE_FOR_FILLED = 2;
+
 // Turns structured Oz state into 1-3 plain sentences -- never raw schema
 // names, resolution labels, evidence counts, or "continuity packet"
 // language reach Alice's prompt directly. Template-based, not a model call:
@@ -75,10 +81,10 @@ function buildMemorySummary(ozCapture, profileGenerated) {
   for (const mapping of mappings) {
     const label = OZ_SCHEMA_AREA_LABELS[mapping?.schemaArea];
     if (!label) continue;
-    const hasEvidence = Array.isArray(mapping.evidenceItemIds) && mapping.evidenceItemIds.length > 0;
+    const evidenceCount = Array.isArray(mapping.evidenceItemIds) ? mapping.evidenceItemIds.length : 0;
     const hasSignal = (Array.isArray(mapping.possibleSignalIds) && mapping.possibleSignalIds.length > 0) || (Array.isArray(mapping.notes) && mapping.notes.length > 0);
-    if (hasEvidence) filled.push(label);
-    else if (hasSignal) touched.push(label);
+    if (evidenceCount >= MINIMUM_EVIDENCE_FOR_FILLED) filled.push(label);
+    else if (evidenceCount > 0 || hasSignal) touched.push(label);
   }
 
   const sentences = [];
@@ -117,7 +123,7 @@ async function handleGet(req, res, sql, userId) {
   const latest = await getLatestSession(sql, workspaceId);
 
   if (!latest) {
-    sendJson(res, 200, { relationshipState: "first_session", memorySummary: null, turns: null, ozCapture: null });
+    sendJson(res, 200, { relationshipState: "first_session", memorySummary: null, turns: null, ozCapture: null, checkpointAnnounced: false });
     return;
   }
 
@@ -131,13 +137,32 @@ async function handleGet(req, res, sql, userId) {
       INSERT INTO discovery_sessions (workspace_id, session_number, turns_json, checkpoint_announced, profile_generated)
       VALUES (${workspaceId}, ${latest.session_number + 1}, ${JSON.stringify([])}, false, false)
     `;
-    sendJson(res, 200, { relationshipState: "continuing_after_profile", memorySummary, turns: null, ozCapture: null });
+    sendJson(res, 200, { relationshipState: "continuing_after_profile", memorySummary, turns: null, ozCapture: null, checkpointAnnounced: false });
     return;
   }
 
   const relationshipState = latest.checkpoint_announced ? "returning_session" : "resuming_interrupted_session";
   const memorySummary = buildMemorySummary(latest.oz_capture_json, false);
-  sendJson(res, 200, { relationshipState, memorySummary, turns: latest.turns_json, ozCapture: latest.oz_capture_json });
+  // checkpointAnnounced is carried forward as-is (not reset to false client-side
+  // like a fresh mount would default to) -- otherwise a resumed session that
+  // already crossed the checkpoint in a prior visit re-announces it and
+  // reopens the review modal the instant the restored coverage lands. See
+  // DiscoveryPage.tsx's workspace-restore effect for where this gets applied.
+  sendJson(res, 200, { relationshipState, memorySummary, turns: latest.turns_json, ozCapture: latest.oz_capture_json, checkpointAnnounced: latest.checkpoint_announced });
+}
+
+async function handleDelete(req, res, sql, userId) {
+  // Backs both "Reset Discovery Profile" and "Delete My Data" -- both need
+  // the server-side workspace cleared, not just localStorage, now that the
+  // server is the authoritative continuity source. Session rows must go
+  // first (FK reference), then the workspace row itself; getOrCreateWorkspaceId
+  // will lazily recreate a fresh one on the next visit.
+  const existing = await sql`SELECT id FROM discovery_workspaces WHERE user_id = ${userId}`;
+  if (existing[0]) {
+    await sql`DELETE FROM discovery_sessions WHERE workspace_id = ${existing[0].id}`;
+    await sql`DELETE FROM discovery_workspaces WHERE id = ${existing[0].id}`;
+  }
+  sendJson(res, 200, { status: "deleted" });
 }
 
 async function handlePost(req, res, sql, userId, body) {
@@ -169,7 +194,7 @@ async function handlePost(req, res, sql, userId, body) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "GET" && req.method !== "POST") {
+  if (req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
     sendJson(res, 405, { error: "Method not allowed" });
     return;
   }
@@ -188,6 +213,10 @@ export default async function handler(req, res) {
     const sql = neon(DATABASE_URL);
     if (req.method === "GET") {
       await handleGet(req, res, sql, session.userId);
+      return;
+    }
+    if (req.method === "DELETE") {
+      await handleDelete(req, res, sql, session.userId);
       return;
     }
     const body = await readJsonBody(req);

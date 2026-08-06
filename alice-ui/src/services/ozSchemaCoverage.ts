@@ -77,9 +77,17 @@ function aggregateMapping(
   };
 }
 
+// Oz's own instructions describe per-area evidenceItemIds as "rough tokens,
+// not required to resolve to real evidence ids" (see api/oz-capture.js) --
+// a single one is a loose signal, not resolved depth. Requiring a second
+// corroborating token before calling a category "filled" was added after
+// real usage showed categories reaching "filled" within the first couple of
+// exchanges, well before there was any real depth behind them.
+const MINIMUM_EVIDENCE_FOR_FILLED = 2;
+
 function statusFromAggregate(evidenceCount: number, signalCount: number, noteCount: number): OzSchemaFieldStatus {
-  if (evidenceCount > 0) return "filled";
-  if (signalCount > 0 || noteCount > 0) return "touched";
+  if (evidenceCount >= MINIMUM_EVIDENCE_FOR_FILLED) return "filled";
+  if (evidenceCount > 0 || signalCount > 0 || noteCount > 0) return "touched";
   return "empty";
 }
 

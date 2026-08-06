@@ -67,6 +67,13 @@ type Turn = { id: string; role: "participant" | "alice" | "system"; text: string
 type Tab = "speak" | "type" | "attach";
 const STORAGE_KEY = "lighthouse.discovery.run1";
 const PROMPT_PROFILE_STORAGE_KEY = "lighthouse.discovery.alicePromptProfile";
+// Separate from STORAGE_KEY because it must survive independently of the
+// transcript/ozCapture blob and be readable synchronously on mount -- without
+// this, a page reload after crossing the checkpoint re-announces it (the
+// restored ozCapture already shows full coverage, but this flag used to
+// always reset to false), reopening the review modal and re-speaking the
+// checkpoint line on top of whatever Alice is already saying.
+const CHECKPOINT_STORAGE_KEY = "lighthouse.discovery.checkpointAnnounced";
 const now = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const filenameSlug = (name?: string) => (name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "participant";
 // An opaque correlation id (not participant data, just a random token) sent
@@ -251,7 +258,8 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     "developer-tools": true,
   });
   const togglePanel = (id: string) => setCollapsedPanels((p) => ({ ...p, [id]: !p[id] }));
-  const [checkpointAnnounced, setCheckpointAnnounced] = useState(false);
+  const [checkpointAnnounced, setCheckpointAnnounced] = useState(() => localStorage.getItem(CHECKPOINT_STORAGE_KEY) === "true");
+  useEffect(() => { localStorage.setItem(CHECKPOINT_STORAGE_KEY, String(checkpointAnnounced)); }, [checkpointAnnounced]);
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>("decide");
   const [authoringStageIndex, setAuthoringStageIndex] = useState(0);
   useEffect(() => {
@@ -318,7 +326,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
       try {
         const response = await fetch("/api/discovery-workspace", { headers: { "X-Lighthouse-Session-Id": session.sessionId } });
         if (!response.ok) return;
-        const data = await response.json() as { relationshipState: string; memorySummary: string | null; turns: Turn[] | null; ozCapture: OzDiscoveryCapture | null };
+        const data = await response.json() as { relationshipState: string; memorySummary: string | null; turns: Turn[] | null; ozCapture: OzDiscoveryCapture | null; checkpointAnnounced: boolean };
         if (cancelled) return;
         if (data.relationshipState !== "first_session") {
           if (data.turns && data.turns.length > 0) {
@@ -326,6 +334,11 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
             session.markAsResumedSession();
           }
           if (data.ozCapture) session.setOzCapture(data.ozCapture);
+          // Carries the prior session's own checkpoint status forward instead
+          // of leaving this at its default -- otherwise a restored session
+          // that already crossed the checkpoint looks brand new again and
+          // re-announces it the instant the restored coverage lands.
+          setCheckpointAnnounced(data.checkpointAnnounced);
           setContinuityMemory(data.memorySummary);
         }
       } catch {
@@ -385,6 +398,13 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const emergingThemes = session.ozCapture?.emergingThemes ?? [];
   useEffect(() => {
     if (checkpointAnnounced || schemaCoverage.profileReadinessPercentage < 100) return;
+    // Wait for Alice's in-flight reply (and its voice, if any) to finish
+    // before interrupting -- oz-capture resolves independently of the chat
+    // reply for the same turn, so without this guard the checkpoint's own
+    // playVoice call can start while the regular reply is still speaking,
+    // and the review modal can pop open mid-exchange. The effect simply
+    // re-checks once status returns to "listening" rather than firing then.
+    if (session.status !== "listening") return;
     const checkpointTurn: Turn = { id: crypto.randomUUID(), role: "alice", text: CHECKPOINT_ANNOUNCEMENT_TEXT, timestamp: now(), inputMode: "typed", transcriptEdited: false, aliceVoiceEnabled: session.voiceOn, quietMode: session.quietMode, aliceStatusAtTime: "speaking", source: "chat" };
     session.setTurns(current => [...current, checkpointTurn]);
     if (session.voiceOn && !session.quietMode) void session.playVoice(CHECKPOINT_ANNOUNCEMENT_TEXT);
@@ -393,7 +413,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     setReviewPhase("decide");
     setAuthoringError("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkpointAnnounced, schemaCoverage.profileReadinessPercentage]);
+  }, [checkpointAnnounced, schemaCoverage.profileReadinessPercentage, session.status]);
   // Kept up to date every render (no deps array) so the exit-beacon effect
   // below -- which registers its listeners once -- always reads the latest
   // values through the ref instead of a stale closure.
@@ -480,11 +500,17 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
       openPlaceholder("Copying to the clipboard isn't available in this browser.");
     }
   };
-  const clearData = () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); setModal(null); };
+  // Both Reset and Delete must clear the server-side workspace, not just
+  // localStorage -- the server is now the authoritative continuity source,
+  // so leaving its row intact meant a remount (Reset navigates away and
+  // back; a future revisit for Delete) would fetch the old session right
+  // back down, undoing what looked like a completed reset/delete.
+  const deleteServerWorkspace = () => fetch("/api/discovery-workspace", { method: "DELETE", headers: { "X-Lighthouse-Session-Id": session.sessionId } }).catch(() => undefined);
+  const clearData = async () => { session.stopAudio(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(CHECKPOINT_STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); setCheckpointAnnounced(false); setModal(null); await deleteServerWorkspace(); };
   // Resetting Discovery starts a fresh conversation for the same signed-in
   // account -- it must not clear the real identity/session, only the
   // conversation state. Signing out is a separate, explicit action.
-  const resetProfile = () => { session.stopAudio(); if (recording) cancelRecording(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); session.markAsNewSession(); setTyped(""); setReview(""); setOriginalReview(""); setSeconds(0); setRecording(false); setPaused(false); session.setStatus("listening"); setModal(null); setCheckpointAnnounced(false); setReviewPhase("decide"); setAuthoredProfile(null); setAuthoringError(""); setDeliveryRequested(false); setAllowDevelopmentCopy(false); onRestart(); };
+  const resetProfile = async () => { session.stopAudio(); if (recording) cancelRecording(); session.setTurns(seed); localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(CHECKPOINT_STORAGE_KEY); clearOzDiscoveryCaptures(); session.setOzCapture(null); session.markAsNewSession(); setTyped(""); setReview(""); setOriginalReview(""); setSeconds(0); setRecording(false); setPaused(false); session.setStatus("listening"); setModal(null); setCheckpointAnnounced(false); setReviewPhase("decide"); setAuthoredProfile(null); setAuthoringError(""); setDeliveryRequested(false); setAllowDevelopmentCopy(false); await deleteServerWorkspace(); onRestart(); };
   const handleSignOut = async () => { await signOut().catch(() => undefined); clearDiscoveryIdentity(); clearLastVisitedPage(); window.location.href = "/"; };
   const openReviewModal = () => { setReviewPhase("decide"); setAuthoringError(""); setModal("review"); };
   const handleInstantComplete = () => {
