@@ -230,7 +230,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     const id = window.setTimeout(() => setStartReminder(true), 8000);
     return () => window.clearTimeout(id);
   }, [tab, recording, review, session.status]);
-  const [modal, setModal] = useState<"transcript" | "placeholder" | "delete" | "reset-profile" | "review" | "privacy" | "insights" | null>(null); const [placeholder, setPlaceholder] = useState(""); const [mobileRail, setMobileRail] = useState<"left" | "right" | null>(null); const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [modal, setModal] = useState<"transcript" | "placeholder" | "delete" | "reset-profile" | "review" | "review-exit-confirm" | "privacy" | "insights" | null>(null); const [placeholder, setPlaceholder] = useState(""); const [mobileRail, setMobileRail] = useState<"left" | "right" | null>(null); const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   // Traditional close mechanisms for the mobile drawer, alongside the existing X
   // button: Escape key, and tapping the scrim behind it (wired below).
   useEffect(() => {
@@ -242,12 +242,13 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
   const recorder = useRef<MediaRecorder | null>(null); const chunks = useRef<Blob[]>([]); const chatTop = useRef<HTMLDivElement | null>(null);
   const discoveryIdentity = useMemo(() => loadDiscoveryIdentity(), []);
   const isDebugAccount = discoveryIdentity?.email === DEBUG_TOOLS_ACCOUNT_EMAIL;
-  // A session opens with every panel closed except DISCOVERY PROGRESS and
-  // DISCOVERY INSIGHTS -- the two participants actually need to see right
-  // away. Everything else (including the sections nested inside HELP) starts
+  // A session opens with every panel closed except DISCOVERY PROGRESS,
+  // DISCOVERY INSIGHTS, and SESSION INFO -- the participant needs to see
+  // those right away (session info now also surfaces the Sign Out shortcut).
+  // Everything else (including the sections nested inside HELP) starts
   // collapsed so it doesn't compete for attention until opened on purpose.
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
-    "session-info": true,
+    "session-info": false,
     "quick-actions": true,
     "help": true,
     "talking-with-alice": true,
@@ -520,6 +521,25 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
     setModal("review");
     void generateProfileFromReview();
   };
+  // The review/complete-profile modal shouldn't be dismissible by an
+  // accidental backdrop click -- the only ways out are an explicit bottom
+  // action (Continue Discovery, Finish & Generate Profile, Back to
+  // conversation, etc.) or the X. If the participant hits X without having
+  // done anything else in there (derived from existing state rather than a
+  // separate interaction tracker, so nothing new needs wiring into every
+  // control), a confirmation screen steps in instead of just closing, so an
+  // accidental or uninformed exit gets a chance to reconsider.
+  const reviewHasEngagement = allowDevelopmentCopy || reviewPhase !== "decide" || feedbackText.trim() !== "" || deliveryRequested || feedbackSubmitted;
+  const handleModalCloseClick = () => {
+    if (modal === "review" && !reviewHasEngagement) { setModal("review-exit-confirm"); return; }
+    if (modal === "review-exit-confirm") { setModal("review"); return; }
+    setModal(null);
+  };
+  const handleModalBackdropClick = () => {
+    if (modal === "review") return;
+    if (modal === "review-exit-confirm") { setModal("review"); return; }
+    setModal(null);
+  };
   const generateProfileFromReview = async () => {
     setReviewPhase("authoring"); setAuthoringError("");
     try {
@@ -652,7 +672,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
           </div>
         </CollapsibleCard>
         <CollapsibleCard title="SESSION INFO" collapsed={!!collapsedPanels["session-info"]} onToggle={() => togglePanel("session-info")} dataTour="session-info">
-          <dl className="session-info">{discoveryIdentity?.name && <div><dt>◒ &nbsp; Participant</dt><dd>{discoveryIdentity.name}</dd></div>}<div><dt>◷ &nbsp; Started</dt><dd>Today, {seed[0].timestamp}</dd></div><div><dt>◷ &nbsp; This Session</dt><dd>{formatDurationMs(sessionElapsedMs)}</dd></div><div><dt>◷ &nbsp; Overall Time with Alice</dt><dd>{formatDurationMs(totalTimeMs)}</dd></div><div><dt>▣ &nbsp; Conversations</dt><dd>{session.turns.length}</dd></div><div><dt>▤ &nbsp; Last Saved</dt><dd>just now</dd></div></dl><PlaceholderButton onClick={() => setModal("transcript")}>View Full Transcript</PlaceholderButton>
+          <dl className="session-info">{discoveryIdentity?.name && <div><dt>◒ &nbsp; Participant</dt><dd>{discoveryIdentity.name}</dd></div>}<div><dt>◷ &nbsp; Started</dt><dd>Today, {seed[0].timestamp}</dd></div><div><dt>◷ &nbsp; This Session</dt><dd>{formatDurationMs(sessionElapsedMs)}</dd></div><div><dt>◷ &nbsp; Overall Time with Alice</dt><dd>{formatDurationMs(totalTimeMs)}</dd></div><div><dt>▣ &nbsp; Conversations</dt><dd>{session.turns.length}</dd></div><div><dt>▤ &nbsp; Last Saved</dt><dd>just now</dd></div></dl><PlaceholderButton onClick={() => setModal("transcript")}>View Full Transcript</PlaceholderButton><PlaceholderButton onClick={() => void handleSignOut()}>Sign Out</PlaceholderButton>
         </CollapsibleCard>
         <CollapsibleCard title="QUICK ACTIONS" collapsed={!!collapsedPanels["quick-actions"]} onToggle={() => togglePanel("quick-actions")} dataTour="quick-actions">
           <div className="quick-actions"><button onClick={openReviewModal}><Sparkles/>Review & Generate Profile</button><button onClick={openInsightsPanel}><FileText/>Review My Insights</button><button onClick={()=>openPlaceholder("Preferences are coming soon.")}><Check/>Update My Preferences</button><button onClick={exportTranscript}><Download/>Export My Transcript</button><button onClick={()=>setModal("reset-profile")}><RefreshCcw/>Reset Discovery Profile</button><button onClick={()=>setModal("delete")}><Trash2/>Delete My Data</button><button onClick={()=>void handleSignOut()}><LogOut/>Sign Out</button></div>
@@ -702,7 +722,7 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
       </aside>
     </main>
     <footer className="bottom-bar"><div className="footer-graphic-slot" /><div><CollapsibleSection title="SESSION SHORTCUTS" collapsed={!!collapsedPanels["session-shortcuts"]} onToggle={() => togglePanel("session-shortcuts")}><span className="shortcut-grid"><button onClick={()=>{session.save();openPlaceholder("Progress saved on this device.")}}>Save Progress</button><button onClick={()=>openPlaceholder("Notes are coming soon.")}>Add Note</button><button onClick={()=>setTab("type")}>Ask Alice Anything</button><button onClick={()=>openPlaceholder("Topic navigation is coming soon.")}>Jump to Topic</button></span></CollapsibleSection></div></footer>
-    {modal && <div className="modal-backdrop" onMouseDown={()=>setModal(null)}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}><X/></button>{modal==="transcript"&&<><h2>Full Transcript</h2><div className="full-transcript">{session.turns.map(t=><p key={t.id}><b>{t.role==="participant"?"You":"Alice"}</b><time>{t.timestamp}</time>{t.text}</p>)}</div><div className="modal-actions" style={{justifyContent:"flex-start"}}><button onClick={copyTranscript}><Copy/> {transcriptCopied?"Copied!":"Copy Transcript"}</button><button className="primary" onClick={exportTranscript}><Download/> Export Transcript</button></div></>}{modal==="placeholder"&&<><Lightbulb className="modal-icon"/><h2>{placeholder}</h2><p>This space is intentionally light in the Run 1 baseline.</p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="reset-profile"&&<><RefreshCcw className="modal-icon"/><h2>Reset Discovery profile?</h2><p>This starts Discovery over with a fresh conversation and clears the current Oz captures. Your theme, voice mode, and Alice Prompt Mode preferences will stay the same.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="primary" onClick={resetProfile}><RefreshCcw/> Reset Profile</button></div></>}{modal==="delete"&&<><Trash2 className="modal-icon danger"/><h2>Delete local Discovery data?</h2><p>This clears the transcript saved in this browser. This cannot be undone.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="danger-button" onClick={clearData}>Delete My Data</button></div></>}{modal==="privacy"&&<><ShieldCheck className="modal-icon"/><h2>Privacy &amp; Trust</h2><p>Lighthouse is built around a simple principle: you should not have to surrender control of your story in order to be seen.</p><p>Your discovery profile may contain personal history, work experience, strengths, struggles, patterns, goals, and context that ordinary résumés often leave out. That kind of information deserves careful handling.</p><p>Lighthouse is designed to protect:</p><ul style={{margin:"0 0 14px",paddingLeft:"20px",fontSize:"12px",lineHeight:1.7}}><li>your privacy</li><li>your consent</li><li>your context</li><li>your right to review</li><li>your authority over representation</li><li>your ability to decide what is shared</li></ul><p>We do not treat your story as raw material to extract from you.</p><p>We do not sell your information.</p><p>We do not secretly rank you behind your back.</p><p>We do not turn your complexity into a hidden score.</p><p>The purpose of Lighthouse is to help you become more accurately understood, not to make you easier to reduce, filter, or exploit.</p><p>Before anything is shared outside your private workspace, you should know what is being shared, why it is being shared, and who it is being shared with.</p><p><b>Privacy is not an add-on here. It is part of the foundation.</b></p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="insights"&&<><Sparkles className="modal-icon"/><h2>Discovery Insights</h2><p>These are patterns Alice is noticing as the conversation unfolds — not conclusions, not scores. You can confirm, refine, or redirect anything here.</p>{emergingThemes.length===0&&<p>Nothing has surfaced yet — keep talking with Alice and insights will start to appear here.</p>}{emergingThemes.map(theme=>{const evidence=(session.ozCapture?.evidenceItems??[]).filter(e=>theme.evidenceItemIds.includes(e.id));const band=themeSignalBand(theme.evidenceItemIds.length);return <div key={theme.id} style={{marginBottom:"18px",paddingBottom:"14px",borderBottom:"1px solid #e7eaf1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:"10px"}}><b style={{fontSize:"13px"}}>{theme.title}</b><small style={{opacity:0.7,whiteSpace:"nowrap"}}>{band.label}</small></div><p style={{margin:"6px 0"}}>{theme.description}</p>{evidence.length>0&&<div style={{fontSize:"11px",opacity:0.8}}><b>What this is based on</b><ul style={{margin:"4px 0 0",paddingLeft:"18px"}}>{evidence.map(e=><li key={e.id}>&ldquo;{e.excerpt}&rdquo;</li>)}</ul></div>}{theme.uncertaintyNotes.length>0&&<p style={{fontSize:"11px",opacity:0.65,marginTop:"6px"}}>Still uncertain: {theme.uncertaintyNotes.join(" ")}</p>}</div>;})}<button className="primary" onClick={()=>setModal(null)}>Got it</button></>}
+    {modal && <div className="modal-backdrop" onMouseDown={handleModalBackdropClick}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="modal-close" onClick={handleModalCloseClick}><X/></button>{modal==="transcript"&&<><h2>Full Transcript</h2><div className="full-transcript">{session.turns.map(t=><p key={t.id}><b>{t.role==="participant"?"You":"Alice"}</b><time>{t.timestamp}</time>{t.text}</p>)}</div><div className="modal-actions" style={{justifyContent:"flex-start"}}><button onClick={copyTranscript}><Copy/> {transcriptCopied?"Copied!":"Copy Transcript"}</button><button className="primary" onClick={exportTranscript}><Download/> Export Transcript</button></div></>}{modal==="placeholder"&&<><Lightbulb className="modal-icon"/><h2>{placeholder}</h2><p>This space is intentionally light in the Run 1 baseline.</p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="reset-profile"&&<><RefreshCcw className="modal-icon"/><h2>Reset Discovery profile?</h2><p>This starts Discovery over with a fresh conversation and clears the current Oz captures. Your theme, voice mode, and Alice Prompt Mode preferences will stay the same.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="primary" onClick={resetProfile}><RefreshCcw/> Reset Profile</button></div></>}{modal==="delete"&&<><Trash2 className="modal-icon danger"/><h2>Delete local Discovery data?</h2><p>This clears the transcript saved in this browser. This cannot be undone.</p><div className="modal-actions"><button onClick={()=>setModal(null)}>Cancel</button><button className="danger-button" onClick={clearData}>Delete My Data</button></div></>}{modal==="privacy"&&<><ShieldCheck className="modal-icon"/><h2>Privacy &amp; Trust</h2><p>Lighthouse is built around a simple principle: you should not have to surrender control of your story in order to be seen.</p><p>Your discovery profile may contain personal history, work experience, strengths, struggles, patterns, goals, and context that ordinary résumés often leave out. That kind of information deserves careful handling.</p><p>Lighthouse is designed to protect:</p><ul style={{margin:"0 0 14px",paddingLeft:"20px",fontSize:"12px",lineHeight:1.7}}><li>your privacy</li><li>your consent</li><li>your context</li><li>your right to review</li><li>your authority over representation</li><li>your ability to decide what is shared</li></ul><p>We do not treat your story as raw material to extract from you.</p><p>We do not sell your information.</p><p>We do not secretly rank you behind your back.</p><p>We do not turn your complexity into a hidden score.</p><p>The purpose of Lighthouse is to help you become more accurately understood, not to make you easier to reduce, filter, or exploit.</p><p>Before anything is shared outside your private workspace, you should know what is being shared, why it is being shared, and who it is being shared with.</p><p><b>Privacy is not an add-on here. It is part of the foundation.</b></p><button className="primary" onClick={()=>setModal(null)}>Got it</button></>}{modal==="insights"&&<><Sparkles className="modal-icon"/><h2>Discovery Insights</h2><p>These are patterns Alice is noticing as the conversation unfolds — not conclusions, not scores. You can confirm, refine, or redirect anything here.</p>{emergingThemes.length===0&&<p>Nothing has surfaced yet — keep talking with Alice and insights will start to appear here.</p>}{emergingThemes.map(theme=>{const evidence=(session.ozCapture?.evidenceItems??[]).filter(e=>theme.evidenceItemIds.includes(e.id));const band=themeSignalBand(theme.evidenceItemIds.length);return <div key={theme.id} style={{marginBottom:"18px",paddingBottom:"14px",borderBottom:"1px solid #e7eaf1"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:"10px"}}><b style={{fontSize:"13px"}}>{theme.title}</b><small style={{opacity:0.7,whiteSpace:"nowrap"}}>{band.label}</small></div><p style={{margin:"6px 0"}}>{theme.description}</p>{evidence.length>0&&<div style={{fontSize:"11px",opacity:0.8}}><b>What this is based on</b><ul style={{margin:"4px 0 0",paddingLeft:"18px"}}>{evidence.map(e=><li key={e.id}>&ldquo;{e.excerpt}&rdquo;</li>)}</ul></div>}{theme.uncertaintyNotes.length>0&&<p style={{fontSize:"11px",opacity:0.65,marginTop:"6px"}}>Still uncertain: {theme.uncertaintyNotes.join(" ")}</p>}</div>;})}<button className="primary" onClick={()=>setModal(null)}>Got it</button></>}
       {modal === "review" && (
         <div style={{ display: "grid", gap: "14px", textAlign: "left" }}>
           <h2>Review Discovery before generating a profile</h2>
@@ -889,6 +909,22 @@ export default function DiscoveryPage({ onRestart }: { onRestart: () => void }) 
             </div>
           )}
         </div>
+      )}
+      {modal === "review-exit-confirm" && (
+        <>
+          <Lightbulb className="modal-icon" />
+          <h2>Leave without finishing?</h2>
+          <p>
+            {reviewPhase === "authored"
+              ? "Your profile has been generated. From here you can download it, email it to yourself, or share feedback before you go."
+              : "You can generate a profile now from what's been discovered so far, or keep talking with Alice to add more first."}
+          </p>
+          <div className="modal-actions">
+            <button onClick={() => setModal("review")}>Back to Options</button>
+            <button onClick={() => setModal(null)}>Continue with Discovery</button>
+            <button className="danger-button" onClick={() => void handleSignOut()}><LogOut /> Sign Out</button>
+          </div>
+        </>
       )}</div></div>}
     {showTourPrompt && (
       <div
