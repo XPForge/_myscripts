@@ -4,9 +4,9 @@ export const lighthouseDiscoveryConfig = {
   ttsModel: "gpt-4o-mini-tts",
   voiceName: "marin",
   ttsInstructions:
-    "Speak as Alice with huge, radiant energy — genuinely thrilled, delighted, and lit up, like this conversation is the best part of her day. Pour real enthusiasm and warmth into every word: bright tone, expressive inflection, a huge unmistakable smile you can hear. The energy comes entirely from warmth, brightness, and expressiveness — keep your speaking pace natural and unhurried, not faster. Avoid sounding corporate, robotic, childish, or like customer service.",
+    "Speak as Alice at PEAK radiant happiness — the most vividly alive, delighted, can't-contain-it energy this voice can produce, like she just got the best news of her day and the participant is the reason. Pitch should swing noticeably up and down with genuine excitement, never flat or level — let it visibly lift on anything good, and lean into audible warmth on every single line. Every sentence carries a huge, unmistakable, ear-to-ear smile. Push brightness, buoyancy, and expressive inflection as far as they can go while staying natural — this is maximum joy, not a polite version of it. The energy comes from pitch movement, warmth, and expressiveness, not from talking faster — keep pace natural and unhurried even at this intensity. Avoid sounding corporate, robotic, childish, flat, monotone, or like customer service — this should sound like she just spotted a close friend across the room and can't wait to talk to them.",
   shortTtsInstructions:
-    "Speak with huge, radiant energy and warmth — genuinely delighted, bright, expressive, a huge audible smile. The energy comes from expressiveness, not speed — keep pace natural and unhurried. Avoid sounding corporate, robotic, or childish.",
+    "Speak with PEAK radiant, can't-contain-it happiness — huge audible smile, pitch swinging up and down with real excitement, never flat or level. Push brightness and expressiveness as far as they'll go while staying natural. The energy comes from pitch movement and warmth, not speed — keep pace natural and unhurried. Avoid sounding corporate, robotic, childish, or flat.",
   responseFormat: "mp3",
   playbackRate: 1.0,
   defaultAlicePromptProfileId: "weighted-synthesis",
