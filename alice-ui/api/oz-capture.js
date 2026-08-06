@@ -56,7 +56,7 @@ You will be given the full transcript, plus a summary of what has already been c
 Rules:
 - newEvidenceItems: only quotes not already captured. Give each a local id like "new-evidence-1", "new-evidence-2".
 - themes: only include a theme here if it's genuinely new, or an existing theme needs updating because of new evidence. Do not re-list unchanged existing themes. evidenceItemIds may reference either an existing evidence id shown below, or one of this turn's new-evidence-N ids.
-- schemaAreaMappings: always return the FULL current picture across all 10 areas (this one is not incremental) -- capabilities, constraints, preferences, motivations, environment_fit, relationships, values, decision_making, uncertainty, other. evidenceItemIds here are just rough per-area tokens, not required to resolve to real evidence ids. Use empty arrays where the transcript doesn't support a category.`;
+- schemaAreaMappings: always return the FULL current picture across all 10 areas (this one is not incremental) -- capabilities, constraints, preferences, motivations, environment_fit, relationships, values, decision_making, uncertainty, other. evidenceItemIds here MUST reference real evidence: either an existing evidence id shown below, or one of this turn's new-evidence-N ids from newEvidenceItems above. Never invent an id, and never list an area's evidenceItemIds unless a specific quote actually supports it -- an area is only "filled" once real evidence backs it, not because it was touched on in passing. If a category came up only vaguely, with no specific quote to point to yet, put a short note in \`notes\` instead of an evidenceItemIds entry. Use empty arrays/notes where the transcript doesn't support a category.`;
 
 function buildOzCaptureInstruction(previousCapture) {
   const priorEvidence = Array.isArray(previousCapture?.evidenceItems) ? previousCapture.evidenceItems : [];
@@ -94,8 +94,20 @@ function mergeCapture(previousCapture, delta) {
       return { id: globalId, excerpt: item.excerpt, sourceTurnIds: [], schemaAreas: [], uncertaintyNotes: [] };
     });
   const evidenceItems = [...priorEvidence, ...newEvidenceItems];
+  const validEvidenceIds = new Set(evidenceItems.map((item) => item.id));
 
-  const remapEvidenceIds = (ids) => (Array.isArray(ids) ? ids.map((id) => localToGlobalEvidenceId.get(id) ?? id) : []);
+  // Also drops any id that still doesn't resolve to a real evidence item
+  // after remapping (a hallucinated id, or one from a prior schema version)
+  // -- coverage/"filled" status downstream must only ever reflect evidence
+  // that genuinely exists, never Oz's raw say-so.
+  const remapEvidenceIds = (ids) => (Array.isArray(ids) ? ids.map((id) => localToGlobalEvidenceId.get(id) ?? id).filter((id) => validEvidenceIds.has(id)) : []);
+
+  const schemaAreaMappings = (Array.isArray(delta.schemaAreaMappings) ? delta.schemaAreaMappings : []).map((mapping) => ({
+    schemaArea: mapping?.schemaArea,
+    evidenceItemIds: remapEvidenceIds(mapping?.evidenceItemIds),
+    possibleSignalIds: [],
+    notes: Array.isArray(mapping?.notes) ? mapping.notes : [],
+  }));
 
   const themeById = new Map(priorThemes.map((theme) => [theme.id, theme]));
   let nextThemeNumber = priorThemes.length + 1;
@@ -113,7 +125,7 @@ function mergeCapture(previousCapture, delta) {
     });
   }
 
-  return { evidenceItems, emergingThemes: [...themeById.values()] };
+  return { evidenceItems, emergingThemes: [...themeById.values()], schemaAreaMappings };
 }
 
 function sendJson(res, status, payload) {
@@ -211,14 +223,11 @@ export default async function handler(req, res) {
       openQuestions: [],
       doNotAssumeNotes: [],
       participantConfirmationNeeded: [],
-      schemaAreaMappings: Array.isArray(capture.schemaAreaMappings)
-        ? capture.schemaAreaMappings.map((mapping) => ({
-            schemaArea: mapping?.schemaArea,
-            evidenceItemIds: Array.isArray(mapping?.evidenceItemIds) ? mapping.evidenceItemIds : [],
-            possibleSignalIds: [],
-            notes: Array.isArray(mapping?.notes) ? mapping.notes : [],
-          }))
-        : [],
+      // merged.schemaAreaMappings (not the raw model output) -- evidenceItemIds
+      // have already been resolved to real evidence ids and anything that
+      // didn't resolve has been dropped, so "filled" downstream always means
+      // genuine evidence exists, not just that Oz mentioned the area.
+      schemaAreaMappings: merged.schemaAreaMappings,
       uncertaintyNotes: [],
     });
   } catch {
